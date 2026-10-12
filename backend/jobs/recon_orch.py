@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 import json
+import ipaddress
 import os
 from pathlib import Path
 import shutil
@@ -63,11 +64,15 @@ def read_config(row):
         excluded_hosts=json.loads(row["excluded_hosts_json"]))
 
 
-def recon_env(settings, config, output, *, discovery=False):
+def recon_env(settings, config, output, *, discovery=False, skip_historical=False):
     passive = config.depth == "passive" or discovery
     # Inherited tool toggles, auth sessions, shell init and proxies must not override review.
     env = {k: v for k, v in os.environ.items() if k in {"PATH", "HOME", "SYSTEMROOT", "SystemRoot", "TMP", "TEMP", "LANG"}}
     env.update({
+        "PATH": settings.tool_search_path(),
+        "HOME": os.environ.get("HOME") or str(Path.home()),
+        "BBASM_SKIP_HISTORICAL": str(int(settings.BBASM_SKIP_HISTORICAL or skip_historical)),
+        "BBASM_HISTORICAL_TIMEOUT": str(settings.BBASM_HISTORICAL_TIMEOUT),
         "BBASM_BBROOT": str(settings.BBASM_BBROOT), "BBASM_TOOLS_SUBDIR": settings.BBASM_TOOLS_SUBDIR,
         "RECON_OUT_DIR": str(output), "SECRETS_OUT_DIR": str(output),
         "BBHUNT_DASHBOARD": "1", "BBASM_MANAGED": "1",
@@ -138,13 +143,14 @@ class ReconOrchestrator:
             self._host_list(plan, seeds)
         return plan
 
-    def _recon(self, plan, target, discovery=False, target_type=None):
+    def _recon(self, plan, target, discovery=False, target_type=None, skip_historical=False):
         script = self.settings.tool_path("recon_engine.sh")
         if not script.is_file():
             plan.warnings.append("recon_engine.sh missing; skipping")
             return None
         output = plan.root / str(len(plan.commands))
-        env = recon_env(self.settings, plan.config, output, discovery=discovery)
+        env = recon_env(self.settings, plan.config, output, discovery=discovery,
+                        skip_historical=skip_historical or target_type in {"ip", "cidr"})
         if target_type:
             env["TARGET_TYPE"] = target_type
         argv = ["bash", str(script), str(target)]
@@ -159,7 +165,13 @@ class ReconOrchestrator:
         input_dir.mkdir(parents=True, exist_ok=True)
         path = input_dir / f"hosts-{len(plan.commands)}.txt"
         path.write_text("\n".join(sorted(set(hosts))) + "\n", encoding="utf-8", newline="\n")
-        return self._recon(plan, path)
+        def is_ip(host):
+            try:
+                ipaddress.ip_address(host)
+                return True
+            except ValueError:
+                return False
+        return self._recon(plan, path, skip_historical=all(is_ip(host) for host in hosts))
 
     def _source(self, plan, resource):
         script = self.settings.tool_path("secrets_hunter.sh")
@@ -188,6 +200,6 @@ class ReconOrchestrator:
         command = self._host_list(plan, hosts) if hosts else None
         return [command] if command else []
 
-    @staticmethod
-    def missing_tools():
-        return [name for name in ("subfinder", "httpx", "nuclei", "nmap", "katana", "gau", "amass", "ffuf") if shutil.which(name) is None]
+    def missing_tools(self):
+        return [name for name in ("subfinder", "httpx", "nuclei", "nmap", "katana", "gau", "amass", "ffuf")
+                if shutil.which(name, path=self.settings.tool_search_path()) is None]

@@ -32,6 +32,7 @@ def test_tc_ro_6_passive_toggles_skip_active_commands(tmp_path):
     exec bash "$@"
     '''
     env = {**os.environ, "BBASM_SENTINEL": str(marker), "RECON_OUT_DIR": str(output),
+           "BBASM_SKIP_HISTORICAL": "1",  # This test covers active toggles, never provider traffic.
            "BBASM_SKIP_NMAP": "1", "BBASM_SKIP_HTTPX": "1",
            "BBASM_SKIP_ACTIVE_CRAWL": "1", "BBASM_SKIP_NUCLEI": "1"}
     subprocess.run(["bash", "-c", wrapper, "bbasm-test", str(script), str(targets), "--quick"], env=env, check=True, timeout=30, capture_output=True)

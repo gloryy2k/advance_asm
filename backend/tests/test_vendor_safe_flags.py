@@ -83,3 +83,72 @@ TARGET=example.com
 _bbasm_history_targets
 '''
     assert run_shell(script, tmp_path).splitlines() == ["a.example.com", "b.example.com", "example.com"]
+
+
+@pytest.mark.parametrize("hosts", ["127.0.0.1", "::1", "192.0.2.0/24", "127.0.0.1\n::1"])
+def test_historical_ip_list_never_calls_provider(tmp_path, hosts):
+    (tmp_path / "hosts.txt").write_text(hosts + "\n", encoding="utf-8")
+    script = shell_function("recon_engine.sh", "_bbasm_history_targets") + "\n"
+    script += shell_function("recon_engine.sh", "_bbasm_collect_history") + '''
+RECON_DIR=.
+TARGET_TYPE=list
+LIST_FILE=hosts.txt
+log_warn() { echo "$*"; }
+gau() { echo unexpected > called; }
+curl() { echo unexpected > called; }
+_bbasm_collect_history
+test ! -f called
+'''
+    assert "no domain targets" in run_shell(script, tmp_path)
+
+
+def test_historical_mixed_list_filters_ips_and_bounds_gau(tmp_path):
+    (tmp_path / "hosts.txt").write_text("127.0.0.1\n::1\n192.0.2.0/24\na.example.com\n", encoding="utf-8")
+    script = shell_function("recon_engine.sh", "_bbasm_history_targets") + "\n"
+    script += shell_function("recon_engine.sh", "_bbasm_collect_history") + '''
+mkdir -p bin urls
+cat > bin/timeout <<'SH'
+#!/bin/bash
+printf '%s\\n' "$*" > timeout_args
+cat > provider_input
+echo partial-output
+exit 124
+SH
+chmod +x bin/timeout
+PATH="$PWD/bin:$PATH"
+gau() { :; }
+RECON_DIR=.
+TARGET_TYPE=list
+LIST_FILE=hosts.txt
+BBASM_HISTORICAL_TIMEOUT=7
+log_warn() { echo "$*"; }
+log_step() { :; }
+_bbasm_collect_history
+cat timeout_args provider_input urls/gau.txt
+'''
+    output = run_shell(script, tmp_path)
+    assert "-k 5 7 gau --threads 20" in output
+    assert "a.example.com" in output
+    assert "127.0.0.1" not in output and "::1" not in output and "192.0.2" not in output
+    assert "partial-output" in output
+    assert "timed out" in output
+
+
+def test_historical_wayback_uses_remaining_budget(tmp_path):
+    script = shell_function("recon_engine.sh", "_bbasm_history_targets") + "\n"
+    script += shell_function("recon_engine.sh", "_bbasm_collect_history") + '''
+mkdir urls
+RECON_DIR=.
+TARGET_TYPE=domain
+TARGET=example.com
+BBASM_HISTORICAL_TIMEOUT=9
+log_warn() { :; }
+# Make provider selection independent of host-installed tools.
+command() { if [ "$*" = "-v gau" ]; then return 1; else builtin command "$@"; fi; }
+curl() { printf '%s\\n' "$*"; }
+_bbasm_collect_history
+cat urls/wayback.txt
+'''
+    output = run_shell(script, tmp_path)
+    assert re.search(r"--max-time [1-9] ", output)
+    assert "url=*.example.com/*" in output

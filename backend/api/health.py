@@ -24,6 +24,6 @@ class HealthResponse(BaseModel):
 @router.get("/health", response_model=HealthResponse)
 def health(request: Request) -> HealthResponse:
     settings = request.app.state.settings
-    tools = {name: shutil.which(name) is not None for name in EXECUTABLES}
+    tools = {name: shutil.which(name, path=settings.tool_search_path()) is not None for name in EXECUTABLES}
     tools.update({name: settings.tool_path(name).is_file() for name in FRAMEWORK_FILES})
     return HealthResponse(ok=True, tools=tools)

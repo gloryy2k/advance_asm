@@ -8,6 +8,28 @@ from backend.models import ResolveRequest
 from backend.tests.p2_helpers import environment, write_output
 
 
+@pytest.mark.parametrize("scope,skip", [
+    (["127.0.0.1"], "1"), (["::1"], "1"), (["192.0.2.0/30"], "1"),
+    (["a.example.com"], "0"), (["*.example.com"], "0"),
+    (["a.example.com", "127.0.0.1"], "0"),
+])
+def test_historical_ip_cidr_and_domain_mapping(settings, scope, skip):
+    db, _, result = environment(settings, scope)
+    plan = ReconOrchestrator(settings, db).build(result.scan_id)
+    assert plan.commands
+    assert all(c.env["BBASM_SKIP_HISTORICAL"] == skip for c in plan.commands)
+    assert all(c.env["BBASM_HISTORICAL_TIMEOUT"] == "60" for c in plan.commands)
+
+
+def test_historical_operator_override(settings):
+    settings.BBASM_SKIP_HISTORICAL = True
+    settings.BBASM_HISTORICAL_TIMEOUT = 12
+    db, _, result = environment(settings)
+    command = ReconOrchestrator(settings, db).build(result.scan_id).commands[0]
+    assert command.env["BBASM_SKIP_HISTORICAL"] == "1"
+    assert command.env["BBASM_HISTORICAL_TIMEOUT"] == "12"
+
+
 @pytest.mark.parametrize("enabled", [True, False])
 def test_safe_environment_toggles(settings, enabled):
     keys = ("BBASM_NO_INTERACTSH", "BBASM_NO_REDIRECT", "BBASM_SCOPE_CRAWL", "BBASM_NO_VERIFY")

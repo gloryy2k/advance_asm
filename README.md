@@ -107,6 +107,10 @@ chạy subprocess; `BBASM_RECON_DISABLED=1` chặn launch. Runtime cần Linux/W
 và bộ tool đã cài; unit test trên Windows dùng process giả.
 Các ENV `BBASM_NO_INTERACTSH`, `BBASM_NO_REDIRECT`, `BBASM_SCOPE_CRAWL`,
 `BBASM_NO_VERIFY` mặc định `1`; chỉnh `.env` và restart backend để đổi.
+Historical bỏ qua IP/CIDR (kể cả IP trong list hỗn hợp). Domain có budget
+`BBASM_HISTORICAL_TIMEOUT=60` giây; `BBASM_SKIP_HISTORICAL=1` tắt toàn bộ bước này.
+Health và runner cùng tìm tool trong `~/go/bin`, PATH hiện tại và các thư mục
+Homebrew/local của Linux/macOS; health vẫn chỉ kiểm tra executable, không chạy tool.
 Audit ghi quyết định scope và khởi chạy, **không ghi từng request nội bộ của tool**
 và không phải network isolation. Output nằm ở
 `targets/<slug>/recon/scans/<scan_id>/<step>/` để tránh trộn scan/ingest dữ liệu cũ.
@@ -131,7 +135,7 @@ advance_asm/
 ├── docker-compose.yml  Dockerfile  entrypoint.sh   # (sẽ tạo khi build)
 ├── backend/                   # FastAPI, DB, scope resolver/gate (P0–P1)
 ├── frontend/                  # Khung thư mục; React/Vite ở P6
-├── vendor/claude-bug-bounty/  # submodule @9cb6954 (toggle patch trên nền @32131c1)
+├── vendor/claude-bug-bounty/  # submodule @7acb66a (toggle patch trên nền @32131c1)
 ├── targets/                   # output per-target (gitignore)
 └── data/bbasm.db              # SQLite (gitignore)
 ```

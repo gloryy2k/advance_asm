@@ -1,6 +1,7 @@
 """Validated environment settings; constructing settings performs no I/O writes."""
 
 from pathlib import Path
+import os
 from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator
@@ -30,6 +31,8 @@ class Settings(BaseSettings):
     BBASM_NO_REDIRECT: bool = True
     BBASM_SCOPE_CRAWL: bool = True
     BBASM_NO_VERIFY: bool = True
+    BBASM_SKIP_HISTORICAL: bool = False
+    BBASM_HISTORICAL_TIMEOUT: int = Field(default=60, ge=1, le=300)
     BBASM_SCAN_TIMEOUT_PASSIVE: int = Field(default=300, ge=1)
     BBASM_SCAN_TIMEOUT_LIGHT: int = Field(default=900, ge=1)
     BBASM_SCAN_TIMEOUT_STRONG: int = Field(default=2700, ge=1)
@@ -66,6 +69,14 @@ class Settings(BaseSettings):
         if not name or name in {".", ".."} or any(c in name for c in "/\\:"):
             raise ValueError("tool name must be a filename")
         return self.tools_dir / name
+
+    def tool_search_path(self) -> str:
+        """Match the vendored recon PATH without changing the server environment."""
+        home = Path(os.environ.get("HOME") or Path.home())
+        extra = [str(home / "go" / "bin")]
+        if os.name != "nt":
+            extra.extend(["/opt/homebrew/bin", "/usr/local/bin"])
+        return os.pathsep.join([*extra, os.environ.get("PATH", "")])
 
     def scan_timeout(self, depth: Literal["passive", "light", "strong"]) -> int:
         return {

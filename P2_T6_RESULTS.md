@@ -54,3 +54,20 @@
 - `dnsx`/`katana` thiếu thật trên máy test → DNS/active-crawl bị skip (fail-soft đúng), không phải lỗi.
 - Không scan target thật của bên thứ ba trong quá trình validate. Cần chạy lại với một domain in-scope thật (có live host) để xác nhận nhánh httpx-live → nuclei → findings; nhưng pipeline end-to-end đã được chứng minh.
 - Sau khi fix F1/F2: chạy lại `pytest -m "not integration"` + `pytest -m integration`, và 1 scan `light` để xác nhận thời gian giảm và health đúng.
+
+## Follow-up F1/F2 — code đã sửa, chưa đo lại trên Kali
+
+- IP/CIDR không query historical; list hỗn hợp lọc IP trước khi gọi provider.
+- Domain dùng budget 60 giây mặc định (`BBASM_HISTORICAL_TIMEOUT`), gau không
+  retry vô hạn; Wayback dùng thời gian còn lại của cùng budget. Có thể tắt toàn
+  bộ bằng `BBASM_SKIP_HISTORICAL=1`.
+- Health/runner cùng effective PATH, gồm `~/go/bin` và các thư mục POSIX mà
+  recon_engine prepend. Unit kiểm tra binary giả trong Go bin được health nhận ra.
+- Post-fix unit: **124 passed, 3 deselected**; `bash -n` đạt.
+- **Chưa chạy lại integration/scan light:** máy sửa code là Windows, thiếu recon
+  tools, chỉ có distro WSL docker-desktop và daemon Docker không chạy. Số ~4m39s
+  ở trên vẫn là kết quả trước sửa. Chưa có số đo thời gian sau sửa.
+- Trên Kali: pull `build/p2-runner`, `git submodule update --init --recursive`,
+  chạy lại hai nhóm pytest rồi resolve một scan mới `127.0.0.1`, depth light.
+  Ghi thời gian, status, audit, log "Historical collection skipped (BBASM)" và
+  `/api/health` (gau phải true khi binary executable nằm trong `~/go/bin`).

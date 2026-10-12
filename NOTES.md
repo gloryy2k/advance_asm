@@ -33,6 +33,32 @@ that confirmation. No target traffic or real-tool integration tests have been ru
 
 ## P2 completion (T1–T5)
 
+### T6 follow-up: F1/F2
+
+- F1 vendor commit: 7acb66a, pushed to build/bbasm-depth-toggles; parent pointer
+  updated in this follow-up. Fork and tools/ layout remain unchanged.
+
+- Read P2_T6_RESULTS.md at parent b67cb84. The earlier Kali validation belongs to
+  5efda86/9cb6954; its ~4m39s runtime is a baseline, not a measurement of this fix.
+- F1: IP-only lists and CIDR commands receive BBASM_SKIP_HISTORICAL=1. The
+  vendored helper also filters IPv4/IPv6/CIDR from mixed lists before any provider
+  call. Domains retain historical collection unless the operator disables it.
+- BBASM_HISTORICAL_TIMEOUT defaults to 60 seconds (validated 1..300). gau runs
+  once under a real GNU timeout with a 5-second kill grace, preserving partial
+  output; no unbounded retry. Without timeout/gtimeout, gau is skipped with a
+  warning. Wayback uses curl --max-time against a shared phase deadline.
+- F2: health, runner warnings and subprocess ENV share Settings.tool_search_path:
+  HOME/go/bin, then /opt/homebrew/bin and /usr/local/bin on POSIX, then PATH.
+  Health remains read-only and does not validate tool identity/version.
+- Unit validation: 124 passed, 3 deselected; one upstream deprecation warning.
+  Bash syntax and git diff --check passed. Tests cover IP/CIDR skipping, mixed
+  lists, timeout flags/partial output, bounded fallback, and Go-bin discovery.
+- No post-fix real scan or integration run here: Windows host has no recon tools;
+  WSL lists only docker-desktop and Docker Linux daemon is unavailable. Repeat
+  T6 on the original Kali host before claiming a measured runtime improvement.
+
+### T1–T5 implementation record
+
 - Default AuditedEgress records allow/audited_spawn before process creation, with
   scan ID and resource. BBASM_RECON_DISABLED=1 selects deny-before-spawn.
 - ENV-only settings default to 1: BBASM_NO_INTERACTSH, BBASM_NO_REDIRECT,
