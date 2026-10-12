@@ -1,0 +1,6 @@
+# Optional only: current runner uses nmap -sT and does not require these caps.
+services:
+  bbasm:
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN

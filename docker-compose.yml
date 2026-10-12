@@ -1,0 +1,14 @@
+services:
+  bbasm:
+    build: .
+    init: true
+    ports:
+      - "127.0.0.1:${BBASM_PORT:-8000}:${BBASM_PORT:-8000}"
+    env_file: .env
+    environment:
+      BBASM_BIND: 0.0.0.0
+      BBASM_STATIC: /app/backend/static
+    volumes:
+      - ./data:/app/data
+      - ./targets:/app/targets
+    restart: unless-stopped

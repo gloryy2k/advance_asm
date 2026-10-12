@@ -61,6 +61,23 @@ Earlier pending-T6 notes below are historical. P3 implementation follows §15.
 
 ### Historical P3 details
 
+## P7 — Docker/runtime
+
+- Added multistage frontend/Go tools/Python image, localhost-published Compose,
+  volume persistence, startup migration, bounded audited template refresh and
+  optional subfinder/capability overrides. Default nmap remains -sT without caps.
+- Reviewed vendor install_tools.sh: it attempts Homebrew bootstrap, unsuitable
+  for a root Debian build. A Linux container install adapter compiles the same
+  tools at pinned Go-proxy versions; recon itself remains the untouched fork.
+  Trufflehog builds inside its tagged source module to honor replace directives.
+- Tool versions were resolved against proxy.golang.org, but **Docker compilation
+  and real tool CLI compatibility are not validated here**. Docker daemon is not
+  running; per task instructions no Docker build was attempted. This is a P8
+  acceptance item for Kali/Docker, not a claim that the image has been built.
+- Unit gate: 162 passed, 3 integration deselected. Shell syntax checks passed.
+
+### Earlier ASM details
+
 - Implemented diff_engine, ranking, framework monitors and persistent scheduling.
   Runner captures a durable pre-ingest baseline, runs gated monitors inside the
   same timeout/process-group/audit boundary, ingests results, then diffs/ranks.

@@ -1,0 +1,8 @@
+# Use with --env-file .env and set SUBFINDER_CONFIG_DIR to an existing host folder.
+services:
+  bbasm:
+    volumes:
+      - type: bind
+        source: ${SUBFINDER_CONFIG_DIR:?Set SUBFINDER_CONFIG_DIR to an existing directory}
+        target: /root/.config/subfinder
+        read_only: true

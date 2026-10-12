@@ -4,7 +4,7 @@ Bug Bounty **Attack Surface Management** dashboard — tăng tốc & khử-token
 
 Web dashboard (FastAPI + React, đóng Docker) ngồi trên framework recon (`claude-bug-bounty`, vendored submodule). Nhập **HackerOne handle/URL** hoặc **raw scope** → **review config** → recon (depth tùy chỉnh) → ranked attack surface + diff theo thời gian → sinh `PROGRAM.md` + `AGENT_BRIEF.md` để Claude agent `cd` vào hunt với ~0 token setup.
 
-> 🚧 **Trạng thái: P2 đã được xác nhận trên Kali; P3 ASM core đã triển khai và có unit test.** Chưa có UI hoặc Docker runtime. Nguồn chuẩn là **[`BUILD_SPEC.md`](./BUILD_SPEC.md)**; kết quả P2 ở [`P2_T6_RESULTS.md`](./P2_T6_RESULTS.md), tiến độ ở [`NOTES.md`](./NOTES.md).
+> **Trạng thái:** backend, dashboard và cấu hình Docker đã triển khai. P2 đã được xác nhận trên Kali; các phase sau có unit test. **Docker build và acceptance với recon thật chưa chạy trong môi trường triển khai này.** Nguồn chuẩn: [`BUILD_SPEC.md`](./BUILD_SPEC.md); kết quả/giới hạn: [`NOTES.md`](./NOTES.md).
 
 ---
 
@@ -25,7 +25,7 @@ Web dashboard (FastAPI + React, đóng Docker) ngồi trên framework recon (`cl
 
 ---
 
-## Quickstart (sau khi code xong)
+## Quickstart Docker (cần validation trên máy chủ)
 
 ```bash
 # 1. Clone KÈM submodule (bắt buộc)
@@ -70,7 +70,7 @@ source .venv/bin/activate  # PowerShell: .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python -m backend.main
 # GET http://127.0.0.1:8000/api/health
-# Frontend sẽ được triển khai ở P6.
+# Dashboard: build frontend trước, hoặc chạy Vite dev server bên dưới.
 ```
 
 Dev local có thể bỏ `.env`: mặc định dùng framework trong `vendor/`, cùng `data/`
@@ -82,6 +82,29 @@ cho đúng máy. ENV của process ưu tiên hơn `.env`. `python -m backend.mai
 Health trả `ok: true` khi API hoạt động, kể cả khi thiếu tool; xem từng boolean
 trong `tools`. Đây là kiểm tra executable trong PATH và file framework tồn tại,
 không chạy tool hay xác minh phiên bản (đặc biệt tên `httpx` có thể trùng CLI Python).
+
+Frontend yêu cầu Node **>=22.12**:
+
+```bash
+cd frontend
+npm ci
+npm run dev     # http://127.0.0.1:5173; proxy API/WS tới backend :8000
+# hoặc npm run build, rồi restart backend để serve frontend/dist
+npm test
+```
+
+UI: New scan → nhập raw scope/H1 → Resolve & review → sửa config, chọn category,
+bỏ host → Launch. Target có Surface/Assets/Diff/Findings/Brief/Program; phần
+Program chỉ lưu vùng user-editable. Export ZIP có checkbox Include raw recon.
+Monitoring dùng config đã lưu và tự launch theo lịch; lịch sống qua restart.
+Chạy **một backend process**, không bật nhiều uvicorn workers cùng database.
+
+Docker dùng nmap connect-scan `-sT`, mặc định không thêm capabilities. Nếu cần cấp
+capabilities cho công cụ khác, dùng override `docker-compose.capabilities.yml`.
+Subfinder config là mount optional: đặt `SUBFINDER_CONFIG_DIR` tới thư mục host có
+sẵn và thêm `-f docker-compose.subfinder.yml`. Không cần mount để chạy mặc định.
+`BBASM_UPDATE_TEMPLATES=0` bỏ refresh templates lúc khởi động. Không sửa bind
+localhost của published port nếu chưa chủ động muốn expose dashboard không có auth.
 
 P1: `POST /api/scope/resolve` nhận `{"input":"raw","scope":["*.example.com"]}`
 hoặc `{"input":"h1:<handle>"}` / URL HackerOne `/policy_scopes`. Kết quả có
