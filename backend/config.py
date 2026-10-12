@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     BB_RATE_LIMIT: int = Field(default=150, ge=1, le=500)
     BBASM_DEFAULT_DEPTH: Literal["passive", "light", "strong"] = "light"
     BBASM_MAX_CONCURRENT_SCANS: int = Field(default=2, ge=1)
+    BBASM_RECON_DISABLED: bool = False
+    BBASM_NO_INTERACTSH: bool = True
+    BBASM_NO_REDIRECT: bool = True
+    BBASM_SCOPE_CRAWL: bool = True
+    BBASM_NO_VERIFY: bool = True
     BBASM_SCAN_TIMEOUT_PASSIVE: int = Field(default=300, ge=1)
     BBASM_SCAN_TIMEOUT_LIGHT: int = Field(default=900, ge=1)
     BBASM_SCAN_TIMEOUT_STRONG: int = Field(default=2700, ge=1)

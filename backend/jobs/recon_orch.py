@@ -16,17 +16,20 @@ class EgressUnavailable(RuntimeError):
     pass
 
 
-class ClosedEgress:
-    """No bypass ENV: fail closed until a reviewed tool egress boundary exists.
-
-    Input filtering cannot constrain tool redirects, DNS, nuclei callbacks or secret
-    verification. A future boundary must enforce and audit all of them before spawn.
-    Tests inject an in-memory process factory; production never claims this is enforced.
-    """
+class AuditedEgress:
+    """Audit approved command launches; this is not network isolation."""
 
     def check(self, plan, command):
-        audit(plan.audit_path, command.category, "deny", "egress_boundary_unavailable", scan_id=plan.scan_id)
-        raise EgressUnavailable("Live recon disabled: per-request outbound enforcement is not implemented")
+        audit(plan.audit_path, command.category, "allow", "audited_spawn",
+              scan_id=plan.scan_id, resource=command.resource)
+
+
+class ClosedEgress:
+    """Operator kill switch: deny tool launches before creating a process."""
+
+    def check(self, plan, command):
+        audit(plan.audit_path, command.category, "deny", "recon_disabled", scan_id=plan.scan_id)
+        raise EgressUnavailable("Live recon disabled: BBASM_RECON_DISABLED is enabled")
 
 
 @dataclass
@@ -82,6 +85,8 @@ def recon_env(settings, config, output, *, discovery=False):
     for key in ("CHAOS_KEY", "GITHUB_TOKEN"):
         if getattr(settings, key).get_secret_value():
             env[key] = getattr(settings, key).get_secret_value()
+    for key in ("BBASM_NO_INTERACTSH", "BBASM_NO_REDIRECT", "BBASM_SCOPE_CRAWL", "BBASM_NO_VERIFY"):
+        env[key] = str(int(getattr(settings, key)))
     return env
 
 
@@ -145,7 +150,7 @@ class ReconOrchestrator:
         argv = ["bash", str(script), str(target)]
         if discovery or plan.config.depth != "strong":
             argv.append("--quick")
-        command = Command(argv, env, output)
+        command = Command(argv, env, output, resource=str(target))
         plan.commands.append(command)
         return command
 
@@ -162,7 +167,7 @@ class ReconOrchestrator:
             plan.warnings.append("secrets_hunter.sh missing; skipping source_code")
             return
         if plan.config.depth == "passive":
-            plan.warnings.append("source_code remains manual at passive depth; pinned scanner verifies live keys")
+            plan.warnings.append("source_code remains manual at passive depth; repository fetching requires active depth")
             return
         url = resource.removeprefix("repo:")
         path = urlsplit(url).path.strip("/")

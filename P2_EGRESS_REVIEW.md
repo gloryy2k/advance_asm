@@ -1,4 +1,13 @@
-# P2 remaining decision: enforce tool outbound scope before enabling live execution
+# Optional future hardening — Docker network layer (§13/§24)
+
+This proposal is NOT a P2 requirement. The approved decision in
+P2_COMPLETION_PLAN.md supersedes the historical proposal below. P2 T1–T5 use
+audited-spawn plus safe default tool toggles; BBASM_RECON_DISABLED=1 is an
+operator kill switch. Unit validation passed; real-tool validation T6 is pending.
+Spawn auditing is not per-request auditing or network isolation. A future Docker
+boundary remains optional work, not a blocker for P2 launches.
+
+## Historical analysis (superseded; preserved for reference)
 
 P2's queue, command planning, process-group teardown, replay and ingestion have unit
 tests. Live recon is deliberately disabled by `ClosedEgress`; there is no ENV bypass.

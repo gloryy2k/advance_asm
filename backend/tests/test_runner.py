@@ -130,7 +130,8 @@ def test_process_group_term_then_kill_even_if_parent_exited(monkeypatch):
     asyncio.run(scenario())
 
 
-def test_default_runner_refuses_live_egress_without_spawning(settings):
+def test_disabled_runner_refuses_live_egress_without_spawning(settings):
+    settings.BBASM_RECON_DISABLED = True
     async def scenario():
         db, _, result = environment(settings)
         factory = AsyncMock()
@@ -142,6 +143,30 @@ def test_default_runner_refuses_live_egress_without_spawning(settings):
             row = runner.status(result.scan_id)
             assert row["status"] == "failed"
             assert "Live recon disabled" in row["error"]
+        finally:
+            await runner.close()
+    asyncio.run(scenario())
+
+
+def test_default_runner_audits_before_spawn_and_completes(settings):
+    async def scenario():
+        db, _, result = environment(settings)
+        observed = []
+
+        async def factory(command):
+            records = [json.loads(line) for path in settings.BBASM_TARGETS.rglob("audit.jsonl")
+                       for line in path.read_text().splitlines()]
+            assert any(r["rule"] == "audited_spawn" and r["decision"] == "allow"
+                       and r["scan_id"] == result.scan_id and r["resource"] == command.resource for r in records)
+            observed.append(runner.status(result.scan_id)["status"])
+            return FakeProcess()
+
+        runner = JobRunner(settings, db, process_factory=factory, stopper=stop_fake)
+        try:
+            await runner.submit(result.scan_id)
+            await runner.queue.join()
+            assert observed == ["running"]
+            assert runner.status(result.scan_id)["status"] == "done"
         finally:
             await runner.close()
     asyncio.run(scenario())

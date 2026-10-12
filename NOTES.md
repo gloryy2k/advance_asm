@@ -26,9 +26,39 @@
 
 ## Phase boundary
 
-P0 and P1 are implemented. P2 runner/orchestration/ingest are implemented and unit
-tested, but P2 is NOT complete: live tool outbound enforcement remains unresolved.
-See P2_EGRESS_REVIEW.md. No target traffic or real-tool integration tests have been run.
+P0/P1 and P2 implementation T1–T5 are complete. P2_COMPLETION_PLAN.md supersedes
+the earlier egress-blocking decision preserved below. T6 real-tool integration and
+an authorized light smoke scan await the user on Kali/Linux; T7 PR/merge is pending
+that confirmation. No target traffic or real-tool integration tests have been run.
+
+## P2 completion (T1–T5)
+
+- Default AuditedEgress records allow/audited_spawn before process creation, with
+  scan ID and resource. BBASM_RECON_DISABLED=1 selects deny-before-spawn.
+- ENV-only settings default to 1: BBASM_NO_INTERACTSH, BBASM_NO_REDIRECT,
+  BBASM_SCOPE_CRAWL, BBASM_NO_VERIFY. No database migration is needed. Restart
+  the backend after changing settings. Setting a toggle to 0 restores that behavior.
+- Minimal vendor patch also touches secrets_hunter.sh as authorized by T2:
+  committed and pushed as 9cb6954 on build/bbasm-depth-toggles in the same fork.
+  --no-verification replaces --only-verified, retaining unverified candidates.
+  Recon uses nuclei -no-interactsh, omits httpx redirect following, and supplies
+  katana -field-scope fqdn and -disable-redirects by default.
+- Historical list queries now use actual input hosts (gau and Wayback fallback),
+  not the list basename. Inputs remain isolated at targets/<slug>/.inputs/<scan_id>/;
+  outputs remain recon/scans/<scan_id>/<step>/. Some vendor helpers retain fixed
+  concurrency; BB_THREADS/BB_RATE_LIMIT are not a global per-request limiter.
+- Audit covers scope checks and command launches, not every internal tool request.
+  Toggles reduce secondary traffic; they do not implement a network boundary.
+  Optional hardening analysis remains in P2_EGRESS_REVIEW.md.
+- Actual pinned scope-checker interface is ScopeChecker.is_in_scope(); spec §3.3
+  uses in_scope(). The adapter already uses the real interface; spec left unchanged.
+- Validation: pytest -m "not integration": **110 passed, 3 deselected**, one
+  upstream Starlette/AnyIO deprecation warning. New shell unit tests execute only
+  extracted helper functions with fake tools; they skip when Bash is unavailable.
+  bash -n passed for both changed scripts. No recon, Docker build or integration run.
+- User validation T6: run pytest -m integration on Kali/Linux, then a light scan
+  against an explicitly permitted target; verify done, audit record and scan output.
+  This is required before treating real runtime behavior as validated and preparing T7.
 
 ## P0 validation
 

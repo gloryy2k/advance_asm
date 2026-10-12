@@ -4,7 +4,7 @@ Bug Bounty **Attack Surface Management** dashboard — tăng tốc & khử-token
 
 Web dashboard (FastAPI + React, đóng Docker) ngồi trên framework recon (`claude-bug-bounty`, vendored submodule). Nhập **HackerOne handle/URL** hoặc **raw scope** → **review config** → recon (depth tùy chỉnh) → ranked attack surface + diff theo thời gian → sinh `PROGRAM.md` + `AGENT_BRIEF.md` để Claude agent `cd` vào hunt với ~0 token setup.
 
-> 🚧 **Trạng thái: P2 đang triển khai — runner/orchestration/ingest đã có unit test; recon thật bị chặn do chưa có lớp kiểm soát outbound.** Chưa có UI hoặc Docker runtime. Nguồn chuẩn là **[`BUILD_SPEC.md`](./BUILD_SPEC.md)**; xem [`P2_EGRESS_REVIEW.md`](./P2_EGRESS_REVIEW.md) cho yêu cầu còn thiếu và [`NOTES.md`](./NOTES.md) cho tiến độ.
+> 🚧 **Trạng thái: P2 đã hoàn tất code và unit test theo T1–T5; chờ người dùng xác nhận integration/smoke test T6 trên Kali/Linux.** Chưa có UI hoặc Docker runtime. Nguồn chuẩn là **[`BUILD_SPEC.md`](./BUILD_SPEC.md)**; quyết định P2 ở [`P2_COMPLETION_PLAN.md`](./P2_COMPLETION_PLAN.md), kết quả ở [`NOTES.md`](./NOTES.md).
 
 ---
 
@@ -102,9 +102,13 @@ API H1 lỗi/thiếu token thì fallback public dump; metadata không rõ scope 
 P2 bổ sung `GET/PUT /api/scans/{id}/config`, `POST /api/scans/{id}/launch` (body `{}`
 để dùng config đã lưu hoặc `{"config":...}`), `GET /api/scans/{id}`,
 `POST /api/scans/{id}/cancel` và `/ws/scan/{id}?after=<event-id>`.
-Config chỉ sửa được ở draft. Launch mặc định **không chạy tool thật**: runner trả
-`failed` kèm lỗi outbound enforcement chưa triển khai; không có flag bỏ qua chặn này.
-Test runner dùng process giả trong bộ nhớ. Output dự kiến nằm ở
+Config chỉ sửa được ở draft. Launch mặc định ghi `allow/audited_spawn` trước khi
+chạy subprocess; `BBASM_RECON_DISABLED=1` chặn launch. Runtime cần Linux/WSL2
+và bộ tool đã cài; unit test trên Windows dùng process giả.
+Các ENV `BBASM_NO_INTERACTSH`, `BBASM_NO_REDIRECT`, `BBASM_SCOPE_CRAWL`,
+`BBASM_NO_VERIFY` mặc định `1`; chỉnh `.env` và restart backend để đổi.
+Audit ghi quyết định scope và khởi chạy, **không ghi từng request nội bộ của tool**
+và không phải network isolation. Output nằm ở
 `targets/<slug>/recon/scans/<scan_id>/<step>/` để tránh trộn scan/ingest dữ liệu cũ.
 
 Chạy test (unit — không cần tool recon thật):
@@ -127,7 +131,7 @@ advance_asm/
 ├── docker-compose.yml  Dockerfile  entrypoint.sh   # (sẽ tạo khi build)
 ├── backend/                   # FastAPI, DB, scope resolver/gate (P0–P1)
 ├── frontend/                  # Khung thư mục; React/Vite ở P6
-├── vendor/claude-bug-bounty/  # submodule @d8bd795 (toggle patch trên nền @32131c1)
+├── vendor/claude-bug-bounty/  # submodule @9cb6954 (toggle patch trên nền @32131c1)
 ├── targets/                   # output per-target (gitignore)
 └── data/bbasm.db              # SQLite (gitignore)
 ```
@@ -136,7 +140,7 @@ advance_asm/
 
 ## An toàn & phạm vi
 
-Chỉ scan target **trong scope** bạn cung cấp — dashboard có scope gate chặn cứng (wildcard + IP/CIDR), audit mọi outbound. Không tự khai thác / submit / spray. `strong` depth (nmap/ffuf) chỉ dùng khi scope cho phép active scan.
+Chỉ scan target **trong scope** bạn cung cấp — dashboard lọc seed/discovery qua scope gate (wildcard + IP/CIDR), audit scope và khởi chạy tool. Các request nội bộ của tool không được audit/chặn từng request. Không tự khai thác / submit / spray. `strong` depth (nmap/ffuf) chỉ dùng khi scope cho phép active scan.
 
 ## License / nguồn
 

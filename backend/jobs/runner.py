@@ -7,7 +7,7 @@ import os
 import signal
 
 from backend.db import utc_now
-from backend.jobs.recon_orch import ClosedEgress, ReconOrchestrator, read_config
+from backend.jobs.recon_orch import AuditedEgress, ClosedEgress, ReconOrchestrator, read_config
 from backend.jobs.scope_resolver import ScopeError
 from backend.log_buffer import LogBuffer, ReconLogParser
 from backend.scope_gate import audit, normalize_pattern
@@ -54,7 +54,7 @@ class JobRunner:
                  egress=None, orchestrator=None, ingester=None):
         self.settings, self.database = settings, database
         self.process_factory, self.stopper = process_factory, stopper
-        self.egress = egress or ClosedEgress()
+        self.egress = egress if egress is not None else (ClosedEgress() if settings.BBASM_RECON_DISABLED else AuditedEgress())
         self.orchestrator = orchestrator or ReconOrchestrator(settings, database)
         if ingester is None:
             from backend.jobs.ingest import Ingester

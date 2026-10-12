@@ -8,6 +8,17 @@ from backend.models import ResolveRequest
 from backend.tests.p2_helpers import environment, write_output
 
 
+@pytest.mark.parametrize("enabled", [True, False])
+def test_safe_environment_toggles(settings, enabled):
+    keys = ("BBASM_NO_INTERACTSH", "BBASM_NO_REDIRECT", "BBASM_SCOPE_CRAWL", "BBASM_NO_VERIFY")
+    for key in keys:
+        assert getattr(settings, key) is True
+        setattr(settings, key, enabled)
+    db, _, result = environment(settings)
+    command = ReconOrchestrator(settings, db).build(result.scan_id).commands[0]
+    assert all(command.env[key] == str(int(enabled)) for key in keys)
+
+
 @pytest.mark.parametrize("depth,quick,nmap,httpx,crawl,nuclei", [
     ("passive", True, "1", "1", "1", "1"),
     ("light", True, "1", "0", "0", "0"),
