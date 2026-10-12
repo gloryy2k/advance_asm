@@ -21,6 +21,10 @@
 - **[M1–M9]** rải rác: ingest idempotent, slug collision, severity enum, DB index, brief size chốt ≤12KB, passive degraded, health test, invalid-depth 422, schema version.
 - **[§15]** +6 bước checklist. **[§16]** +13 test case.
 
+### 📌 CHANGELOG v2 → v2.1
+- **[§10.1 + API + §16]** Thêm tính năng **Export ZIP** cấu trúc folder `targets/<slug>/` (+ `MANIFEST.json`) + 6 test TC-EXP-*.
+- **[§21 mới]** Ghi chú build bằng agent không-phải-Claude (Codex): fork submodule, tách unit/integration test, không phụ thuộc Claude skills lúc build.
+
 ---
 
 ## 0. TL;DR cho agent triển khai
@@ -274,6 +278,7 @@ CREATE TABLE schedule (             -- [H1] continuous monitoring persist
 | `GET /api/programs/{slug}/diff` | Diff | `?scan_id=` |
 | `GET /api/programs/{slug}/findings` | findings | `?type=&severity=` |
 | `POST/GET /api/programs/{slug}/brief` | Regen / lấy brief | GET trả `text/markdown` |
+| `GET /api/programs/{slug}/export` | **Export ZIP folder** | `?include_recon=true` (default) → `application/zip`, stream (§10.1) |
 | `POST /api/programs/{slug}/schedule` | Bật monitoring | `{interval,depth,enabled}` → ghi bảng `schedule` |
 | `GET /api/health` | healthcheck | `{ok, tools:{subfinder:true,...}}` [M7] |
 
@@ -352,6 +357,33 @@ if [ "${BBASM_SKIP_NUCLEI:-0}" = "1" ]; then log_warn "nuclei skipped (BBASM)"; 
 
 ## 10. SCAFFOLD PER-TARGET FOLDER (`brief/generator.py`)
 Như v1: tạo (idempotent) `AGENT_BRIEF.md`, `CLAUDE.md`, `.scope`, `recon/`, `findings/ reports/ notes/`, `audit.jsonl`. Regenerate brief/CLAUDE.md/.scope mỗi scan; KHÔNG đụng `findings/ notes/` người dùng.
+
+### 10.1 EXPORT ZIP — đóng gói cấu trúc folder [tính năng theo yêu cầu user]
+
+> Mục đích: scan xong, user tải 1 file `.zip` chứa **nguyên cấu trúc `targets/<slug>/`** như lúc dashboard scaffold — bung ra là có folder sẵn-sàng để `cd && claude` trên máy khác, hoặc đưa cho agent khác. Bổ sung cho Docker portability (tool) bằng portability của **output**.
+
+**Endpoint:** `GET /api/programs/{slug}/export?include_recon=true` → `Content-Type: application/zip`, `Content-Disposition: attachment; filename="bbasm-<slug>-scan<scan_id>-<YYYYMMDD>.zip"`.
+
+**Nội dung zip (root = `<slug>/` để giải nén ra đúng folder):**
+```
+<slug>/
+  AGENT_BRIEF.md   CLAUDE.md   .scope   audit.jsonl
+  findings/  reports/  notes/
+  recon/                      # chỉ khi include_recon=true (default)
+  MANIFEST.json               # [mới] metadata để agent/máy khác hiểu ngay
+```
+`MANIFEST.json` chứa: `{slug, source, handle, scan_id, depth, generated_at, stats:{subs,live,urls,findings}, scope:{in:[...wildcard...], out:[...]}, bbasm_version}`.
+
+**Standard:**
+- **Stream** zip (`zipfile.ZipFile` trên `StreamingResponse`/tạm file), KHÔNG nạp hết vào RAM — `recon/` có thể vài trăm MB.
+- `include_recon=false` → bỏ `recon/` (zip gọn, chỉ brief + scope + findings), dùng khi chỉ cần bàn giao brief.
+- Loại trừ file rác: `.DS_Store`, `*.tmp`, lock files. KHÔNG kèm secret của hệ thống (chỉ đóng gói nội dung trong `targets/<slug>/`).
+- Giải nén ra PHẢI có cấu trúc **giống hệt** §10 (verify bằng test).
+- Hoạt động cả khi scan là `done_partial` (đóng gói phần đang có).
+
+**UI:** nút **"Export ZIP"** trên Target page (tab Overview/Brief), kèm checkbox "Include raw recon (lớn hơn)". Click → tải file.
+
+**Test:** TC-EXP-* (§16).
 
 ---
 
@@ -458,7 +490,7 @@ CHAOS_KEY=  GITHUB_TOKEN=  H1_USER=  H1_TOKEN=
   - *Test:* TC-RO-*, TC-RUN-*, TC-IN-*.
 - **P3 — ASM core (1.5 ngày)** 12. diff_engine 13. ranking 14. monitors 15. scheduler(persist).
   - *Test:* TC-DF-*, TC-RK-*, TC-MN-*, TC-SCH-*.
-- **P4 — Brief + scaffold (1 ngày)** 16. generator+templates 17. API brief. — *Test:* TC-BR-*.
+- **P4 — Brief + scaffold + export (1 ngày)** 16. generator+templates 17. API brief 17b. **export ZIP** (§10.1) + MANIFEST.json. — *Test:* TC-BR-*, TC-EXP-*.
 - **P5 — API đầy đủ + WS (1 ngày)** 18. mọi endpoint §7 + WS replay. — *Test:* TC-API-*.
 - **P6 — Frontend (2 ngày)** 19. pages+components+states 20. build static serve. — *Test:* TC-FE-*.
 - **P7 — Docker + portability (1 ngày)** 21. **[K2]** `entrypoint.sh` (migrate+update-templates+load schedules) 22. Dockerfile+compose(cap,bind) 23. README. — *Test:* TC-DK-*.
@@ -498,6 +530,9 @@ CHAOS_KEY=  GITHUB_TOKEN=  H1_USER=  H1_TOKEN=
 ### Brief + scaffold
 - TC-BR-1 seed 30 asset/5 nuclei/2 takeover→brief đủ section, **bytes<12000**. · TC-BR-2 top table≤25, số liệu khớp DB. · TC-BR-3 SCOPE in cả wildcard pattern. · TC-BR-4 scaffold 2 lần→`notes/` không bị xoá. · TC-BR-5 grep không còn `{{`/`TODO`. · **TC-BR-6** depth=passive→brief có dòng cảnh báo degraded.
 
+### Export ZIP **[mới]**
+- **TC-EXP-1** export → zip có `<slug>/AGENT_BRIEF.md`, `CLAUDE.md`, `.scope`, `MANIFEST.json` ở đúng cây. · **TC-EXP-2** `include_recon=false` → zip KHÔNG có `recon/`. · **TC-EXP-3** `MANIFEST.json` parse được, field khớp DB (scan_id, depth, stats, wildcard scope). · **TC-EXP-4** recon lớn (giả lập file ~200MB) → stream, memory ổn định (không OOM). · **TC-EXP-5** giải nén zip → cấu trúc **giống hệt** §10 (so cây thư mục). · **TC-EXP-6** scan `done_partial` → vẫn export được phần đang có.
+
 ### API
 - TC-API-1 POST hợp lệ→200; thiếu depth→422. · **TC-API-1b** depth lạ ("deep")→**422** [M8]. · TC-API-2 GET scan running→running. · TC-API-3 surface?limit=10→≤10 sort rank desc. · TC-API-4 WS ≥1 `phase`+1 `done`. · TC-API-5 cancel→cancelled + process chết.
 
@@ -516,6 +551,7 @@ CHAOS_KEY=  GITHUB_TOKEN=  H1_USER=  H1_TOKEN=
 3. ✅ Raw scope (domain + CIDR) → scan chạy, scope gate chặn host ngoài list, **subdomain khớp wildcard được allow**.
 4. ✅ Portfolio + Surface(ranked+lý do) + Diff(NEW sau scan 2).
 5. ✅ `AGENT_BRIEF.md` ≤12KB, đủ section, số liệu thật, có wildcard scope. `cd && claude` đủ để hunt (agent không cần đọc lại recon để biết scope+surface).
+5b. ✅ **Export ZIP**: tải được zip, giải nén ra folder `<slug>/` giống hệt §10; `include_recon=false` cho zip gọn; có `MANIFEST.json`.
 6. ✅ Monitoring bật được & persist qua restart; re-scan tạo diff_event.
 7. ✅ JS/secret + takeover ra finding khi có.
 8. ✅ `pytest -q` pass; coverage lõi ≥90%; CI xanh.
@@ -537,4 +573,22 @@ CHAOS_KEY=  GITHUB_TOKEN=  H1_USER=  H1_TOKEN=
 Không spawn agent / full-auto · không BC/IT/YWH/IMF ở UI · không multi-user/auth (local 1 người) · không viết lại recon (chỉ orchestrate + patch tối thiểu).
 
 ## 20. BÀN GIAO
-Trong `bbasm/`: `README.md` (build/run docker+dev, thêm target, cd chạy agent), kết quả `pytest`+coverage, demo GIF (optional), ghi chú lệch spec + lý do. Quyết định ngoài spec → **hỏi** `vinhtqk5@gmail.com`, không đoán.
+Trong `bbasm/`: `README.md` (build/run docker+dev, thêm target, cd chạy agent, **export ZIP**), kết quả `pytest`+coverage, demo GIF (optional), ghi chú lệch spec + lý do. Quyết định ngoài spec → **hỏi** `vinhtqk5@gmail.com`, không đoán.
+
+---
+
+## 21. GHI CHÚ KHI DÙNG AGENT KHÔNG-PHẢI-CLAUDE (vd Codex) ĐỂ BUILD
+
+Repo này build được bằng agent bất kỳ (code là FastAPI/React/SQLite/Docker chuẩn), nhưng lưu ý:
+
+1. **Submodule phải trỏ fork mình sở hữu.** `claude-bug-bounty` gốc là `shuvonsec/claude-bug-bounty` (bên thứ ba). Vì §8.2 **patch `recon_engine.sh`**, phải **fork về tài khoản của bạn** (`gloryy2k/claude-bug-bounty`) rồi:
+   ```
+   git submodule add https://github.com/gloryy2k/claude-bug-bounty.git vendor/claude-bug-bounty
+   ```
+   Agent commit patch vào fork này. (Nếu không fork → vendor 1 bản copy vào `vendor/` và bỏ submodule.)
+2. **Tách UNIT vs INTEGRATION test.** Sandbox Codex thường **không có** subfinder/nuclei/httpx/amass và **không có mạng** → chỉ chạy được unit test (scope_gate, diff, ranking, brief, runner-mock, export, API-mock). Các test cần tool/mạng thật — **integration/e2e** — đánh dấu `@pytest.mark.integration` và chỉ chạy trên Kali/Docker của bạn:
+   - Integration: TC-RO-6 (patch recon_engine thật), TC-MN-* (tool thật), TC-DK-*, TC-FE-6 (e2e example.com), mọi test "scan thật".
+   - Unit (chạy mọi nơi): phần còn lại.
+   CI (K3) chạy `pytest -m "not integration"`; acceptance (§17) chạy full trên máy có tool.
+3. **Không cần Claude skills để build.** `AGENT_BRIEF.md`/`CLAUDE.md` nhắc `/bug-bounty`,`/hunt`... là *output cho giai đoạn hunt* (chạy bằng Claude Code sau này), không phải phụ thuộc lúc build.
+4. **Tool recon trong Docker:** agent dựa vào `install_tools.sh` của framework để cài Go tools lúc build image — cần mạng ở build stage.
