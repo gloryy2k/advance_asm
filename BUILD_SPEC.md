@@ -25,6 +25,14 @@
 - **[§10.1 + API + §16]** Thêm tính năng **Export ZIP** cấu trúc folder `targets/<slug>/` (+ `MANIFEST.json`) + 6 test TC-EXP-*.
 - **[§21 mới]** Ghi chú build bằng agent không-phải-Claude (Codex): fork submodule, tách unit/integration test, không phụ thuộc Claude skills lúc build.
 
+### 📌 CHANGELOG v2.1 → v2.2 — **xem §22 (chi tiết, SUPERSEDE phần tương ứng ở §7/§8)**
+- **[§22.1]** Scan 2 pha: **resolve → REVIEW CONFIG → launch**. Recon KHÔNG chạy ngay; thêm `scan_run.status=draft` + bảng `scan_config`. User chỉnh rate limit/thread/timeout/scope/toggle trước khi chạy.
+- **[§22.2]** Luồng xử lý input H1 URL / `/policy_scopes` / raw — từng bước.
+- **[§22.3]** Scope **cross-platform**: phân loại `asset_type` (web/wildcard/cidr/**source_code**/**mobile**/other) + routing khác nhau (source_code→secrets/git, mobile→manual). Thêm cột `asset.category`.
+- **[§22.4]** Nơi lưu instruction: **`PROGRAM.md`** (bền, không ghi đè) + `AGENT_BRIEF.md` (tái sinh) + DB. Agent đọc cả hai.
+- **[§22.5]** Schema/API/UI/test/checklist deltas.
+- **[§21]** Submodule chốt: `gloryy2k/claude-bug-bounty` (bản `tools/` đang chạy, pin @32131c1) — vì upstream `awarexone/Agentic-Bug-Hunter` đã đổi sang layout `bughunter/`, không còn `tools/recon_engine.sh`.
+
 ---
 
 ## 0. TL;DR cho agent triển khai
@@ -267,7 +275,9 @@ CREATE TABLE schedule (             -- [H1] continuous monitoring persist
 
 | Method & Path | Mục đích | Ghi chú |
 |---|---|---|
-| `POST /api/scans` | Tạo scan | body `{input, scope?[], depth}`; depth∈{passive,light,strong} else **422** [M8] |
+| `POST /api/scope/resolve` | **Pha 1**: resolve+phân loại scope, tạo draft | body `{input, scope?[]}` → `{scan_id, config, assets_by_category}` (§22) |
+| `POST /api/scans/{id}/launch` | **Pha 2→3**: chốt config đã duyệt & chạy | body `{config}` (§22.5) |
+| `POST /api/scans` | *(giữ cho auto)* one-shot resolve+launch | body `{input, scope?[], depth, config?}`; depth lạ → **422** [M8]. **Luồng chuẩn dùng resolve→launch (§22.1)** |
 | `GET /api/scans/{id}` | Trạng thái | status∈queued/running/done/done_partial/failed/cancelled |
 | `POST /api/scans/{id}/cancel` | Huỷ | kill process group (§8.5) |
 | `WS /ws/scan/{id}` | Log realtime | **replay buffer** khi reconnect (§8.5); events `phase`/`log`/`done` |
@@ -581,14 +591,121 @@ Trong `bbasm/`: `README.md` (build/run docker+dev, thêm target, cd chạy agent
 
 Repo này build được bằng agent bất kỳ (code là FastAPI/React/SQLite/Docker chuẩn), nhưng lưu ý:
 
-1. **Submodule phải trỏ fork mình sở hữu.** `claude-bug-bounty` gốc là `shuvonsec/claude-bug-bounty` (bên thứ ba). Vì §8.2 **patch `recon_engine.sh`**, phải **fork về tài khoản của bạn** (`gloryy2k/claude-bug-bounty`) rồi:
+1. **Submodule đã chốt (ĐÃ LÀM):** `vendor/claude-bug-bounty` → `https://github.com/gloryy2k/claude-bug-bounty.git`, **pin @32131c1** (bản layout `tools/` đang chạy thật trên máy Kali).
    ```
-   git submodule add https://github.com/gloryy2k/claude-bug-bounty.git vendor/claude-bug-bounty
+   git submodule update --init          # clone về khi mới checkout advance_asm
    ```
-   Agent commit patch vào fork này. (Nếu không fork → vendor 1 bản copy vào `vendor/` và bỏ submodule.)
+   ⚠️ KHÔNG đổi sang upstream `awarexone/Agentic-Bug-Hunter` — upstream đã restructure sang package `bughunter/`, KHÔNG còn `tools/recon_engine.sh` mà spec này tham chiếu. Giữ đúng bản pin.
+   Vì §8.2 **patch `recon_engine.sh`**, agent commit patch vào submodule này rồi `git push` lên `gloryy2k/claude-bug-bounty`, sau đó bump con trỏ submodule trong `advance_asm`.
 2. **Tách UNIT vs INTEGRATION test.** Sandbox Codex thường **không có** subfinder/nuclei/httpx/amass và **không có mạng** → chỉ chạy được unit test (scope_gate, diff, ranking, brief, runner-mock, export, API-mock). Các test cần tool/mạng thật — **integration/e2e** — đánh dấu `@pytest.mark.integration` và chỉ chạy trên Kali/Docker của bạn:
    - Integration: TC-RO-6 (patch recon_engine thật), TC-MN-* (tool thật), TC-DK-*, TC-FE-6 (e2e example.com), mọi test "scan thật".
    - Unit (chạy mọi nơi): phần còn lại.
    CI (K3) chạy `pytest -m "not integration"`; acceptance (§17) chạy full trên máy có tool.
 3. **Không cần Claude skills để build.** `AGENT_BRIEF.md`/`CLAUDE.md` nhắc `/bug-bounty`,`/hunt`... là *output cho giai đoạn hunt* (chạy bằng Claude Code sau này), không phải phụ thuộc lúc build.
 4. **Tool recon trong Docker:** agent dựa vào `install_tools.sh` của framework để cài Go tools lúc build image — cần mạng ở build stage.
+
+---
+
+## 22. LUỒNG CHI TIẾT & YÊU CẦU BỔ SUNG (v2.2)
+
+> Mục này **chi tiết hoá & SUPERSEDE** phần scan-flow đơn giản ở §7/§8. Trả lời 4 yêu cầu: (1) xử lý input, (2) nơi lưu instruction, (3) scope cross-platform, (4) bước review config trước recon.
+
+### 22.1 SCAN LIFECYCLE — 2 pha, có REVIEW CONFIG
+
+Recon **KHÔNG** chạy ngay khi submit. Vòng đời `scan_run.status`:
+```
+draft ──(launch)──> queued ──> running ──> done | done_partial | failed | cancelled
+                                   └─(cancel)─> cancelled
+```
+**Pha 1 — RESOLVE (nhanh, không chạm target):** `POST /api/scope/resolve {input, scope?[]}`
+→ parse input (§22.2) → pull/parse scope → **phân loại asset_type** (§22.3) → tạo `program` (nếu mới) + `scan_run(status=draft)` + `scan_config` mặc định (từ ENV default) → trả `{scan_id, config, assets_by_category}`.
+
+**Pha 2 — REVIEW CONFIG (UI):** user xem & sửa config draft:
+- `depth` (passive/light/strong)
+- `threads` (BB_THREADS), `rate_limit` (BB_RATE_LIMIT), `scan_timeout`
+- `nuclei_severity`, các toggle `skip_nmap/skip_nuclei/skip_active_crawl`
+- **bật/tắt từng nhóm asset** (web/api/source_code/mobile/ip) — nhóm tắt thì không recon
+- danh sách scope đã phân loại: **bỏ bớt** host/entry không muốn test
+- cảnh báo nếu depth=strong (ồn ào)
+
+**Pha 3 — LAUNCH:** `POST /api/scans/{id}/launch {config}` → validate config (threads/rate_limit trong khoảng cho phép) → `status=queued` → JobRunner chạy (§8.5) theo config đã duyệt → ingest → diff → rank.
+
+**Pha 4 — BRIEF:** sinh folder + `PROGRAM.md` (§22.4, lần đầu) + `AGENT_BRIEF.md`.
+
+> **Standard:** config có giới hạn an toàn (vd threads ≤ 200, rate_limit ≤ 500) — validate ở launch, 422 nếu vượt. Draft chưa launch có thể xoá/ghi đè.
+
+### 22.2 XỬ LÝ INPUT (từng bước)
+
+**HackerOne** — nhận 3 dạng: `h1:<handle>` · `https://hackerone.com/<program>` · `https://hackerone.com/<program>/policy_scopes`:
+1. Chuẩn hoá → `<handle>`.
+2. `scope_aggregator.sh <handle> --platform h1 --include-oos --out <tmp>` → list entry (giữ wildcard).
+3. (Nếu có `H1_TOKEN`) gọi API `/<handle>/policy_scopes` lấy thêm `asset_type`, `instruction`, `eligible_for_submission` mỗi asset → lưu để dựng `PROGRAM.md`. Fail-soft nếu không có token.
+4. Lưu `program(source=h1, handle, policy_json)` + `scope_rule` (in/out, kèm asset_type).
+
+**Raw scope** — `input=="raw"`, `scope[]` = list dòng text (hoặc upload file, server đọc nội dung). Mỗi dòng: domain / wildcard / IP / CIDR / `repo:<github-url>` / `app:<store-id>` → phân loại (§22.3). Không có policy → `PROGRAM.md` tạo khung tối thiểu cho user điền.
+
+### 22.3 SCOPE CROSS-PLATFORM — phân loại & routing
+
+Thêm cột **`asset.category`** và `scope_rule.asset_type`. Phân loại (ưu tiên dùng H1 asset_type nếu có, else suy luận):
+
+| category | nguồn / nhận dạng | Routing khi recon |
+|---|---|---|
+| `web` | URL, domain | `recon_engine.sh` (subdomain enum nếu wildcard) |
+| `wildcard` | `*.x.com` | `recon_engine.sh` enum |
+| `cidr`/`ip` | CIDR/IP, H1 `CIDR` | `recon_engine.sh` list/CIDR mode |
+| `source_code` | H1 `SOURCE_CODE`, `repo:<github>` | `secrets_hunter.sh --github-org/--git`, trufflehog, cicd scan → finding type=secret/cicd; asset type=repo. KHÔNG httpx/nuclei. |
+| `mobile` | H1 `GOOGLE_PLAY_APP_ID`/`APPLE_STORE_APP_ID`, `app:<id>` | **Manual** — không auto-recon (cần APK/IPA). Ghi vào PROGRAM.md + brief, gắn skill `mobile-pentest`. |
+| `other` | còn lại | liệt kê, đánh dấu manual. |
+
+- `recon_orch.py` lặp theo category **đang bật**, gọi tool tương ứng, ingest vào cùng DB (asset.category để UI lọc/nhóm).
+- Scope gate áp cho mọi category có outbound (web/ip/source_code→github host).
+
+### 22.4 NƠI LƯU INSTRUCTION (agent đọc & dùng)
+
+Trong `targets/<slug>/`:
+
+| File | Vòng đời | Nội dung |
+|---|---|---|
+| **`PROGRAM.md`** | **Bền** — sinh lần scan đầu, **KHÔNG ghi đè** sau đó (có marker `<!-- user-editable -->` giữ phần user thêm) | Instruction cấp program: tóm tắt policy, scope theo category, asset mobile/source cần làm tay, rule đặc biệt, auth/credentials note, OOS, severity guideline của program. Nguồn: `policy_json` + phân loại scope. |
+| **`AGENT_BRIEF.md`** | Tái sinh mỗi scan (≤12KB) | Trạng thái hunt: số liệu, top surface ranked, asset mới, signals (§9). |
+| `CLAUDE.md` | Tái sinh | "Đọc `PROGRAM.md` rồi `AGENT_BRIEF.md` trước. Scope `.scope`..." |
+| `.scope` | Tái sinh | allowlist (wildcard) + OOS. |
+| DB `program.policy_json` | Bền | Bản gốc để dashboard hiển thị + export MANIFEST. |
+
+Agent flow: `cd targets/<slug> && claude` → `CLAUDE.md` chỉ sang `PROGRAM.md` (hiểu luật chơi + category) → `AGENT_BRIEF.md` (hunt gì ngay). Cả `PROGRAM.md` + `AGENT_BRIEF.md` nằm trong ZIP export (§10.1) + liệt kê trong `MANIFEST.json`.
+
+### 22.5 SCHEMA / API / UI / TEST / CHECKLIST DELTAS
+
+**Schema (bổ sung §6):**
+```sql
+ALTER-equivalent (thêm vào schema.sql):
+  program.policy_json TEXT;                       -- raw policy + per-asset instruction
+  asset.category TEXT;                            -- web|wildcard|ip|cidr|source_code|mobile|other
+  scope_rule.asset_type giữ như §6 (đã có).
+
+CREATE TABLE scan_config (
+  id INTEGER PRIMARY KEY,
+  scan_run_id INTEGER UNIQUE REFERENCES scan_run(id),
+  depth TEXT, threads INTEGER, rate_limit INTEGER, scan_timeout INTEGER,
+  nuclei_severity TEXT, skip_nmap INTEGER, skip_nuclei INTEGER, skip_active_crawl INTEGER,
+  categories_enabled_json TEXT,                   -- ["web","source_code"]
+  excluded_hosts_json TEXT,                       -- user bỏ bớt ở review
+  created_at TEXT
+);
+```
+
+**API (bổ sung §7):** `POST /api/scope/resolve`, `POST /api/scans/{id}/launch`, `GET/PUT /api/scans/{id}/config` (lấy/sửa draft config).
+
+**UI (bổ sung §11):** page **ReviewConfig** (`/scan/:id/review`) giữa ScanNew và log: form config + bảng assets_by_category có checkbox bật/tắt nhóm & bỏ host; nút "Launch scan". Target page thêm tab/panel hiển thị `PROGRAM.md` (render + nút Edit lưu lại phần user-editable).
+
+**Test (bổ sung §16):**
+- **TC-LC-1** resolve → `scan_run.status=draft`, chưa có process recon chạy. · **TC-LC-2** launch với threads>200 → 422. · **TC-LC-3** category `source_code` tắt → recon bỏ qua repo, không gọi secrets_hunter. · **TC-LC-4** sửa config draft rồi launch → recon dùng đúng threads/rate_limit đã sửa.
+- **TC-CAT-1** H1 scope có `SOURCE_CODE` + `GOOGLE_PLAY_APP_ID` → phân loại category source_code/mobile đúng. · **TC-CAT-2** `source_code` route tới secrets_hunter (mock), KHÔNG tới recon_engine httpx. · **TC-CAT-3** `mobile` → không auto-recon, có mục trong PROGRAM.md + brief đánh dấu manual.
+- **TC-PRG-1** scan đầu sinh `PROGRAM.md` với policy + category. · **TC-PRG-2** scan lần 2 **KHÔNG ghi đè** PROGRAM.md (phần user-editable giữ nguyên). · **TC-PRG-3** `PROGRAM.md` + `AGENT_BRIEF.md` có trong ZIP export + liệt kê trong MANIFEST.
+
+**Checklist (bổ sung §15):** P1 thêm `scan_config` + phân loại asset_type/category; P2 thêm routing theo category trong recon_orch; P4 thêm sinh `PROGRAM.md` (bền); P5 thêm resolve/launch/config endpoints; P6 thêm page ReviewConfig + panel PROGRAM.md.
+
+**Acceptance (bổ sung §17):**
+- ✅ Submit input → ra **màn review config**, recon chưa chạy; sửa threads/rate_limit/bỏ host rồi Launch → recon chạy đúng thông số.
+- ✅ Scope có source_code/mobile → phân loại & route đúng; mobile đánh dấu manual.
+- ✅ `PROGRAM.md` sinh ra, không bị ghi đè ở scan sau, có trong ZIP; agent đọc PROGRAM.md + AGENT_BRIEF.md là đủ ngữ cảnh.
