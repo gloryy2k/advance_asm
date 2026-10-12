@@ -1,0 +1,78 @@
+name: CI
+
+# Chạy UNIT test (không cần tool recon / mạng). Integration/e2e (subfinder,
+# nuclei, httpx, Docker...) đánh dấu @pytest.mark.integration và chạy trên
+# Kali/Linux của bạn, KHÔNG chạy ở đây. Xem §16/§21 BUILD_SPEC.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (kèm submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend deps
+        run: |
+          if [ -f backend/requirements.txt ]; then
+            python -m pip install --upgrade pip
+            pip install -r backend/requirements.txt
+          else
+            echo "backend/requirements.txt chưa có — bỏ qua (giai đoạn spec)."
+          fi
+          pip install pytest
+
+      - name: Run unit tests (bỏ integration)
+        run: |
+          if [ -d backend/tests ]; then
+            pytest backend/tests -m "not integration" -q
+          else
+            echo "backend/tests chưa có — bỏ qua (giai đoạn spec)."
+          fi
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build frontend
+        run: |
+          if [ -f frontend/package.json ]; then
+            cd frontend
+            npm ci
+            npm run build
+          else
+            echo "frontend/ chưa có — bỏ qua (giai đoạn spec)."
+          fi
+
+  lint-shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Kiểm CRLF trong *.sh (chống lỗi Windows build — §24)
+        run: |
+          if grep -rIl $'\r' --include='*.sh' . ; then
+            echo "::error::Phát hiện CRLF trong *.sh — phải là LF (xem .gitattributes)."
+            exit 1
+          fi
+          echo "OK: không có *.sh nào dính CRLF."
