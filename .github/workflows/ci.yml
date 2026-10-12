@@ -6,7 +6,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'build/**']
   pull_request:
     branches: [main]
 
@@ -26,21 +26,10 @@ jobs:
 
       - name: Install backend deps
         run: |
-          if [ -f backend/requirements.txt ]; then
-            python -m pip install --upgrade pip
-            pip install -r backend/requirements.txt
-          else
-            echo "backend/requirements.txt chưa có — bỏ qua (giai đoạn spec)."
-          fi
-          pip install pytest
+          python -m pip install -r requirements.txt
 
       - name: Run unit tests (bỏ integration)
-        run: |
-          if [ -d backend/tests ]; then
-            pytest backend/tests -m "not integration" -q
-          else
-            echo "backend/tests chưa có — bỏ qua (giai đoạn spec)."
-          fi
+        run: pytest -m "not integration"
 
   frontend-build:
     runs-on: ubuntu-latest

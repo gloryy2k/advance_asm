@@ -4,7 +4,7 @@ Bug Bounty **Attack Surface Management** dashboard — tăng tốc & khử-token
 
 Web dashboard (FastAPI + React, đóng Docker) ngồi trên framework recon (`claude-bug-bounty`, vendored submodule). Nhập **HackerOne handle/URL** hoặc **raw scope** → **review config** → recon (depth tùy chỉnh) → ranked attack surface + diff theo thời gian → sinh `PROGRAM.md` + `AGENT_BRIEF.md` để Claude agent `cd` vào hunt với ~0 token setup.
 
-> 🚧 **Trạng thái: GIAI ĐOẠN SPEC** — chưa có code backend/frontend. Bản thiết kế thi công đầy đủ (kiến trúc, schema, API, build phases, ~70 test case) ở **[`BUILD_SPEC.md`](./BUILD_SPEC.md)**. README này mô tả sản phẩm *khi đã build xong*.
+> 🚧 **Trạng thái: P0 — khung backend + config + health.** Chưa có scan, DB, UI hoặc Docker runtime. Nguồn chuẩn là **[`BUILD_SPEC.md`](./BUILD_SPEC.md)**; các luồng sản phẩm bên dưới mô tả kết quả sau P8. Xem [`NOTES.md`](./NOTES.md) để biết phạm vi đã triển khai.
 
 ---
 
@@ -64,15 +64,28 @@ claude                   # agent đọc PROGRAM.md + AGENT_BRIEF.md → hunt nga
 ## Phát triển (dev, không Docker)
 
 ```bash
-# backend
-cd backend && pip install -r requirements.txt && uvicorn main:app --reload
-# frontend
-cd frontend && npm install && npm run dev
+# Chạy từ root repo, Python >= 3.11
+python -m venv .venv
+source .venv/bin/activate  # PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python -m backend.main
+# GET http://127.0.0.1:8000/api/health
+# Frontend sẽ được triển khai ở P6.
 ```
+
+Dev local có thể bỏ `.env`: mặc định dùng framework trong `vendor/`, cùng `data/`
+và `targets/` tại root repo. `.env.example` dùng đường dẫn dành cho container;
+nếu copy sang `.env` để dev local, sửa `BBASM_BBROOT`, `BBASM_DATA`, `BBASM_TARGETS`
+cho đúng máy. ENV của process ưu tiên hơn `.env`. `python -m backend.main` đọc
+`BBASM_BIND`/`BBASM_PORT` (mặc định `127.0.0.1:8000`).
+
+Health trả `ok: true` khi API hoạt động, kể cả khi thiếu tool; xem từng boolean
+trong `tools`. Đây là kiểm tra executable trong PATH và file framework tồn tại,
+không chạy tool hay xác minh phiên bản (đặc biệt tên `httpx` có thể trùng CLI Python).
 
 Chạy test (unit — không cần tool recon thật):
 ```bash
-cd backend && pytest -m "not integration"
+pytest -m "not integration"
 ```
 Integration/e2e (cần subfinder/nuclei/httpx… + Docker) chạy trên Kali/Linux:
 ```bash
