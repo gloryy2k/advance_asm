@@ -30,6 +30,21 @@ Earlier pending-T6 notes below are historical. P3 implementation follows §15.
 
 ### P3 implementation details
 
+## P5 — API completion
+
+- Added portfolio sorted by NEW count, program detail/scans/scope/schedule,
+  assets/surface filtering and stable rank ordering, diff and finding filters,
+  schedule control and explicit-depth one-shot scan API. Canonical UI flow remains
+  resolve → review → launch. Existing WS replay/config/cancel endpoints are reused.
+- List APIs use bounded limits and parameterized SQL. Missing program uses the
+  existing structured 422 ScopeError contract. Schedule config is optional; without
+  it the selected depth's defaults are captured when enabling monitoring.
+- Unit gate: 159 passed, 3 integration deselected. No real target traffic.
+- P4's first push encountered GitHub DNS resolution failure; local commit retained
+  and push retried with P5. No implementation was lost.
+
+### Earlier P3 notes
+
 - Implemented diff_engine, ranking, framework monitors and persistent scheduling.
   Runner captures a durable pre-ingest baseline, runs gated monitors inside the
   same timeout/process-group/audit boundary, ingests results, then diffs/ranks.

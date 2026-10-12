@@ -5,9 +5,33 @@ import asyncio
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 
 from backend.models import LaunchRequest, ScanConfig
+from backend.models import ResolveRequest
+from backend.jobs.scope_resolver import default_config
+from pydantic import BaseModel
+from typing import Literal
 from backend.jobs.scope_resolver import ScopeError
 
 router = APIRouter()
+
+
+class AutoScanRequest(BaseModel):
+    input: str
+    scope: list[str] = []
+    depth: Literal["passive", "light", "strong"]
+    config: ScanConfig | None = None
+
+
+@router.post("/api/scans")
+async def auto_scan(body: AutoScanRequest, request: Request):
+    state = request.app.state
+    if body.config and body.depth != body.config.depth:
+        raise ScopeError("depth must match config.depth")
+    await asyncio.to_thread(state.database.migrate)
+    result = await asyncio.to_thread(state.scope_resolver.resolve, ResolveRequest(input=body.input, scope=body.scope))
+    config = body.config or default_config(state.settings.model_copy(update={"BBASM_DEFAULT_DEPTH": body.depth}),
+        [entry for group in result.assets_by_category.values() for entry in group])
+    await state.runner.submit(result.scan_id, config)
+    return {"scan_id": result.scan_id, "slug": result.slug, "status": "queued"}
 
 
 @router.get("/api/scans/{scan_id}")
