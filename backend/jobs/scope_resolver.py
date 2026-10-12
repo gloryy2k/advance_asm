@@ -1,0 +1,213 @@
+"""Two-phase scope resolution: classification and draft persistence only."""
+
+from collections import defaultdict
+import hashlib
+import ipaddress
+import json
+import re
+from urllib.parse import urlsplit
+
+from backend.config import Settings
+from backend.db import Database, utc_now
+from backend.models import ResolveRequest, ResolveResponse, ScanConfig, ScopeEntry
+from backend.scope_gate import audit, normalize_host, normalize_pattern
+
+
+class ScopeError(ValueError):
+    def __init__(self, message: str, code: str = "invalid_scope"):
+        super().__init__(message)
+        self.code = code
+
+
+def h1_handle(value: str) -> str:
+    value = value.strip()
+    if value.lower().startswith("h1:"):
+        handle = value[3:]
+    else:
+        try:
+            url = urlsplit(value)
+            if (url.scheme != "https" or url.netloc.lower() != "hackerone.com"
+                    or url.query or url.fragment):
+                raise ValueError
+            parts = url.path.strip("/").split("/")
+            if len(parts) not in (1, 2) or len(parts) == 2 and parts[1] != "policy_scopes":
+                raise ValueError
+            handle = parts[0]
+        except ValueError:
+            raise ScopeError("Expected h1:<handle>, HackerOne program URL, or raw") from None
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,99}", handle):
+        raise ScopeError("Invalid HackerOne handle")
+    return handle.lower()
+
+
+def classify(value: str, kind="in", asset_type: str | None = None, instruction="") -> ScopeEntry:
+    value = value.strip()
+    if not value or len(value) > 4096 or any(ord(c) < 32 for c in value):
+        raise ScopeError("Empty, oversized or multiline scope entry")
+    declared = (asset_type or "").upper()
+    try:
+        if declared == "SOURCE_CODE" or value.startswith("repo:"):
+            repo = value.removeprefix("repo:")
+            url = urlsplit(repo)
+            # Keep resource scope, never grant all of github.com for one repository.
+            if (url.scheme != "https" or url.netloc.lower() != "github.com"
+                    or url.query or url.fragment or not re.fullmatch(r"/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?/?", url.path)
+                    or any(p in {".", ".."} for p in url.path.split("/"))):
+                raise ValueError("source code scope must be a GitHub organization or repository URL")
+            pattern, category, inferred = "repo:https://github.com" + url.path.rstrip("/"), "source_code", "SOURCE_CODE"
+        elif declared in {"GOOGLE_PLAY_APP_ID", "APPLE_STORE_APP_ID", "ANDROID", "IOS"} or value.startswith("app:"):
+            pattern, category, inferred = value, "mobile", "mobile"
+        elif declared and declared not in {"URL", "DOMAIN", "WILDCARD", "IP", "IP_ADDRESS", "CIDR", "WEB"}:
+            pattern, category, inferred = value, "other", "other"
+        else:
+            try:
+                addr = ipaddress.ip_address(value)
+            except ValueError:
+                addr = None
+            if addr is not None:
+                pattern, category, inferred = str(addr), "ip", "ip"
+            elif "/" in value and "://" not in value:
+                pattern, category, inferred = str(ipaddress.ip_network(value, strict=True)), "cidr", "cidr"
+            elif value.startswith("*."):
+                pattern, category, inferred = normalize_pattern(value), "wildcard", "wildcard"
+            elif value.startswith(("http://", "https://")):
+                normalize_host(value)
+                pattern, category, inferred = value, "web", "url"
+            elif "." in value:
+                pattern, category, inferred = normalize_host(value), "web", "domain"
+            else:
+                pattern, category, inferred = value, "other", "other"
+    except (ValueError, UnicodeError) as exc:
+        raise ScopeError(f"Invalid scope entry: {value}") from exc
+    return ScopeEntry(pattern=pattern, kind=kind, asset_type=asset_type or inferred,
+                      category=category, instruction=instruction)
+
+
+def raw_entries(lines: list[str]) -> list[ScopeEntry]:
+    entries = []
+    kind = "in"
+    for value in lines:
+        value = value.strip()
+        if value.upper() in {"# IN", "# OUT"}:
+            kind = value[2:].lower()
+        elif value and not value.startswith("#"):
+            entries.append(classify(value, kind))
+    return deduplicate(entries)
+
+
+def deduplicate(entries: list[ScopeEntry]) -> list[ScopeEntry]:
+    return list({(entry.pattern, entry.kind): entry for entry in entries}.values())
+
+
+def default_config(settings: Settings, entries: list[ScopeEntry]) -> ScanConfig:
+    depth = settings.BBASM_DEFAULT_DEPTH
+    return ScanConfig(
+        depth=depth, threads=settings.BB_THREADS, rate_limit=settings.BB_RATE_LIMIT,
+        scan_timeout=settings.scan_timeout(depth),
+        nuclei_severity={"passive": "", "light": "low,medium", "strong": "low,medium,high,critical"}[depth],
+        skip_nmap=depth != "strong", skip_nuclei=depth == "passive",
+        skip_active_crawl=depth == "passive",
+        categories_enabled=sorted({e.category for e in entries if e.kind == "in" and e.category not in {"mobile", "other"}}),
+    )
+
+
+def safe_slug(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9.-]", "-", value.lower()).strip(".-")[:100].rstrip(".") or "raw"
+    if slug.split(".")[0] in {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}:
+        slug = "program-" + slug
+    return slug
+
+
+class ScopeResolver:
+    def __init__(self, settings: Settings, database: Database, provider=None):
+        self.settings, self.database = settings, database
+        if provider is None:
+            from backend.jobs.h1_scope import HackerOneScopeProvider
+            provider = HackerOneScopeProvider(settings)
+        self.provider = provider
+
+    def resolve(self, request: ResolveRequest) -> ResolveResponse:
+        source = "raw" if request.input == "raw" else "h1"
+        handle = h1_handle(request.input) if source == "h1" else None
+        if source == "h1" and request.scope:
+            raise ScopeError("scope[] is only accepted with input=raw")
+        entries = raw_entries(request.scope) if source == "raw" else []
+        identity = handle or hashlib.sha256(json.dumps(sorted(
+            (e.pattern, e.kind) for e in entries
+        )).encode()).hexdigest()
+        base = safe_slug(handle or "raw")
+        if source == "raw" and len(entries) == 1 and entries[0].category in {"web", "wildcard", "ip"}:
+            base = safe_slug(normalize_host(entries[0].pattern.removeprefix("*.")))
+        if source == "raw" and (len(entries) != 1 or entries[0].category not in {"web", "wildcard", "ip"}):
+            base = "raw-" + identity[:12]
+        # Serialize resolves to protect program reuse and slug allocation. P2 jobs use
+        # independent connections; resolve's bounded metadata fetch can hold this lock.
+        with self.database.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                slug = base
+                suffix = hashlib.sha256(f"{source}:{identity}".encode()).hexdigest()[:12]
+                while True:
+                    existing = conn.execute("SELECT * FROM program WHERE slug=?", (slug,)).fetchone()
+                    if existing is None:
+                        break
+                    policy = json.loads(existing["policy_json"] or "{}")
+                    if existing["source"] == source and (existing["handle"] == handle if handle else policy.get("scope_identity") == identity):
+                        break
+                    if slug != base:
+                        raise ScopeError("Slug collision requires review", "slug_collision")
+                    slug = f"{base}-{suffix}"
+                target_dir = self.settings.BBASM_TARGETS / slug
+                target_dir = target_dir.resolve()
+                if not target_dir.is_relative_to(self.settings.BBASM_TARGETS.resolve()):
+                    raise ScopeError("Target directory escapes configured root")
+                audit_path = target_dir / "audit.jsonl"
+                warnings = []
+                if source == "h1":
+                    entries, policy, warnings = self.provider.resolve(handle, audit_path)
+                    entries = deduplicate(entries)
+                else:
+                    policy = {"scope_identity": identity, "assets": [e.model_dump() for e in entries]}
+                if not any(entry.kind == "in" for entry in entries):
+                    raise ScopeError("scope empty", "scope_empty")
+                now = utc_now()
+                if existing is None:
+                    program_id = conn.execute(
+                        "INSERT INTO program(slug,source,handle,platform,policy_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+                        (slug, source, handle, "h1" if handle else None, json.dumps(policy), now, now),
+                    ).lastrowid
+                else:
+                    program_id = existing["id"]
+                    conn.execute("UPDATE program SET policy_json=?,updated_at=? WHERE id=?", (json.dumps(policy), now, program_id))
+                conn.execute("DELETE FROM scope_rule WHERE program_id=?", (program_id,))
+                conn.executemany("INSERT INTO scope_rule(program_id,pattern,kind,asset_type) VALUES(?,?,?,?)", [
+                    (program_id, e.pattern, e.kind, e.asset_type) for e in entries
+                ])
+                config = default_config(self.settings, entries)
+                scan_id = conn.execute("INSERT INTO scan_run(program_id,depth,status,trigger,stats_json) VALUES(?,?,'draft','manual',?)", (
+                    program_id, config.depth, json.dumps({"resolved_scope": [e.model_dump() for e in entries]}),
+                )).lastrowid
+                conn.execute(
+                    "INSERT INTO scan_config(scan_run_id,depth,threads,rate_limit,scan_timeout,nuclei_severity,skip_nmap,skip_nuclei,skip_active_crawl,categories_enabled_json,excluded_hosts_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (scan_id, config.depth, config.threads, config.rate_limit, config.scan_timeout,
+                     config.nuclei_severity, config.skip_nmap, config.skip_nuclei, config.skip_active_crawl,
+                     json.dumps(config.categories_enabled), json.dumps(config.excluded_hosts), now),
+                )
+                scope_text = "# IN\n" + "\n".join(e.pattern for e in entries if e.kind == "in") + "\n# OUT\n" + "\n".join(e.pattern for e in entries if e.kind == "out") + "\n"
+                target_dir.mkdir(parents=True, exist_ok=True)
+                # A scan-specific snapshot in DB is authoritative; .scope is the latest
+                # preview. P2 must use the launch scan's snapshot, not this shared file.
+                temp_scope = target_dir / ".scope.tmp"
+                with temp_scope.open("w", encoding="utf-8", newline="\n") as stream:
+                    stream.write(scope_text)
+                temp_scope.replace(target_dir / ".scope")
+                audit(audit_path, slug, "draft", "scope_resolved", scan_id=scan_id)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        groups = defaultdict(list)
+        for entry in entries:
+            groups[entry.category].append(entry)
+        return ResolveResponse(scan_id=scan_id, slug=slug, config=config,
+                               assets_by_category=dict(groups), warnings=warnings)

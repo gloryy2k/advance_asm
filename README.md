@@ -4,7 +4,7 @@ Bug Bounty **Attack Surface Management** dashboard — tăng tốc & khử-token
 
 Web dashboard (FastAPI + React, đóng Docker) ngồi trên framework recon (`claude-bug-bounty`, vendored submodule). Nhập **HackerOne handle/URL** hoặc **raw scope** → **review config** → recon (depth tùy chỉnh) → ranked attack surface + diff theo thời gian → sinh `PROGRAM.md` + `AGENT_BRIEF.md` để Claude agent `cd` vào hunt với ~0 token setup.
 
-> 🚧 **Trạng thái: P0 — khung backend + config + health.** Chưa có scan, DB, UI hoặc Docker runtime. Nguồn chuẩn là **[`BUILD_SPEC.md`](./BUILD_SPEC.md)**; các luồng sản phẩm bên dưới mô tả kết quả sau P8. Xem [`NOTES.md`](./NOTES.md) để biết phạm vi đã triển khai.
+> 🚧 **Trạng thái: P1 — config, health, SQLite, scope resolve/draft và scope gate.** Chưa có launch/recon, UI hoặc Docker runtime. Nguồn chuẩn là **[`BUILD_SPEC.md`](./BUILD_SPEC.md)**; các luồng sản phẩm bên dưới mô tả kết quả sau P8. Xem [`NOTES.md`](./NOTES.md) để biết phạm vi đã triển khai.
 
 ---
 
@@ -83,6 +83,22 @@ Health trả `ok: true` khi API hoạt động, kể cả khi thiếu tool; xem 
 trong `tools`. Đây là kiểm tra executable trong PATH và file framework tồn tại,
 không chạy tool hay xác minh phiên bản (đặc biệt tên `httpx` có thể trùng CLI Python).
 
+P1: `POST /api/scope/resolve` nhận `{"input":"raw","scope":["*.example.com"]}`
+hoặc `{"input":"h1:<handle>"}` / URL HackerOne `/policy_scopes`. Kết quả có
+`scan_id`, `slug`, `config`, `assets_by_category`; scan luôn ở `draft`, chưa chạy recon.
+Raw có thể dùng dòng `# IN` / `# OUT` để phân biệt phạm vi. Mobile/other giữ ở
+chế độ manual. SQLite tự migrate lần resolve đầu; health không tạo DB.
+
+Scope gate: `*.example.com` chỉ cho subdomain, không cho `example.com`; OOS luôn
+ưu tiên. CIDR chứa một IP/subnet OOS bị chặn toàn bộ, không tự chia dải. Domain/URL
+được kiểm theo hostname; `repo:https://github.com/org/repo` giữ ranh giới repository.
+Mọi quyết định ghi trong `targets/<slug>/audit.jsonl`.
+
+H1 cần Bash và Python 3 của framework (Linux/WSL2/Docker). Adapter lấy metadata có
+IN/OUT qua kết nối được audit, sau đó gọi aggregator với cache cô lập và tắt transport
+trong subprocess. Không tin danh sách host phẳng của bản pin vì mất thông tin OOS.
+API H1 lỗi/thiếu token thì fallback public dump; metadata không rõ scope thì trả 422.
+
 Chạy test (unit — không cần tool recon thật):
 ```bash
 pytest -m "not integration"
@@ -101,8 +117,8 @@ advance_asm/
 ├── BUILD_SPEC.md              # spec thi công đầy đủ (nguồn chuẩn)
 ├── .env.example  .gitattributes
 ├── docker-compose.yml  Dockerfile  entrypoint.sh   # (sẽ tạo khi build)
-├── backend/                   # FastAPI (sẽ tạo)
-├── frontend/                  # React/Vite (sẽ tạo)
+├── backend/                   # FastAPI, DB, scope resolver/gate (P0–P1)
+├── frontend/                  # Khung thư mục; React/Vite ở P6
 ├── vendor/claude-bug-bounty/  # submodule framework (pin @32131c1)
 ├── targets/                   # output per-target (gitignore)
 └── data/bbasm.db              # SQLite (gitignore)

@@ -2,20 +2,38 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 
 from backend.api.health import router as health_router
+from backend.api.scope import router as scope_router
 from backend.config import Settings
+from backend.db import Database
+from backend.jobs.scope_resolver import ScopeError, ScopeResolver
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings if settings is not None else Settings()
     app = FastAPI(title="BBASM", version="0.1.0")
     app.state.settings = settings
+    app.state.database = Database(settings.BBASM_DATA / "bbasm.db")
+    app.state.scope_resolver = ScopeResolver(settings, app.state.database)
     app.add_middleware(
         CORSMiddleware, allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["Content-Type"],
     )
     app.include_router(health_router)
+    app.include_router(scope_router)
+
+    @app.exception_handler(ScopeError)
+    async def scope_error(request, exc):
+        return JSONResponse(status_code=422, content={"error": {"code": exc.code, "message": str(exc)}})
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(request, exc):
+        message = "; ".join(f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}" for error in exc.errors())
+        return JSONResponse(status_code=422, content={"error": {"code": "validation_error", "message": message}})
+
     return app
 
 
