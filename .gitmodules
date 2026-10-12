@@ -1,0 +1,3 @@
+[submodule "vendor/claude-bug-bounty"]
+	path = vendor/claude-bug-bounty
+	url = https://github.com/gloryy2k/claude-bug-bounty.git
