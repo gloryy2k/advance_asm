@@ -1,5 +1,5 @@
 # BBASM — Bug Bounty Attack Surface Management Dashboard
-## BUILD SPEC / INSTRUCTION cho agent triển khai — **v2.3**
+## BUILD SPEC / INSTRUCTION cho agent triển khai — **v2.4**
 
 > **Mục đích tài liệu:** Đây là bản kịch bản thi công đầy đủ. Agent triển khai đọc file này + các file nguồn được tham chiếu, rồi build ra sản phẩm. Mỗi phần có **tiêu chuẩn (standard)** và **test case**. Không tự ý đổi quyết định kiến trúc đã chốt ở §1. Nếu thiếu thông tin, hỏi người dùng (`vinhtqk5@gmail.com`) chứ không đoán.
 
@@ -41,6 +41,10 @@
 - **API:** thêm `GET/PUT /api/programs/{slug}/program` (đọc/sửa PROGRAM.md).
 - **[§23 mới] UPGRADE PATH** sang layout `bughunter/` (bản upstream mới) — checklist nâng cấp khi cần.
 - Nhỏ: path `~/claude-bug-bounty` → `vendor/claude-bug-bounty` (BBROOT); title v2.3.
+
+### 📌 CHANGELOG v2.3 → v2.4 — System requirements + cross-platform (Windows/WSL2)
+- **[§24 mới]** System Requirements & Deploy Notes: yêu cầu host (compose v2, RAM/disk, build-time internet, clone --recurse-submodules), cross-platform phải bake vào code (`.gitattributes` LF, `chmod +x`, mount subfinder optional, nmap `-sT` fallback), Windows/WSL2 notes, +4 test TC-SYS-*, acceptance bổ sung.
+- **`.gitattributes`** thêm vào repo (ép LF cho `*.sh` — chặn lỗi CRLF khi build trên Windows).
 
 ---
 
@@ -742,3 +746,39 @@ Agent flow: `cd targets/<slug> && claude` → `CLAUDE.md` chỉ sang `PROGRAM.md
 7. **Rollback sẵn sàng:** nếu bản mới vỡ interface → trỏ submodule về commit pin cũ là xong (vì đã abstraction ở bước 2).
 
 **Tiêu chí quyết định nâng hay không:** chỉ nâng khi bản mới mang lại giá trị rõ (tool/fix mới mình cần). Nếu v1 chạy tốt, **được phép ở lại bản pin cũ vô thời hạn** — pin = ổn định, không nợ kỹ thuật bắt buộc.
+
+---
+
+## 24. SYSTEM REQUIREMENTS & DEPLOY NOTES (Linux + Windows/WSL2)
+
+> Sản phẩm đóng Docker (chạy trong Linux container) ⇒ build/chạy được trên **Linux, macOS, Windows**. Mục này liệt kê yêu cầu môi trường + các điểm cross-platform PHẢI xử lý ngay trong code.
+
+### 24.1 Yêu cầu host (chung)
+- **Docker Engine** + **Docker Compose v2** (`docker compose`). Linux cài gói `docker-compose-plugin`; Docker Desktop (Mac/Win) đã kèm.
+- **Git**, clone **bắt buộc kèm submodule**: `git clone --recurse-submodules ...` (hoặc `git submodule update --init`). Thiếu → `vendor/claude-bug-bounty` rỗng → build fail.
+- **RAM khuyến nghị ≥ 8GB** (tối thiểu 4GB chỉ đủ `passive`/`light`; `strong`+nuclei dễ nghẽn <4GB).
+- **Disk ≥ 10GB trống**: image vài GB + nuclei templates + recon output tăng dần.
+- **Internet lúc BUILD**: Dockerfile compile Go tools (`install_tools.sh`) + `npm ci` + `pip install` + `nuclei -update-templates`. Lần đầu ~10–30 phút, image nhiều GB; lần sau dùng cache.
+- **Claude Code trên host** (cho giai đoạn hunt `cd targets/<slug> && claude`) — tách khỏi container dashboard.
+
+### 24.2 Cross-platform — PHẢI bake vào code
+- **`.gitattributes` ép LF** cho mọi text, đặc biệt `*.sh` (đã có ở repo root). Tránh Windows checkout CRLF → `recon_engine.sh`/`entrypoint.sh` báo `bad interpreter: ^M`. **Bắt buộc.**
+- **Dockerfile `chmod +x`** các script (`entrypoint.sh`, script trong submodule gọi trực tiếp) — KHÔNG dựa vào exec-bit của git (Windows không giữ).
+- **Mount `~/.config/subfinder` để OPTIONAL** (path `~` không đúng trên Windows). Dùng biến `.env` `SUBFINDER_CONFIG_DIR` hoặc bỏ mount nếu không có.
+- **nmap raw socket**: `strong` depth cần `cap_add: [NET_RAW, NET_ADMIN]`; trong WSL2/Docker Desktop raw socket (`-sS`) thường không chạy → recon_orch **tự fallback `-sT`** (connect scan). Không crash.
+- **entrypoint/script dùng `#!/usr/bin/env bash`** + chỉ cú pháp POSIX/bash phổ thông (chạy đồng nhất trên mọi base image).
+
+### 24.3 Windows riêng (Docker Desktop + WSL2)
+- Bật **WSL2 backend** cho Docker Desktop.
+- **Clone repo VÀO filesystem WSL2** (`~/advance_asm` trong distro), KHÔNG để ở `C:\Users\...` / `/mnt/c` — bind mount qua ổ Windows rất chậm.
+- Cấp RAM cho WSL2 qua `C:\Users\<user>\.wslconfig` (vd `[wsl2]\nmemory=8GB`).
+- Giai đoạn hunt: chạy `claude` **trong WSL2** (cùng filesystem với `targets/`) cho mượt.
+- Architecture: Docker Desktop chạy `linux/amd64`; nếu Windows on ARM, thêm `platform: linux/amd64` (emulation, chậm hơn) hoặc build Go tools cho arm64.
+
+### 24.4 Test bổ sung (§16)
+- **TC-SYS-1** grep repo: mọi `*.sh` có eol=LF (không `\r`). · **TC-SYS-2** `docker build` trên môi trường giả lập CRLF checkout vẫn chạy (nhờ `.gitattributes`+`chmod`). · **TC-SYS-3** thiếu `~/.config/subfinder` → container vẫn start, subfinder fail-soft. · **TC-SYS-4** clone KHÔNG kèm submodule → build báo lỗi rõ ràng ("vendor/claude-bug-bounty empty, run git submodule update --init"), không fail mơ hồ.
+
+### 24.5 Acceptance bổ sung (§17)
+- ✅ Build & `docker compose up` thành công trên **Linux** (có compose plugin) và **Windows (Docker Desktop + WSL2)**.
+- ✅ Scan `light` chạy xong trên cả hai; `strong` trên WSL2 fallback `-sT` không crash.
+- ✅ Clone kèm `--recurse-submodules` → build không cần thao tác thêm.
