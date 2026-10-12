@@ -34,7 +34,7 @@ def test_runner_monitors_diff_rank_and_scheduled_rescan(settings, monkeypatch):
         try:
             await runner.submit(result.scan_id)
             await runner.queue.join()
-            assert calls == ["web", "takeover", "secret"]
+            assert calls == ["web", "takeover", "secret", "intel"]
             status = runner.status(result.scan_id)
             assert status["status"] == "done"
             stats = json.loads(status["stats_json"])
@@ -43,7 +43,7 @@ def test_runner_monitors_diff_rank_and_scheduled_rescan(settings, monkeypatch):
             with db.connect() as conn:
                 assert conn.execute("SELECT rank_score FROM asset").fetchone()[0] == 10
             records = [json.loads(line) for p in settings.BBASM_TARGETS.rglob("audit.jsonl") for line in p.read_text().splitlines()]
-            assert len([r for r in records if r["rule"] == "audited_spawn"]) == 3
+            assert len([r for r in records if r["rule"] == "audited_spawn"]) == 4
             scheduler = ScanScheduler(settings, db, runner)
             scheduler.configure(status["program_id"], "daily", result.config)
             with db.connect() as conn, conn:

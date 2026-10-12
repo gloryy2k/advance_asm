@@ -5,6 +5,7 @@ import codecs
 import json
 import os
 import signal
+import sys
 
 from backend.db import utc_now
 from backend.jobs.recon_orch import AuditedEgress, ClosedEgress, ReconOrchestrator, read_config
@@ -201,6 +202,12 @@ class JobRunner:
                     stats.get("observations", {}), complete=not errors and bool(plan.commands))
                 from backend.asm.ranking import rank_program
                 await asyncio.to_thread(rank_program, self.database, plan.program_id, scan_id)
+                await self._intel(plan, stats, parser)
+                preview = "done_partial" if errors and stats.get("observed") else "failed" if errors else "done"
+                if preview in {"done", "done_partial"}:
+                    await asyncio.to_thread(self._transition, scan_id, preview, "; ".join(errors) or None, stats)
+                    from backend.brief.generator import BriefGenerator
+                    stats["brief"] = await asyncio.to_thread(BriefGenerator(self.settings, self.database).generate, plan.slug, scan_id)
         except asyncio.CancelledError:
             cancelled = True
         except Exception as exc:
@@ -232,13 +239,36 @@ class JobRunner:
         for command in await asyncio.to_thread(self.monitors.commands, plan):
             await self._command(plan, command, parser, errors)
 
-    async def _command(self, plan, command, parser, errors):
-        process = None
+    async def _intel(self, plan, stats, parser):
+        from backend.jobs.recon_orch import Command, recon_env
+        tech = sorted({t for row in stats.get("observations", {}).values() for t in row.get("tech", [])})
+        script = self.settings.tool_path("intel_engine.py")
+        if not tech or not script.is_file():
+            return
+        errors = []
+        command = Command([sys.executable, str(script), "--target", plan.slug, "--tech", ",".join(tech), "--json"],
+                          recon_env(self.settings, plan.config, plan.root), plan.root, "intel", plan.slug)
+        try:
+            await asyncio.wait_for(self._command(plan, command, parser, errors, plan.root / "intel.json"), 15)
+        except asyncio.TimeoutError:
+            errors.append("Intel timeout (15 seconds)")
+        for error in errors:
+            await self.logs.emit(plan.scan_id, "log", level="warning", message=error)
+
+    async def _command(self, plan, command, parser, errors, capture_path=None):
+        process, capture, captured = None, None, 0
         try:
             self.egress.check(plan, command)
+            if capture_path:
+                if capture_path.is_symlink():
+                    raise ValueError("Refusing capture symlink")
+                capture = capture_path.open("wb")
             process = await self.process_factory(command)
             decoder, pending = codecs.getincrementaldecoder("utf-8")("replace"), ""
             while chunk := await process.stdout.read(4096):
+                if capture is not None and captured < 1048576:
+                    capture.write(chunk[:1048576 - captured])
+                    captured += len(chunk)
                 pending += decoder.decode(chunk)
                 while "\n" in pending or len(pending) > 4096:
                     if "\n" in pending:
@@ -259,6 +289,8 @@ class JobRunner:
         except Exception as exc:
             errors.append(f"{type(exc).__name__}: {exc}")
         finally:
+            if capture is not None:
+                capture.close()
             if process is not None:
                 # Shield teardown so cancellation cannot leave grandchildren running.
                 await asyncio.shield(self.stopper(process))

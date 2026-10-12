@@ -9,6 +9,27 @@ Earlier pending-T6 notes below are historical. P3 implementation follows §15.
 
 ## P3 — ASM core
 
+## P4 — Brief/scaffold/export
+
+- Brief/scaffold generation is wired after ingest/diff/rank. PROGRAM.md is created
+  once; PUT accepts only user-section text, never overwrites generated policy/scope.
+  Exact PUT body: {content: string}. Folders and user notes remain intact.
+- Brief preserves all scope rules and section headings within <12000 UTF-8 bytes;
+  optional surface/signals are capped. If mandatory scope alone exceeds the budget,
+  generation fails explicitly instead of silently dropping rules (reviewable default).
+- Intel reuses intel_engine.py --json through the same audited subprocess/cleanup
+  path, with 15s timeout and 1MB output cap; failure is a warning. Manual brief regen
+  uses that scan's cached intel and findings, does not repeat outbound requests.
+- ZIP is built to a temporary disk file and served with cleanup; symlinks rejected,
+  hidden internals/system dotfiles and temporary/lock files excluded. Manifest and
+  regenerated brief use the same completed/partial scan. Includes empty directories.
+- Gate passed: 157 unit tests, 3 integration deselected; 200MB export fixture used
+  <20MB Python peak allocation. UTF-8 tests fixed for native Windows.
+- Raw monitor output can contain credentials in recon files; include_recon=false
+  is the compact handoff option. Dashboard finding metadata is redacted.
+
+### P3 implementation details
+
 - Implemented diff_engine, ranking, framework monitors and persistent scheduling.
   Runner captures a durable pre-ingest baseline, runs gated monitors inside the
   same timeout/process-group/audit boundary, ingests results, then diffs/ranks.
