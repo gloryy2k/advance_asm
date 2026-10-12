@@ -1,5 +1,12 @@
 # Implementation notes
 
+## Current phase
+
+P2 is validated by the user on Kali at 695ef2d / vendor 7acb66a: 124 unit +
+3 integration tests passed, loopback light scan ~7s instead of ~279s, audit
+complete, health fixed. katana/dnsx were installed in ~/go/bin all along.
+Earlier pending-T6 notes below are historical. P3 implementation follows §15.
+
 ## P0 scope
 
 - Read BUILD_SPEC.md v2.4, README.md and .env.example before implementation.

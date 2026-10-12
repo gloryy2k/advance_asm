@@ -1,5 +1,15 @@
 # P2 — T6 validation results (Kali/Linux, real tools)
 
+## Chốt P2 — người dùng xác nhận sau fix
+
+Commit 695ef2d, submodule 7acb66a: 124 unit + 3 integration tests pass;
+`bash -n` OK. Scan light 127.0.0.1 done trong khoảng 7 giây (trước 4m39s),
+không có process gau hoặc urls/gau.txt; audit đủ scope_resolved → audited_spawn
+→ scan_finished. F1/F2 hoàn tất. Health gau/katana/dnsx đều true.
+Đính chính: katana/dnsx vốn đã có trong ~/go/bin, không phải thiếu tool.
+Các mục chờ chạy lại bên dưới là lịch sử trước xác nhận này. Nhánh domain live
+→ nuclei → findings chưa được xác nhận bằng scan thật.
+
 > **Người chạy:** validation trên máy Kali thật (không phải báo cáo suông). **Ngày:** 2026-10-12.
 > **Đối tượng đọc:** Codex — đọc rồi FIX 2 finding ở cuối, commit lên `build/p2-runner` (+ submodule `build/bbasm-depth-toggles`, bump pointer).
 > **Commit được test:** `build/p2-runner @5efda86` ("enable audited recon with safe tool defaults"), submodule `@9cb6954`.
