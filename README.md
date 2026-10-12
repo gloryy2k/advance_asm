@@ -4,7 +4,7 @@ Bug Bounty **Attack Surface Management** dashboard — tăng tốc & khử-token
 
 Web dashboard (FastAPI + React, đóng Docker) ngồi trên framework recon (`claude-bug-bounty`, vendored submodule). Nhập **HackerOne handle/URL** hoặc **raw scope** → **review config** → recon (depth tùy chỉnh) → ranked attack surface + diff theo thời gian → sinh `PROGRAM.md` + `AGENT_BRIEF.md` để Claude agent `cd` vào hunt với ~0 token setup.
 
-> 🚧 **Trạng thái: P1 — config, health, SQLite, scope resolve/draft và scope gate.** Chưa có launch/recon, UI hoặc Docker runtime. Nguồn chuẩn là **[`BUILD_SPEC.md`](./BUILD_SPEC.md)**; các luồng sản phẩm bên dưới mô tả kết quả sau P8. Xem [`NOTES.md`](./NOTES.md) để biết phạm vi đã triển khai.
+> 🚧 **Trạng thái: P2 đang triển khai — runner/orchestration/ingest đã có unit test; recon thật bị chặn do chưa có lớp kiểm soát outbound.** Chưa có UI hoặc Docker runtime. Nguồn chuẩn là **[`BUILD_SPEC.md`](./BUILD_SPEC.md)**; xem [`P2_EGRESS_REVIEW.md`](./P2_EGRESS_REVIEW.md) cho yêu cầu còn thiếu và [`NOTES.md`](./NOTES.md) cho tiến độ.
 
 ---
 
@@ -99,6 +99,14 @@ IN/OUT qua kết nối được audit, sau đó gọi aggregator với cache cô
 trong subprocess. Không tin danh sách host phẳng của bản pin vì mất thông tin OOS.
 API H1 lỗi/thiếu token thì fallback public dump; metadata không rõ scope thì trả 422.
 
+P2 bổ sung `GET/PUT /api/scans/{id}/config`, `POST /api/scans/{id}/launch` (body `{}`
+để dùng config đã lưu hoặc `{"config":...}`), `GET /api/scans/{id}`,
+`POST /api/scans/{id}/cancel` và `/ws/scan/{id}?after=<event-id>`.
+Config chỉ sửa được ở draft. Launch mặc định **không chạy tool thật**: runner trả
+`failed` kèm lỗi outbound enforcement chưa triển khai; không có flag bỏ qua chặn này.
+Test runner dùng process giả trong bộ nhớ. Output dự kiến nằm ở
+`targets/<slug>/recon/scans/<scan_id>/<step>/` để tránh trộn scan/ingest dữ liệu cũ.
+
 Chạy test (unit — không cần tool recon thật):
 ```bash
 pytest -m "not integration"
@@ -119,7 +127,7 @@ advance_asm/
 ├── docker-compose.yml  Dockerfile  entrypoint.sh   # (sẽ tạo khi build)
 ├── backend/                   # FastAPI, DB, scope resolver/gate (P0–P1)
 ├── frontend/                  # Khung thư mục; React/Vite ở P6
-├── vendor/claude-bug-bounty/  # submodule framework (pin @32131c1)
+├── vendor/claude-bug-bounty/  # submodule @d8bd795 (toggle patch trên nền @32131c1)
 ├── targets/                   # output per-target (gitignore)
 └── data/bbasm.db              # SQLite (gitignore)
 ```

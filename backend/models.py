@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Depth = Literal["passive", "light", "strong"]
 Category = Literal["web", "wildcard", "ip", "cidr", "source_code", "mobile", "other"]
@@ -24,6 +24,7 @@ class ResolveRequest(BaseModel):
 
 
 class ScanConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     depth: Depth
     threads: int = Field(ge=1, le=200)
     rate_limit: int = Field(ge=1, le=500)
@@ -34,6 +35,18 @@ class ScanConfig(BaseModel):
     skip_active_crawl: bool
     categories_enabled: list[Category]
     excluded_hosts: list[str] = Field(default_factory=list)
+
+    @field_validator("nuclei_severity")
+    @classmethod
+    def valid_severity(cls, value):
+        if value and any(part not in {"info", "low", "medium", "high", "critical"} for part in value.split(",")):
+            raise ValueError("Unknown nuclei severity")
+        return value
+
+
+class LaunchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    config: ScanConfig | None = None
 
 
 class ResolveResponse(BaseModel):

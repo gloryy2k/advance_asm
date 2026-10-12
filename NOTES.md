@@ -26,8 +26,9 @@
 
 ## Phase boundary
 
-P0 and P1 are implemented. Recon orchestration/launch and framework patches start
-at P2. No target traffic or real-tool integration tests have been run.
+P0 and P1 are implemented. P2 runner/orchestration/ingest are implemented and unit
+tested, but P2 is NOT complete: live tool outbound enforcement remains unresolved.
+See P2_EGRESS_REVIEW.md. No target traffic or real-tool integration tests have been run.
 
 ## P0 validation
 
@@ -95,3 +96,50 @@ at P2. No target traffic or real-tool integration tests have been run.
 6. **P1 limitations:** the gate is implemented and metadata requests use it. Enforcing
    and auditing every outbound request from recon tools belongs to P2 and is not yet
    implemented. No assertion of full recon scope containment is made at this phase.
+
+## P2 implementation and validation
+
+- Vendor toggle commit `d8bd79524bcf16074da929311edc5bbdbe1f98b6` was pushed to
+  `gloryy2k/claude-bug-bounty`, branch `build/bbasm-depth-toggles`, before updating
+  the parent submodule pointer. It remains on the original tools/ layout/fork.
+- Read the real recon_engine.sh, scope checker, dashboard tail parser, recon adapter
+  and secrets_hunter interfaces before modifying/integrating them.
+- Small vendor patch: depth toggles also cover CIDR ping sweep, DNS wildcard/takeover,
+  JS fetching, config checks and CI/CD. Added optional FFUF/CI-CD toggles because light
+  must not fuzz and an inferred GitHub organization is not granted source scope.
+  Nuclei ENV override works. Managed nmap list mode uses `-iL`; optional `-sT` is used
+  conservatively for all BBASM strong scans (works without raw sockets).
+- Command planning uses approved config + immutable scan scope snapshot. Wildcards
+  enumerate passively first; discoveries are filtered before building active list mode.
+  Disabled categories/excluded hosts are not fed to tools. Source routes to secrets_hunter,
+  mobile/other are manual. Passive source execution stays manual because the pinned
+  secret scanner verifies live keys. Missing tools/scripts produce warnings.
+- Queue caps concurrency and serializes scans per program. Config is persisted before
+  queued; only draft may launch. Timeout is bounded by both reviewed config and ENV.
+  Cancel/timeout clean the process group; partial output is ingested on nonzero exit
+  and timeout. Interrupted jobs become failed on restart, never silently relaunched.
+- Logs reuse dashboard.py's actual regex/map, have increasing event IDs, bounded replay
+  and disk persistence. WebSocket reconnect supports an `after` cursor.
+- Ingest reuses `load_recon` for canonical output and `ReconAdapter` for engine layout;
+  scoped assets/URLs/nuclei/source-secret findings upsert by the spec keys. DB does not
+  duplicate raw credential values. Snapshot observations are saved for P3 diff work.
+- Output is isolated below `recon/scans/<scan_id>/<step>` rather than reusing the same
+  recon folder. This is a documented layout refinement to avoid stale partial results;
+  export/brief must consume the current scan manifest/stats rather than guessing files.
+- Added minimal scan/config/cancel/WS endpoints now to make P2 behavior reviewable;
+  remaining API/portfolio work stays in P5. Monitors and post-ingest ASM run in P3.
+- Unit command: `.venv/Scripts/python.exe -m pytest -m "not integration"`:
+  **100 passed, 3 deselected**, one upstream Starlette/AnyIO warning (Windows Python 3.13).
+  Covers TC-RO-1..5, TC-RUN-1..5 (mock process-group signals), TC-IN-1..2,
+  LC config limits/routing, replay, API state transitions and default egress denial.
+- `bash -n vendor/claude-bug-bounty/tools/recon_engine.sh`: passed; no script execution.
+  TC-RO-6/real process-tree teardown are integration-marked and were NOT run.
+- **P2 open item:** every tool's network requests cannot be contained/audited by the
+  toggle patch and seed filtering alone. The default boundary refuses all live recon
+  before spawn. See P2_EGRESS_REVIEW.md for the concrete proposal requiring review.
+  P2 is not presented as ready for real scans or as satisfying all acceptance criteria.
+- Remaining framework behavior for review: list mode historical collection still uses
+  the list basename; some helper phases have their own fixed concurrency. Before enabling
+  live execution, reconcile those with reviewed target/limit semantics in the boundary
+  or a separately authorized minimal adapter patch. No default upstream behavior was
+  silently rewritten in this toggle patch.

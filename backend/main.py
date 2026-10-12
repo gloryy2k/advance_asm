@@ -1,5 +1,8 @@
 """Run from the repository root with python -m backend.main."""
 
+from contextlib import asynccontextmanager
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -7,23 +10,35 @@ from fastapi.exceptions import RequestValidationError
 
 from backend.api.health import router as health_router
 from backend.api.scope import router as scope_router
+from backend.api.scans import router as scan_router
 from backend.config import Settings
 from backend.db import Database
 from backend.jobs.scope_resolver import ScopeError, ScopeResolver
+from backend.jobs.runner import JobRunner
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings if settings is not None else Settings()
-    app = FastAPI(title="BBASM", version="0.1.0")
+    @asynccontextmanager
+    async def lifespan(app):
+        await asyncio.to_thread(app.state.runner.recover)
+        try:
+            yield
+        finally:
+            await app.state.runner.close()
+
+    app = FastAPI(title="BBASM", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.database = Database(settings.BBASM_DATA / "bbasm.db")
     app.state.scope_resolver = ScopeResolver(settings, app.state.database)
+    app.state.runner = JobRunner(settings, app.state.database)
     app.add_middleware(
         CORSMiddleware, allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["Content-Type"],
     )
     app.include_router(health_router)
     app.include_router(scope_router)
+    app.include_router(scan_router)
 
     @app.exception_handler(ScopeError)
     async def scope_error(request, exc):
