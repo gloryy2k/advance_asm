@@ -1,5 +1,5 @@
 # BBASM — Bug Bounty Attack Surface Management Dashboard
-## BUILD SPEC / INSTRUCTION cho agent triển khai — **v2**
+## BUILD SPEC / INSTRUCTION cho agent triển khai — **v2.3**
 
 > **Mục đích tài liệu:** Đây là bản kịch bản thi công đầy đủ. Agent triển khai đọc file này + các file nguồn được tham chiếu, rồi build ra sản phẩm. Mỗi phần có **tiêu chuẩn (standard)** và **test case**. Không tự ý đổi quyết định kiến trúc đã chốt ở §1. Nếu thiếu thông tin, hỏi người dùng (`vinhtqk5@gmail.com`) chứ không đoán.
 
@@ -33,11 +33,20 @@
 - **[§22.5]** Schema/API/UI/test/checklist deltas.
 - **[§21]** Submodule chốt: `gloryy2k/claude-bug-bounty` (bản `tools/` đang chạy, pin @32131c1) — vì upstream `awarexone/Agentic-Bug-Hunter` đã đổi sang layout `bughunter/`, không còn `tools/recon_engine.sh`.
 
+### 📌 CHANGELOG v2.2 → v2.3 — review end-to-end nhất quán + upgrade path
+- **Fix mâu thuẫn:** `scan_run.status` thêm `draft` (§6); §4 "Luồng" viết lại theo two-phase (resolve→review→launch).
+- **Gộp schema:** `program.policy_json`, `asset.category`, bảng `scan_config` đưa thẳng vào §6 (không chỉ ở §22.5) → single source of truth.
+- **`PROGRAM.md`** bổ sung vào scaffold (§10) + nội dung ZIP (§10.1) + diagram/tree.
+- **Scheduler auto-launch:** scan tự động **bỏ qua review**, chạy thẳng bằng config của `schedule` (§12.2).
+- **API:** thêm `GET/PUT /api/programs/{slug}/program` (đọc/sửa PROGRAM.md).
+- **[§23 mới] UPGRADE PATH** sang layout `bughunter/` (bản upstream mới) — checklist nâng cấp khi cần.
+- Nhỏ: path `~/claude-bug-bounty` → `vendor/claude-bug-bounty` (BBROOT); title v2.3.
+
 ---
 
 ## 0. TL;DR cho agent triển khai
 
-Bạn sẽ build một **web dashboard ASM** (FastAPI + React, đóng Docker) ngồi *trên* framework `~/claude-bug-bounty` đã có. Dashboard:
+Bạn sẽ build một **web dashboard ASM** (FastAPI + React, đóng Docker) ngồi *trên* framework đã có (vendored tại `vendor/claude-bug-bounty`, trỏ bởi `$BBASM_BBROOT`). Dashboard:
 
 1. Nhận input: **HackerOne handle/URL (+ `/policy_scopes`)** *hoặc* **raw scope** (domain/IP/CIDR, dán text).
 2. Chạy recon với **depth tùy chỉnh** (passive / light / strong) bằng cách **gọi lại** `recon_engine.sh` + `scope_aggregator.sh` có sẵn — KHÔNG viết lại recon (chỉ **patch nhỏ** recon_engine để bật toggle ENV, xem §8.2).
@@ -64,7 +73,7 @@ Dashboard KHÔNG tự spawn agent hunt. KHÔNG tự submit. Con người bấm n
 
 ## 2. NGUYÊN TẮC THIẾT KẾ (standards toàn cục)
 
-1. **Reuse > Rebuild.** Mọi khả năng recon/scope/intel đã có trong `~/claude-bug-bounty/tools/`. Dashboard là **orchestrator + store + UI**, gọi lại script cũ qua subprocess. Chỉ viết mới phần còn thiếu + **patch tối thiểu** recon_engine (§8.2).
+1. **Reuse > Rebuild.** Mọi khả năng recon/scope/intel đã có trong `vendor/claude-bug-bounty/tools/` (= `$BBASM_BBROOT/tools/`). Dashboard là **orchestrator + store + UI**, gọi lại script cũ qua subprocess. Chỉ viết mới phần còn thiếu + **patch tối thiểu** recon_engine (§8.2).
 2. **Deterministic setup = 0 token.** Toàn bộ scaffold + recon + brief do code làm, không cần LLM. LLM (agent hunt) chỉ vào sau khi brief đã sẵn sàng.
 3. **Scope safety là bắt buộc.** Mọi request ra ngoài phải qua scope gate (§8.4), giữ cả wildcard pattern. Raw scope IP/CIDR phải check đúng.
 4. **Idempotent & resumable.** Scan lại một target không phá dữ liệu cũ; mỗi lần scan là một `scan_run` có timestamp để diff. Ingest chạy lại không nhân đôi.
@@ -78,6 +87,7 @@ Dashboard KHÔNG tự spawn agent hunt. KHÔNG tự submit. Con người bấm n
 ## 3. MAP TÁI SỬ DỤNG — interface thật của tool có sẵn
 
 > Agent triển khai: đây là interface đã verify. Gọi đúng như sau, đừng tự dò lại. **Nhưng vẫn phải đọc `recon_engine.sh` một lượt** trước khi làm §8.2 (sẽ patch nó).
+> **Quy ước path:** mọi `tools/<x>` dưới đây = `$BBASM_BBROOT/$BBASM_TOOLS_SUBDIR/<x>` (bản pin hiện tại: `$BBASM_TOOLS_SUBDIR=tools`; xem §14/§23). Code tuyệt đối KHÔNG hardcode `tools/`, luôn build qua 2 ENV đó.
 
 ### 3.1 `tools/recon_engine.sh` — recon pipeline chính
 ```
@@ -158,15 +168,15 @@ Takeover: `tools/takeover_scanner.sh`. Secrets: `tools/secrets_hunter.sh`.
                              │ subprocess    │ read DB     │ write files
               ┌──────────────▼───────┐  ┌────▼────┐  ┌─────▼────────────────┐
               │ claude-bug-bounty/   │  │ SQLite  │  │ targets/<slug>/      │
-              │ (git submodule)      │  │ bbasm.db│  │  AGENT_BRIEF.md      │
-              │  recon_engine(+patch)│  └─────────┘  │  recon/ findings/    │
-              │  scope_aggregator    │               │  CLAUDE.md .scope    │
-              │  scope_checker/adapter│              │  audit.jsonl         │
-              │  intel_engine        │               └──────────────────────┘
-              └──────────────────────┘
+              │ (git submodule)      │  │ bbasm.db│  │  PROGRAM.md (bền)     │
+              │  recon_engine(+patch)│  └─────────┘  │  AGENT_BRIEF.md      │
+              │  scope_aggregator    │               │  recon/ findings/    │
+              │  scope_checker/adapter│              │  CLAUDE.md .scope    │
+              │  intel_engine        │               │  audit.jsonl         │
+              └──────────────────────┘               └──────────────────────┘
 ```
 
-**Luồng:** nhập `h1:acme`/URL/policy_scopes/raw + depth → `POST /api/scans` → scan_run(queued) → WS mở, replay buffer nếu reconnect → JobRunner: resolve scope (giữ wildcard) → recon theo depth → `load_recon`→DB(scan_run_id) → diff → rank → monitors → BriefGen ghi brief + scaffold. User: `cd targets/acme && claude`.
+**Luồng (two-phase — chi tiết §22.1):** nhập `h1:acme`/URL/policy_scopes/raw → `POST /api/scope/resolve` → scan_run(**draft**) + phân loại scope + config mặc định → **UI REVIEW CONFIG** (sửa depth/threads/rate_limit/toggle/bỏ host) → `POST /api/scans/{id}/launch` → queued → WS mở (replay buffer nếu reconnect) → JobRunner: recon theo category+config (giữ wildcard scope) → `load_recon`→DB(scan_run_id) → diff → rank → monitors → BriefGen ghi `PROGRAM.md`(lần đầu)+`AGENT_BRIEF.md`+scaffold. User: `cd targets/acme && claude`.
 
 ---
 
@@ -206,6 +216,7 @@ CREATE TABLE program (
   id INTEGER PRIMARY KEY,
   slug TEXT UNIQUE NOT NULL, source TEXT NOT NULL,   -- "h1"|"raw"
   handle TEXT, platform TEXT DEFAULT 'h1',
+  policy_json TEXT,                  -- [v2.2] raw policy + per-asset instruction (dựng PROGRAM.md)
   created_at TEXT, updated_at TEXT
 );
 
@@ -219,7 +230,8 @@ CREATE TABLE scope_rule (
 CREATE TABLE scan_run (
   id INTEGER PRIMARY KEY, program_id INTEGER REFERENCES program(id),
   depth TEXT NOT NULL,              -- "passive"|"light"|"strong"
-  status TEXT NOT NULL,             -- queued|running|done|done_partial|failed|cancelled
+  status TEXT NOT NULL,             -- draft|queued|running|done|done_partial|failed|cancelled
+  trigger TEXT DEFAULT 'manual',    -- "manual"|"scheduled" (scheduled bỏ qua review, §12.2)
   started_at TEXT, finished_at TEXT, error TEXT,
   stats_json TEXT
 );
@@ -228,6 +240,7 @@ CREATE TABLE asset (
   id INTEGER PRIMARY KEY, program_id INTEGER REFERENCES program(id),
   host TEXT NOT NULL, ip TEXT, status_code INTEGER,
   title TEXT, tech_json TEXT,
+  category TEXT,                     -- [v2.2] web|wildcard|ip|cidr|source_code|mobile|other (§22.3)
   first_seen_scan INTEGER, last_seen_scan INTEGER,
   state TEXT,                       -- "active"|"gone"
   rank_score REAL, rank_reasons_json TEXT,
@@ -262,10 +275,22 @@ CREATE TABLE schedule (             -- [H1] continuous monitoring persist
   id INTEGER PRIMARY KEY, program_id INTEGER UNIQUE REFERENCES program(id),
   interval TEXT NOT NULL,           -- "6h"|"daily"|"weekly"
   depth TEXT NOT NULL, enabled INTEGER DEFAULT 1,
+  config_json TEXT,                 -- config dùng cho scan scheduled (bỏ qua review)
   next_run_at TEXT, created_at TEXT
+);
+
+CREATE TABLE scan_config (          -- [v2.2] config draft duyệt ở REVIEW trước launch (§22.1)
+  id INTEGER PRIMARY KEY,
+  scan_run_id INTEGER UNIQUE REFERENCES scan_run(id),
+  depth TEXT, threads INTEGER, rate_limit INTEGER, scan_timeout INTEGER,
+  nuclei_severity TEXT, skip_nmap INTEGER, skip_nuclei INTEGER, skip_active_crawl INTEGER,
+  categories_enabled_json TEXT,     -- ["web","source_code"]
+  excluded_hosts_json TEXT,         -- host user bỏ bớt ở review
+  created_at TEXT
 );
 ```
 > [M3] **Severity enum chuẩn:** `info|low|medium|high|critical`. Mapping: takeover→high, secret (verified)→high / unverified→medium, js-endpoint→info.
+> **Lưu ý:** §22.5 mô tả thêm ngữ cảnh các cột v2.2 ở trên — schema ở §6 này là **nguồn chuẩn duy nhất**, §22.5 chỉ giải thích.
 
 ---
 
@@ -288,6 +313,8 @@ CREATE TABLE schedule (             -- [H1] continuous monitoring persist
 | `GET /api/programs/{slug}/diff` | Diff | `?scan_id=` |
 | `GET /api/programs/{slug}/findings` | findings | `?type=&severity=` |
 | `POST/GET /api/programs/{slug}/brief` | Regen / lấy brief | GET trả `text/markdown` |
+| `GET/PUT /api/programs/{slug}/program` | Đọc/sửa `PROGRAM.md` | GET `text/markdown`; PUT lưu phần user-editable (§22.4) |
+| `GET/PUT /api/scans/{id}/config` | Lấy/sửa draft config | body config (§22.5); validate ở launch |
 | `GET /api/programs/{slug}/export` | **Export ZIP folder** | `?include_recon=true` (default) → `application/zip`, stream (§10.1) |
 | `POST /api/programs/{slug}/schedule` | Bật monitoring | `{interval,depth,enabled}` → ghi bảng `schedule` |
 | `GET /api/health` | healthcheck | `{ok, tools:{subfinder:true,...}}` [M7] |
@@ -304,8 +331,9 @@ Phân loại `input`:
   3. Đọc entry. **Giữ nguyên wildcard** [C2]: entry `*.x.com`→scope_rule(kind=in, asset_type=wildcard, pattern="*.x.com"). OOS→kind=out.
   4. (Optional) nếu input là URL policy_scopes & có token H1 → gọi API `policy_scopes` để lấy asset_type/eligibility; fail-soft nếu không.
   5. Rỗng → **HTTP 422** "scope empty".
-- **Raw:** `input=="raw"`, `scope[]` = **list dòng text dán** (domain/IP/CIDR) [H6]. KHÔNG nhận path file host; optional cho upload file → server đọc nội dung. Phân loại bằng `ipaddress` + regex → asset_type domain/wildcard/ip/cidr.
+- **Raw:** `input=="raw"`, `scope[]` = **list dòng text dán** (domain/IP/CIDR, và `repo:<github>`/`app:<store-id>` — xem §22.3) [H6]. KHÔNG nhận path file host; optional cho upload file → server đọc nội dung. Phân loại bằng `ipaddress` + regex → asset_type/category (§22.3).
 - **Output:** ghi `targets/<slug>/.scope` (section `# IN` + `# OUT`, giữ wildcard) + build allowlist/denylist cho scope gate (§8.4). Program đã tồn tại → chỉ tạo `scan_run` mới [TC-SR-5].
+- **Pha/draft:** resolver chạy ở **Pha 1** (§22.1), tạo `scan_run(status=draft)` + `scan_config` mặc định; recon chỉ chạy sau khi `launch`.
 
 ### 8.2 Depth → cấu hình recon (`jobs/recon_orch.py`) — **ĐÃ SỬA [C1]**
 
@@ -366,7 +394,7 @@ if [ "${BBASM_SKIP_NUCLEI:-0}" = "1" ]; then log_warn "nuclei skipped (BBASM)"; 
 ---
 
 ## 10. SCAFFOLD PER-TARGET FOLDER (`brief/generator.py`)
-Như v1: tạo (idempotent) `AGENT_BRIEF.md`, `CLAUDE.md`, `.scope`, `recon/`, `findings/ reports/ notes/`, `audit.jsonl`. Regenerate brief/CLAUDE.md/.scope mỗi scan; KHÔNG đụng `findings/ notes/` người dùng.
+Tạo (idempotent): `PROGRAM.md` (bền — §22.4, chỉ sinh lần đầu), `AGENT_BRIEF.md`, `CLAUDE.md`, `.scope`, `recon/`, `findings/ reports/ notes/`, `audit.jsonl`. Regenerate `AGENT_BRIEF.md`/`CLAUDE.md`/`.scope` mỗi scan; **KHÔNG ghi đè** `PROGRAM.md` (giữ phần user-editable), `findings/`, `notes/`.
 
 ### 10.1 EXPORT ZIP — đóng gói cấu trúc folder [tính năng theo yêu cầu user]
 
@@ -377,12 +405,12 @@ Như v1: tạo (idempotent) `AGENT_BRIEF.md`, `CLAUDE.md`, `.scope`, `recon/`, `
 **Nội dung zip (root = `<slug>/` để giải nén ra đúng folder):**
 ```
 <slug>/
-  AGENT_BRIEF.md   CLAUDE.md   .scope   audit.jsonl
+  PROGRAM.md       AGENT_BRIEF.md   CLAUDE.md   .scope   audit.jsonl
   findings/  reports/  notes/
   recon/                      # chỉ khi include_recon=true (default)
   MANIFEST.json               # [mới] metadata để agent/máy khác hiểu ngay
 ```
-`MANIFEST.json` chứa: `{slug, source, handle, scan_id, depth, generated_at, stats:{subs,live,urls,findings}, scope:{in:[...wildcard...], out:[...]}, bbasm_version}`.
+`MANIFEST.json` chứa: `{slug, source, handle, scan_id, depth, generated_at, stats:{subs,live,urls,findings}, scope:{in:[...wildcard...], out:[...]}, files:["PROGRAM.md","AGENT_BRIEF.md",...], bbasm_version}`.
 
 **Standard:**
 - **Stream** zip (`zipfile.ZipFile` trên `StreamingResponse`/tạm file), KHÔNG nạp hết vào RAM — `recon/` có thể vài trăm MB.
@@ -409,6 +437,7 @@ Như v1: Pages Portfolio / ScanNew / Target(tabs Overview·Surface·Assets·Diff
 
 ### 12.2 Continuous re-scan + diff — **persist [H1]**
 - `asm/scheduler.py` = **APScheduler với SQLAlchemyJobStore** trỏ vào SQLite (hoặc đọc bảng `schedule` lúc boot và tự add job) ⇒ lịch sống qua restart. Entrypoint khởi động scheduler + nạp lại schedule enabled.
+- **Scheduled scan BỎ QUA review:** tạo `scan_run(trigger=scheduled, status=queued)` thẳng, dùng `schedule.config_json` (+ depth) — không qua pha draft/REVIEW. Chỉ scan manual mới cần duyệt config.
 - `asm/diff_engine.py`: so theo **set host** (không theo dòng file) ⇒ NEW (first_seen==current), GONE (active trước, vắng scan này → state=gone), CHANGED (tech/status đổi). Ghi `diff_event`.
 
 ### 12.3 Ranked attack surface — công thức (0–10)
@@ -472,6 +501,7 @@ services:
 ## 14. CONFIG (`.env` / `backend/config.py`)
 ```
 BBASM_BBROOT=/opt/claude-bug-bounty
+BBASM_TOOLS_SUBDIR=tools             # [§23] "tools" (bản pin cũ) | "bughunter/tools" (upstream mới)
 BBASM_DATA=/app/data   BBASM_TARGETS=/app/targets
 BBASM_BIND=127.0.0.1                 # [H5] default localhost
 BB_THREADS=50   BB_RATE_LIMIT=150
@@ -500,7 +530,7 @@ CHAOS_KEY=  GITHUB_TOKEN=  H1_USER=  H1_TOKEN=
   - *Test:* TC-RO-*, TC-RUN-*, TC-IN-*.
 - **P3 — ASM core (1.5 ngày)** 12. diff_engine 13. ranking 14. monitors 15. scheduler(persist).
   - *Test:* TC-DF-*, TC-RK-*, TC-MN-*, TC-SCH-*.
-- **P4 — Brief + scaffold + export (1 ngày)** 16. generator+templates 17. API brief 17b. **export ZIP** (§10.1) + MANIFEST.json. — *Test:* TC-BR-*, TC-EXP-*.
+- **P4 — Brief + scaffold + export (1 ngày)** 16. generator+templates (sinh **`PROGRAM.md`** bền + `AGENT_BRIEF.md`) 17. API brief + `GET/PUT program` 17b. **export ZIP** (§10.1) + MANIFEST.json. — *Test:* TC-BR-*, TC-PRG-*, TC-EXP-*.
 - **P5 — API đầy đủ + WS (1 ngày)** 18. mọi endpoint §7 + WS replay. — *Test:* TC-API-*.
 - **P6 — Frontend (2 ngày)** 19. pages+components+states 20. build static serve. — *Test:* TC-FE-*.
 - **P7 — Docker + portability (1 ngày)** 21. **[K2]** `entrypoint.sh` (migrate+update-templates+load schedules) 22. Dockerfile+compose(cap,bind) 23. README. — *Test:* TC-DK-*.
@@ -676,23 +706,7 @@ Agent flow: `cd targets/<slug> && claude` → `CLAUDE.md` chỉ sang `PROGRAM.md
 
 ### 22.5 SCHEMA / API / UI / TEST / CHECKLIST DELTAS
 
-**Schema (bổ sung §6):**
-```sql
-ALTER-equivalent (thêm vào schema.sql):
-  program.policy_json TEXT;                       -- raw policy + per-asset instruction
-  asset.category TEXT;                            -- web|wildcard|ip|cidr|source_code|mobile|other
-  scope_rule.asset_type giữ như §6 (đã có).
-
-CREATE TABLE scan_config (
-  id INTEGER PRIMARY KEY,
-  scan_run_id INTEGER UNIQUE REFERENCES scan_run(id),
-  depth TEXT, threads INTEGER, rate_limit INTEGER, scan_timeout INTEGER,
-  nuclei_severity TEXT, skip_nmap INTEGER, skip_nuclei INTEGER, skip_active_crawl INTEGER,
-  categories_enabled_json TEXT,                   -- ["web","source_code"]
-  excluded_hosts_json TEXT,                       -- user bỏ bớt ở review
-  created_at TEXT
-);
-```
+**Schema:** các cột/bảng v2.2 (`program.policy_json`, `asset.category`, `scan_run.trigger`, bảng `scan_config`, `schedule.config_json`) **đã nằm trong §6** (nguồn chuẩn). Ở đây chỉ nhắc ý nghĩa: `scan_config` lưu config đã duyệt ở REVIEW; `categories_enabled_json`/`excluded_hosts_json` phản ánh lựa chọn user; `scan_run.trigger` phân biệt manual vs scheduled.
 
 **API (bổ sung §7):** `POST /api/scope/resolve`, `POST /api/scans/{id}/launch`, `GET/PUT /api/scans/{id}/config` (lấy/sửa draft config).
 
@@ -709,3 +723,22 @@ CREATE TABLE scan_config (
 - ✅ Submit input → ra **màn review config**, recon chưa chạy; sửa threads/rate_limit/bỏ host rồi Launch → recon chạy đúng thông số.
 - ✅ Scope có source_code/mobile → phân loại & route đúng; mobile đánh dấu manual.
 - ✅ `PROGRAM.md` sinh ra, không bị ghi đè ở scan sau, có trong ZIP; agent đọc PROGRAM.md + AGENT_BRIEF.md là đủ ngữ cảnh.
+
+---
+
+## 23. UPGRADE PATH — nâng framework sang layout `bughunter/` (bản upstream mới)
+
+> **Mặc định v1 dùng bản pin cũ** (`gloryy2k/claude-bug-bounty @32131c1`, layout `tools/`) để build chắc, zero rework. Khi v1 đã chạy ổn và muốn bám bản upstream được maintain (`awarexone/Agentic-Bug-Hunter`, layout package `bughunter/`, update thường xuyên, ~5k sao), theo checklist này. **Chỉ làm sau khi v1 pass §17.**
+
+**Khác biệt chính:** script cùng tên nhưng **đổi đường dẫn**: `tools/recon_engine.sh` → `bughunter/tools/recon_engine.sh` (tương tự scope_aggregator, scope_checker, recon_adapter, intel_engine). Có thêm `pyproject.toml`, `go.mod`, `.claude-plugin`.
+
+**Checklist nâng cấp (mỗi bước có cổng test):**
+1. **Fork & pin bản mới:** fork `awarexone/Agentic-Bug-Hunter` về `gloryy2k`, đổi submodule `vendor/claude-bug-bounty` trỏ sang fork đó, **pin 1 commit cụ thể** (không để trôi theo upstream).
+2. **Abstraction hoá path:** đưa prefix tool vào 1 biến config `BBASM_TOOLS_SUBDIR` (cũ=`tools`, mới=`bughunter/tools`). `recon_orch.py`/`ingest.py`/`monitors.py` build path = `$BBASM_BBROOT/$BBASM_TOOLS_SUBDIR/<script>`. ⇒ đổi layout chỉ là đổi 1 ENV. (Nên làm NGAY ở v1 để sau nâng cấp rẻ.)
+3. **RE-VERIFY `recon_engine.sh` mới:** đọc lại — kiểm `--quick` còn skip gì, `NUC_SEV`/`NUC_LIMIT` còn tính nội bộ không, nmap/httpx/katana/nuclei còn luôn chạy không. **Cập nhật §8.2 patch cho khớp** (toggle ENV có thể chèn chỗ khác). KHÔNG giả định giống bản cũ.
+4. **RE-VERIFY các interface khác:** `scope_aggregator` (flags, output format), `scope_checker.ScopeChecker` (signature, IP support — có thể đã thêm?), `recon_adapter.load_recon` (tên field), `intel_engine` (args). Sửa §3 nếu lệch.
+5. **Chạy lại test:** toàn bộ integration (`pytest -m integration`) trên Kali/Docker + acceptance §17 với bản mới. Đặc biệt TC-RO-* (depth mapping), TC-DK-* (Docker build với `install_tools.sh` mới), TC-MN-*.
+6. **Docker:** `install_tools.sh` bản mới có thể khác (go.mod/pyproject) → build lại image, verify `/api/health` đủ tool.
+7. **Rollback sẵn sàng:** nếu bản mới vỡ interface → trỏ submodule về commit pin cũ là xong (vì đã abstraction ở bước 2).
+
+**Tiêu chí quyết định nâng hay không:** chỉ nâng khi bản mới mang lại giá trị rõ (tool/fix mới mình cần). Nếu v1 chạy tốt, **được phép ở lại bản pin cũ vô thời hạn** — pin = ổn định, không nợ kỹ thuật bắt buộc.
