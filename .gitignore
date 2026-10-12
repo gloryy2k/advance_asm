@@ -1,0 +1,30 @@
+# BBASM runtime output — không commit
+targets/
+data/
+*.db
+*.db-wal
+*.db-shm
+audit.jsonl
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.coverage
+
+# Node / frontend
+node_modules/
+frontend/dist/
+dist/
+
+# Env & secrets
+.env
+.env.local
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
