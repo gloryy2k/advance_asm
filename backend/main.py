@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
 
 from backend.api.health import router as health_router
 from backend.api.scope import router as scope_router
@@ -47,6 +48,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(scan_router)
     app.include_router(brief_router)
     app.include_router(program_router)
+    if settings.BBASM_STATIC.is_dir():
+        app.mount("/", StaticFiles(directory=settings.BBASM_STATIC, html=True), name="dashboard")
 
     @app.exception_handler(ScopeError)
     async def scope_error(request, exc):

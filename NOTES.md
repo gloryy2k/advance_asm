@@ -45,6 +45,22 @@ Earlier pending-T6 notes below are historical. P3 implementation follows §15.
 
 ### Earlier P3 notes
 
+## P6 — Dashboard
+
+- React/TypeScript dashboard includes portfolio, raw/H1 input, config review with
+  category and per-host exclusion controls, explicit launch, cancellation and WS
+  replay reconnect. Target tabs expose overview, surface, assets, diff, findings,
+  brief, PROGRAM editing and ZIP options. Dark/light and narrow-screen CSS included.
+- FastAPI serves the built bundle when BBASM_STATIC exists; Vite proxies API/WS
+  in dev. No third-party font request. Markdown renderer does not enable raw HTML.
+- Gate: 160 backend unit tests; 6 Vitest tests; production build passes. npm audit
+  reports 0 vulnerabilities after updating initial build/test pins. Node >=22.12 is
+  required (newer than the spec's illustrative node:20 stage); CI/Docker use Node22.
+- Localhost portfolio was visually checked. Full browser example.com e2e and
+  phone-device acceptance remain integration/user checks, not claimed as run.
+
+### Historical P3 details
+
 - Implemented diff_engine, ranking, framework monitors and persistent scheduling.
   Runner captures a durable pre-ingest baseline, runs gated monitors inside the
   same timeout/process-group/audit boundary, ingests results, then diffs/ranks.

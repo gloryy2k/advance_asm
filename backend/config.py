@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     BBASM_TOOLS_SUBDIR: str = "tools"
     BBASM_DATA: Path = PROJECT_ROOT / "data"
     BBASM_TARGETS: Path = PROJECT_ROOT / "targets"
+    BBASM_STATIC: Path = PROJECT_ROOT / "frontend" / "dist"
     BBASM_BIND: str = "127.0.0.1"
     BBASM_PORT: int = Field(default=8000, ge=1, le=65535)
     BB_THREADS: int = Field(default=50, ge=1, le=200)
