@@ -15,6 +15,7 @@ from backend.config import Settings
 from backend.db import Database
 from backend.jobs.scope_resolver import ScopeError, ScopeResolver
 from backend.jobs.runner import JobRunner
+from backend.asm.scheduler import ScanScheduler
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -22,9 +23,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app):
         await asyncio.to_thread(app.state.runner.recover)
+        app.state.scheduler.start()
         try:
             yield
         finally:
+            await app.state.scheduler.close()
             await app.state.runner.close()
 
     app = FastAPI(title="BBASM", version="0.1.0", lifespan=lifespan)
@@ -32,6 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.database = Database(settings.BBASM_DATA / "bbasm.db")
     app.state.scope_resolver = ScopeResolver(settings, app.state.database)
     app.state.runner = JobRunner(settings, app.state.database)
+    app.state.scheduler = ScanScheduler(settings, app.state.database, app.state.runner)
     app.add_middleware(
         CORSMiddleware, allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["Content-Type"],

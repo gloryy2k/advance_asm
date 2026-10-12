@@ -60,6 +60,10 @@ class JobRunner:
             from backend.jobs.ingest import Ingester
             ingester = Ingester(settings, database)
         self.ingester = ingester
+        from backend.asm.diff_engine import DiffEngine
+        from backend.asm.monitors import Monitors
+        self.diff_engine = DiffEngine(database)
+        self.monitors = Monitors(settings, database)
         self.logs = LogBuffer(settings.BBASM_DATA / "logs")
         self.queue, self.workers, self.tasks = asyncio.Queue(), [], {}
         self.submitted, self.program_locks = set(), {}
@@ -114,6 +118,16 @@ class JobRunner:
         if self.closing:
             raise ScopeError("Runner is shutting down")
         await asyncio.to_thread(self._enqueue, scan_id, config)
+        await self.adopt_queued(scan_id)
+
+    async def adopt_queued(self, scan_id):
+        """Attach an atomically persisted scheduled or manual queue entry."""
+        if self.closing:
+            raise ScopeError("Runner is shutting down")
+        if scan_id in self.submitted:
+            return
+        if (await asyncio.to_thread(self.status, scan_id))["status"] != "queued":
+            raise ScopeError("Only queued scans can enter the runner")
         self.submitted.add(scan_id)
         await self.logs.emit(scan_id, "log", message="Scan queued")
         self.queue.put_nowait(scan_id)
@@ -168,6 +182,7 @@ class JobRunner:
                 if not await asyncio.to_thread(self._transition, scan_id, "running"):
                     return
                 plan = await asyncio.to_thread(self.orchestrator.build, scan_id)
+                await asyncio.to_thread(self.diff_engine.capture, plan)
                 for message in plan.warnings:
                     await self.logs.emit(scan_id, "log", level="warning", message=message)
                 for name in self.orchestrator.missing_tools():
@@ -180,6 +195,12 @@ class JobRunner:
                     errors.append("Scan hard timeout exceeded")
                 # _pipeline guarantees process cleanup before we inspect partial files.
                 stats = await asyncio.to_thread(self.ingester.ingest, plan)
+                stats["monitor_findings"] = await asyncio.to_thread(self.monitors.ingest, plan)
+                stats["findings"] = await asyncio.to_thread(self._finding_count, plan)
+                stats["diff"] = await asyncio.to_thread(self.diff_engine.apply, plan,
+                    stats.get("observations", {}), complete=not errors and bool(plan.commands))
+                from backend.asm.ranking import rank_program
+                await asyncio.to_thread(rank_program, self.database, plan.program_id, scan_id)
         except asyncio.CancelledError:
             cancelled = True
         except Exception as exc:
@@ -195,6 +216,11 @@ class JobRunner:
             audit(plan.audit_path, plan.slug, status, "scan_finished", scan_id=scan_id)
         await self.logs.emit(scan_id, "done", status=status, stats=stats, error="; ".join(errors)[:2000] or None)
 
+    def _finding_count(self, plan):
+        with self.database.connect() as conn:
+            return conn.execute("SELECT count(*) FROM finding WHERE program_id=? AND last_seen_scan=?",
+                                (plan.program_id, plan.scan_id)).fetchone()[0]
+
     async def _pipeline(self, plan, parser, errors):
         initial = list(plan.commands)
         if not initial and not plan.warnings:
@@ -202,6 +228,8 @@ class JobRunner:
         for command in initial:
             await self._command(plan, command, parser, errors)
         for command in self.orchestrator.discovered_commands(plan):
+            await self._command(plan, command, parser, errors)
+        for command in await asyncio.to_thread(self.monitors.commands, plan):
             await self._command(plan, command, parser, errors)
 
     async def _command(self, plan, command, parser, errors):

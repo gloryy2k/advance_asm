@@ -7,6 +7,32 @@ P2 is validated by the user on Kali at 695ef2d / vendor 7acb66a: 124 unit +
 complete, health fixed. katana/dnsx were installed in ~/go/bin all along.
 Earlier pending-T6 notes below are historical. P3 implementation follows §15.
 
+## P3 — ASM core
+
+- Implemented diff_engine, ranking, framework monitors and persistent scheduling.
+  Runner captures a durable pre-ingest baseline, runs gated monitors inside the
+  same timeout/process-group/audit boundary, ingests results, then diffs/ranks.
+- Diffs are idempotent per scan and normalize tech sets; partial/error scans and
+  excluded review scope cannot mark hosts gone. Returning hosts emit changed.
+- Ranking follows §12.3 exactly. Spec conflict for review: TC-RK-1's api + graphql
+  + fresh + 200 totals 6.0, not >=7. The test asserts 6.0 and reasons; no arbitrary
+  score inflation was added. Each feature contributes once and score clamps at 10.
+- Monitor inputs are isolated and scope-filtered; missing binaries/passive depth
+  skip active monitor execution. Findings retain redacted metadata. Unattributable
+  secrets/relative endpoints keep NULL asset_id, with explicit idempotent upserts.
+- APScheduler 3.11.0 restores jobs from the existing schedule table at startup
+  (the §12.2 alternative to SQLAlchemyJobStore). Enabled jobs preserve next_run_at;
+  overdue executions coalesce, overlapping scans skip a tick. Scheduled scans are
+  created queued with trigger=scheduled and saved config, never via draft review.
+  Monitoring API/UI comes in P5/P6. Run a single backend process for this scheduler.
+- Validation: **150 passed, 3 deselected**; one upstream Starlette/AnyIO warning.
+  Measured line coverage: diff/ranking 100%, monitors 95%, scheduler 94%, runner
+  90% (rounded), scope gate 95%; aggregate of these modules 94%. No real monitor
+  scan/integration run in this Windows environment. Vendor stays at 7acb66a.
+- APScheduler reference consulted: https://apscheduler.readthedocs.io/en/3.x/userguide.html
+  Optional local coverage command (install coverage separately):
+  `python -m coverage run --source=backend.asm,backend.jobs.runner,backend.scope_gate -m pytest -m "not integration"`.
+
 ## P0 scope
 
 - Read BUILD_SPEC.md v2.4, README.md and .env.example before implementation.

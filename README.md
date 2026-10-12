@@ -4,7 +4,7 @@ Bug Bounty **Attack Surface Management** dashboard — tăng tốc & khử-token
 
 Web dashboard (FastAPI + React, đóng Docker) ngồi trên framework recon (`claude-bug-bounty`, vendored submodule). Nhập **HackerOne handle/URL** hoặc **raw scope** → **review config** → recon (depth tùy chỉnh) → ranked attack surface + diff theo thời gian → sinh `PROGRAM.md` + `AGENT_BRIEF.md` để Claude agent `cd` vào hunt với ~0 token setup.
 
-> 🚧 **Trạng thái: P2 đã hoàn tất code và unit test theo T1–T5; chờ người dùng xác nhận integration/smoke test T6 trên Kali/Linux.** Chưa có UI hoặc Docker runtime. Nguồn chuẩn là **[`BUILD_SPEC.md`](./BUILD_SPEC.md)**; quyết định P2 ở [`P2_COMPLETION_PLAN.md`](./P2_COMPLETION_PLAN.md), kết quả ở [`NOTES.md`](./NOTES.md).
+> 🚧 **Trạng thái: P2 đã được xác nhận trên Kali; P3 ASM core đã triển khai và có unit test.** Chưa có UI hoặc Docker runtime. Nguồn chuẩn là **[`BUILD_SPEC.md`](./BUILD_SPEC.md)**; kết quả P2 ở [`P2_T6_RESULTS.md`](./P2_T6_RESULTS.md), tiến độ ở [`NOTES.md`](./NOTES.md).
 
 ---
 
