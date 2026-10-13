@@ -12,10 +12,14 @@ import pytest
 pytestmark = [pytest.mark.integration, pytest.mark.skipif(os.environ.get("BBASM_DOCKER_TESTS") != "1", reason="Set BBASM_DOCKER_TESTS=1 on a Docker host")]
 
 
-def test_docker_build_health_and_static_dashboard():
+def test_docker_build_health_and_static_dashboard(record_property):
     root = Path(__file__).resolve().parents[2]
     name = "bbasm-acceptance-" + uuid4().hex[:12]
+    started = time.monotonic()
     subprocess.run(["docker", "build", "-t", name, "."], cwd=root, check=True, timeout=3600)
+    seconds = round(time.monotonic() - started, 2)
+    record_property("docker_build_seconds", seconds)
+    print(f"Docker build completed in {seconds}s", flush=True)
     container = None
     try:
         container = subprocess.check_output(["docker", "run", "-d", "--rm", "--name", name,
@@ -32,7 +36,8 @@ def test_docker_build_health_and_static_dashboard():
         else:
             pytest.fail("Container did not become healthy")
         assert health["ok"]
-        assert all(health["tools"][name] for name in ("bash", "subfinder", "httpx", "nuclei", "gau", "nmap"))
+        assert all(health["tools"][name] for name in ("bash", "subfinder", "httpx", "nuclei", "gau", "nmap",
+                                                     "dnsx", "katana", "amass", "ffuf", "trufflehog"))
         with urlopen(base, timeout=3) as response:
             assert b'root' in response.read()
     finally:

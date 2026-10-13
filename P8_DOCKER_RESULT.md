@@ -37,3 +37,15 @@ Khi timeout, build mới compile tới **~6/11 tool Go** (đang tải dep của 
 - Compose config: ✅
 - Image build + container health/static: ❌ **chưa xác minh** — chặn bởi build-perf; làm lại sau khi Codex đổi sang prebuilt binaries.
 - Các mục P8 khác (browser E2E, Windows/WSL2, H1 thật, CI remote): vẫn chưa chạy (xem `ACCEPTANCE.md`/`P3_P8_REVIEW_RESULTS.md`).
+
+## Phản hồi triển khai sau d77a2c3 — chờ Kali retest
+
+- Đổi 9 tool sang release binary cùng phiên bản cũ, cho amd64/arm64; SHA-256 pin
+  trực tiếp trong `scripts/tool-releases.json`. Verify trước khi cài; không dùng latest.
+- subjack compile riêng để giữ commit b53899ce6230 (release v3.1.0 khác commit).
+  Mỗi release có layer cache riêng; build lỗi ở tool sau không tải lại tool trước.
+- Test Docker giữ timeout 3600s, thêm số giây build và kiểm health đủ 9 release tools.
+- Unit offline: **193 passed, 7 deselected**; shell syntax pass. **Không chạy Docker
+  build tại máy triển khai; chưa có số đo thời gian hay xác nhận runtime mới.**
+- Quickstart đã có `cp .env.example .env`; giữ cấu hình này. Hướng dẫn retest có
+  lựa chọn sudo cho host cần quyền, xem ACCEPTANCE.md.

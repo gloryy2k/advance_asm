@@ -2,6 +2,33 @@
 
 ## Current phase
 
+### Docker build-perf fix (Kali report d77a2c3)
+
+- P8_FIX_VERIFICATION.md confirms all four fixes on Kali at 101b0ef, including
+  real nuclei cancellation and 4 process integration tests. HIGH-1 is unblocked;
+  a separate real nuclei hard-timeout was not repeated (shared teardown path).
+- P8_DOCKER_RESULT.md records a 3600s source-build timeout before runtime tests.
+  Nine tools now use official release binaries at the SAME pinned versions:
+  subfinder/httpx/nuclei/dnsx/katana/gau/ffuf/amass/trufflehog. No vendor changes.
+- scripts/tool-releases.json locks Linux amd64 and arm64 URLs plus SHA-256.
+  Digests came from official GitHub release asset metadata; gau/amass hashes came
+  from their publisher checksum files (metadata lacks digest). URLs are versioned,
+  never latest. Archive verification precedes reading a unique binary member;
+  symlinks/duplicates/wrong ELF architecture fail. Downloads have timeout/retries;
+  corrupt archives are not installed. Updating a version requires reviewing hashes.
+- subjack stays compiled at b53899ce6230 in its own cached Docker stage. Available
+  release v3.1.0 points at 8a3a82c, so using it would silently change the tool pin.
+  Separate per-tool RUN layers retain completed downloads on retry. No cache-mount
+  syntax is required, so this does not add a BuildKit/buildx plugin prerequisite.
+- Publisher GoReleaser configs for trufflehog v3.99.2 and katana v1.8.0 explicitly
+  use CGO_ENABLED=0. Actual image/tool runtime and build speed are still unverified.
+  Docker test keeps its 3600s limit, records elapsed build time, checks all nine
+  release tools in health, then static HTML. No test limit inflation to hide slowness.
+- Unit gate: 193 passed, 7 integration deselected. Offline fixtures exercise both
+  archive formats and architectures, checksum rejection, cache reuse/corruption,
+  retries, ambiguous members and symlinks. No real tool execution or Docker build.
+  Kali must rerun Docker acceptance; browser/H1/WSL2/remote CI remain pending.
+
 ### P8 handoff fixes (review source: 9fa4b8c)
 
 - FIX-1: psutil 7.0.0 snapshots recursive descendants and, on POSIX, all members

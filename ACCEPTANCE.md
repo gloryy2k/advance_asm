@@ -8,12 +8,12 @@ Kali/Docker. Không có scan thật hay Docker build trong môi trường triể
 
 | Hạng mục | Kết quả / giới hạn |
 |---|---|
-| Backend unit | Sau handoff fixes: `pytest -m "not integration"`: 177 passed, 7 deselected; Windows Python 3.13.2 |
+| Backend unit | Sau Docker build fix: `pytest -m "not integration"`: 193 passed, 7 deselected; Windows Python 3.13.2 |
 | Frontend | 6 Vitest tests và production build đã pass ở P6 |
 | Coverage lõi | 93% tổng các module ASM, brief/export, runner, scope_gate; không phải coverage toàn repo |
-| Docker | Compose parse và shell syntax pass; chưa build image hay kiểm CLI của các tool đã pin |
+| Docker | Kali build cũ timeout 3600s (P8_DOCKER_RESULT.md); đã đổi 9 tool sang release binary có checksum, chờ retest build/health/static |
 | P2 thực tế | Người dùng xác nhận tại parent `695ef2d`, vendor `7acb66a`: 124 unit + 3 integration; localhost light ~7s; health đúng |
-| P3–P7 | Kali đã kiểm localhost tại 4882a9d; xem P3_P8_REVIEW_RESULTS.md. HIGH-1 teardown vừa sửa, chưa được revalidate thực tế |
+| P3–P7 | Kali xác nhận 4/4 fixes tại 101b0ef, gồm cancel nuclei thật; HIGH-1 đã gỡ chặn, xem P8_FIX_VERIFICATION.md |
 | CI remote | Có workflow unit/frontend/shell; chưa xác nhận kết quả GitHub Actions của nhánh bàn giao |
 | Token benchmark | Kali tại 4882a9d: 32004 → 994 tokens, giảm 96.89%, brief 2638B; fixture-only, không phải hunt thật |
 
@@ -58,14 +58,18 @@ make smoke TARGET=YOUR_AUTHORIZED_DOMAIN DEPTH=light
 
 ## Các mục còn cần xác nhận (§17, §22, §24)
 
-Ưu tiên sau khi pull bản fix: chạy
-`pytest -m integration backend/tests/test_recon_integration.py` (có 3 trường hợp
-teardown GNU timeout: cancel, hard timeout, parent đã thoát). Sau đó lặp light
-scan localhost có nuclei và cancel/timeout; xác nhận toàn bộ process của scan
-đã chết. **Chưa gỡ trạng thái chặn merge HIGH-1 cho đến khi Kali xác nhận lại.**
-Thử DB mới với targets cũ trên dữ liệu test: output được giữ trong `.orphan-*`,
-scan mới chạy được. Thử web localhost 200 → tắt server → scan hoàn tất:
-diff status 200 → null; passive/partial không tạo sự kiện offline giả.
+HIGH-1 đã được Kali xác nhận lại bằng nuclei thật và 4 integration tests; xem
+P8_FIX_VERIFICATION.md. Ưu tiên hiện tại: retest bản tối ưu Docker, giữ cache:
+
+```bash
+BBASM_DOCKER_TESTS=1 pytest -s -m integration backend/tests/test_docker_integration.py
+# Nếu host cần sudo, chỉ cấp quyền cho lần chạy test được chọn:
+sudo env BBASM_DOCKER_TESTS=1 .venv/bin/python -m pytest -s -m integration backend/tests/test_docker_integration.py
+```
+
+Chạy một trong hai lệnh phù hợp với quyền Docker trên host. Ghi commit, elapsed
+build time, kiến trúc, cold/warm cache, kết quả health/static vào báo cáo. Test vẫn
+giới hạn 3600s; chưa khẳng định build đã nhanh hơn khi chưa có số đo thực tế.
 
 1. Docker build/start trên máy chỉ có Docker; health báo tool, dashboard tải được.
    Kiểm cả Windows/WSL2 và Linux; kiểm volume DB/target còn sau restart.
@@ -89,7 +93,8 @@ diff status 200 → null; passive/partial không tạo sự kiện offline giả
 - Scope bắt buộc quá lớn cho brief sẽ báo lỗi, không lược bỏ quy tắc scope.
 - Audit hiện ghi scope và subprocess spawn, **không ghi/chặn mọi request nội bộ
   của tool**. Đây là giới hạn đã ghi từ P2; không chứng minh network containment.
-- Tool Docker được pin nhưng chưa compile/scan kiểm tương thích CLI; Node >=22.12.
+- Tool Docker pin + checksum nhưng image mới chưa build/scan kiểm tương thích CLI;
+  subjack giữ source pin riêng; Node >=22.12.
 - Schedule khi không gửi config lấy defaults của depth chọn, không tự sao chép
   mọi lựa chọn của scan trước. Backend chạy một process để tránh lịch trùng.
 

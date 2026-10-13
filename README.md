@@ -37,7 +37,7 @@ git submodule update --init --recursive
 # 2. Cấu hình
 cp .env.example .env        # điền API key nếu có (optional)
 
-# 3. Build & chạy  (lần đầu ~10–30 phút: compile Go tools + nuclei templates)
+# 3. Build & chạy (thời gian tùy mạng/cache; chưa có số đo sau tối ưu)
 docker compose up -d --build
 
 # 4. Mở dashboard
@@ -107,6 +107,11 @@ sẵn và thêm `-f docker-compose.subfinder.yml`. Không cần mount để ch�
 `BBASM_UPDATE_TEMPLATES=0` bỏ refresh templates lúc khởi động. Không sửa bind
 localhost của published port nếu chưa chủ động muốn expose dashboard không có auth.
 
+Docker tải 9 release binary đã pin phiên bản + SHA-256 trong
+`scripts/tool-releases.json` (Linux amd64/arm64), cache theo từng layer. Chỉ subjack
+còn compile để giữ đúng commit cũ. Không dùng `--no-cache` khi retry build bị ngắt.
+Lần build trước trên Kali vượt 3600s; bản tối ưu đang chờ retest, chưa hứa thời gian.
+
 P1: `POST /api/scope/resolve` nhận `{"input":"raw","scope":["*.example.com"]}`
 hoặc `{"input":"h1:<handle>"}` / URL HackerOne `/policy_scopes`. Kết quả có
 `scan_id`, `slug`, `config`, `assets_by_category`; scan luôn ở `draft`, chưa chạy recon.
@@ -152,7 +157,7 @@ pytest -m integration
 
 ## Kết quả kiểm tra và token benchmark
 
-Backend sau P8 fixes: **177 passed, 7 integration deselected**.
+Backend sau Docker build fix: **193 passed, 7 integration deselected**.
 Frontend P6: **6 tests pass**, production build pass. CI remote và Docker/recon
 thật của các phase mới còn chờ xác nhận; xem ACCEPTANCE.md.
 
