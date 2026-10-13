@@ -8,13 +8,14 @@ Kali/Docker. Không có scan thật hay Docker build trong môi trường triể
 
 | Hạng mục | Kết quả / giới hạn |
 |---|---|
-| Backend unit | Sau dotenv fix: 195 passed, 7 deselected; Windows Python 3.13.2; cũng pass với dotenv giả lập path container cũ |
+| Backend unit | Sau dotenv fix: 195 passed, 7 deselected trên Windows và Kali tại 262b254; cũng pass với dotenv giả lập path container cũ |
 | Frontend | 6 Vitest tests và production build đã pass ở P6 |
 | Coverage lõi | 93% tổng các module ASM, brief/export, runner, scope_gate; không phải coverage toàn repo |
-| Docker | Kali tại 578c489: build/run/health/static PASS, 960.66s toàn bài test cold cache; xem P8_DOCKER_RERUN_RESULT.md. Compose path fix mới đã parse, chưa rerun container |
+| Docker | Cold-cache build/run/health/static PASS tại 578c489 (960.66s tổng test); Compose path fix + cached build + health/static PASS tại 262b254, xem P8_DOCKER_PERSIST_RESULT.md |
+| Persistence | Kali tại 262b254: DB/portfolio, target files, schedule/next_run giữ nguyên qua Compose restart; scheduler reload job thành công |
 | P2 thực tế | Người dùng xác nhận tại parent `695ef2d`, vendor `7acb66a`: 124 unit + 3 integration; localhost light ~7s; health đúng |
 | P3–P7 | Kali xác nhận 4/4 fixes tại 101b0ef, gồm cancel nuclei thật; HIGH-1 đã gỡ chặn, xem P8_FIX_VERIFICATION.md |
-| CI remote | Có workflow unit/frontend/shell; chưa xác nhận kết quả GitHub Actions của nhánh bàn giao |
+| CI remote | SUCCESS tại d011a0c và 262b254; [run d011a0c](https://github.com/gloryy2k/advance_asm/actions/runs/38384155496) kiểm tra trực tiếp qua GitHub API |
 | Token benchmark | Kali tại 4882a9d: 32004 → 994 tokens, giảm 96.89%, brief 2638B; fixture-only, không phải hunt thật |
 
 ## Cập nhật và kiểm tra trên Kali
@@ -61,9 +62,10 @@ make smoke TARGET=YOUR_AUTHORIZED_DOMAIN DEPTH=light
 ## Các mục còn cần xác nhận (§17, §22, §24)
 
 HIGH-1 đã được Kali xác nhận lại bằng nuclei thật và 4 integration tests; xem
-P8_FIX_VERIFICATION.md. Docker build/health/static cũng đã pass tại 578c489.
-Sau dotenv fix có thể kiểm Compose config và khởi động lại với cache hiện có;
-để chạy lại bài Docker đầy đủ khi cần:
+P8_FIX_VERIFICATION.md. Docker build/health/static đã pass tại 578c489; Compose
+config/runtime và DB/targets/schedule qua restart đã pass tại 262b254. CI remote
+cũng xanh tại d011a0c. Không cần lặp các bài đã đạt chỉ vì cập nhật tài liệu.
+Lệnh Docker dưới đây giữ làm tham chiếu khi có thay đổi code/runtime cần regression:
 
 ```bash
 BBASM_DOCKER_TESTS=1 pytest -s -m integration backend/tests/test_docker_integration.py
@@ -75,21 +77,31 @@ Chạy một trong hai lệnh phù hợp với quyền Docker trên host. Ghi co
 build time, kiến trúc, cold/warm cache, kết quả health/static vào báo cáo. Test vẫn
 giới hạn 3600s. Kết quả 960.66s là tổng test, không tách riêng thời gian compile/download.
 
-1. Docker build/start + health/static đã pass Kali. Còn Windows/WSL2 và kiểm volume
-   DB/target sau restart; kiểm lại config Compose sau dotenv fix.
+### Ba mục môi trường chính còn mở
+
+1. Browser E2E resolve → review → launch → Brief, reconnect và narrow viewport.
+2. Windows/WSL2: Docker Desktop build/run, mount/persistence và dashboard.
+3. H1 program thật được phép: scope/policy/category, light scan và handoff.
+
+### Đối chiếu chi tiết trước khi đóng P8
+
+Các mục có bằng chứng đã đạt không cần chạy lại; chỉ bổ sung phần chưa có bằng
+chứng thực tế trong các báo cáo được liên kết.
+
+1. Docker Linux + persistence đã đạt; Windows/WSL2 vẫn mở.
 2. H1 light: review IN/OUT/category/policy đúng, chỉ launch sau review; raw domain,
    wildcard, IP/CIDR và mobile/source scope đúng luồng. Lưu scan ID và audit.
 3. Hai scan cùng program: portfolio NEW, surface/rank/reasons, diff NEW/GONE/CHANGED;
    partial không đánh gone sai. Đối chiếu output thực với dữ liệu dashboard.
-4. Monitoring persist qua restart và scan theo lịch; không chạy chồng program.
+4. Monitoring persist/reload qua restart đã đạt; bổ sung bằng chứng tick thực tế
+   chạy scan theo lịch nếu chưa có (khác với chỉ reload job); không chạy chồng program.
    Kiểm monitor JS/secret/takeover bằng fixture được phép có finding, không chỉ exit 0.
 5. Brief dưới 12000 byte, đủ scope/số liệu; PROGRAM giữ sửa tay; ZIP giải nén và
    manifest đúng, cả hai chế độ include_recon. Tự mở folder bằng agent để đánh giá handoff.
 6. Cancel thật dọn process con; WS reconnect replay; điện thoại/narrow viewport.
-7. Xem CI của commit bàn giao; bổ sung kết quả, commit, host, scan ID, thời gian vào file này.
-8. Đo token fixture bằng `python -m pip install tiktoken` rồi
-   `python scripts/measure_tokens.py`; tokenizer có thể tải encoding lần đầu.
-   Ghi JSON vào README, phân biệt fixture với phép đo hunt thực tế.
+7. CI đã xanh tại d011a0c; kiểm lại khi có thay đổi code sau đó.
+8. Token fixture đã đo và ghi README: 32004 → 994. Không cần đo lại nếu generator
+   không đổi; đây không phải phép đo chi phí hunt thực tế.
 
 ## Quyết định cần review
 

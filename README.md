@@ -4,7 +4,7 @@ Bug Bounty **Attack Surface Management** dashboard — tăng tốc & khử-token
 
 Web dashboard (FastAPI + React, đóng Docker) ngồi trên framework recon (`claude-bug-bounty`, vendored submodule). Nhập **HackerOne handle/URL** hoặc **raw scope** → **review config** → recon (depth tùy chỉnh) → ranked attack surface + diff theo thời gian → sinh `PROGRAM.md` + `AGENT_BRIEF.md` để Claude agent `cd` vào hunt với ~0 token setup.
 
-> **Trạng thái:** backend/dashboard đã triển khai; Kali xác nhận các fix P8 và Docker build + health/static tại `578c489` (960.66s tổng bài test, cold cache). **P8 chưa hoàn tất:** còn browser E2E, Windows/WSL2, H1 thật và CI remote. Nguồn chuẩn: [`BUILD_SPEC.md`](./BUILD_SPEC.md); kết quả/giới hạn: [`NOTES.md`](./NOTES.md). Nhánh mới nhất: `build/p8-acceptance`; hướng dẫn pull và checklist Kali: [`ACCEPTANCE.md`](./ACCEPTANCE.md).
+> **Trạng thái:** Kali xác nhận các fix P8, Docker build/health/static và DB/targets/monitoring persist qua restart tại `262b254`. CI remote xanh tại `d011a0c`. **P8 chưa hoàn tất:** còn browser E2E, Windows/WSL2 và H1 thật. Nguồn chuẩn: [`BUILD_SPEC.md`](./BUILD_SPEC.md); kết quả/giới hạn: [`NOTES.md`](./NOTES.md). Nhánh mới nhất: `build/p8-acceptance`; checklist: [`ACCEPTANCE.md`](./ACCEPTANCE.md).
 
 ---
 
@@ -166,8 +166,9 @@ pytest -m integration
 
 Backend sau dotenv fix: **195 passed, 7 integration deselected**, cả khi mô phỏng
 dotenv container cũ. Compose parse xác nhận bốn path container vẫn đúng.
-Frontend P6: **6 tests pass**, production build pass. CI remote, H1 thật, browser
-E2E và WSL2 còn chờ xác nhận; Docker acceptance đã pass trên Kali, xem ACCEPTANCE.md.
+Frontend P6: **6 tests pass**, production build pass. CI remote xanh tại `d011a0c`;
+Docker runtime/persistence đã pass Kali. H1 thật, browser E2E và WSL2 còn chờ
+xác nhận; xem ACCEPTANCE.md.
 
 `python scripts/measure_tokens.py` so sánh corpus fixture 30 host/2000 URL với
 CLAUDE.md + PROGRAM.md + AGENT_BRIEF.md bằng cl100k_base (cần cài `tiktoken`).

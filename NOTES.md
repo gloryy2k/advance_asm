@@ -2,6 +2,20 @@
 
 ## Current phase
 
+### Docker persistence closure (report d011a0c)
+
+- P8_DOCKER_PERSIST_RESULT.md confirms all three tasks at 262b254 on Kali:
+  195 unit tests, Compose config/cached build/health/static, and persistent
+  DB/portfolio/target files/schedule/next_run through restart. Scheduler logs
+  confirm job reload; this does not itself demonstrate a scheduled tick executing.
+- Read-only GitHub Actions API check confirms CI success at d011a0c and 262b254.
+  Evidence: https://github.com/gloryy2k/advance_asm/actions/runs/38384155496
+- No new code change or local test rerun for this documentation-only update.
+  Linux Docker/persistence and remote CI are no longer pending. Main remaining
+  environment acceptance: browser E2E, Windows/WSL2, authorized live H1 program.
+  Preserve detailed checklist items lacking live evidence; do not equate static
+  dashboard HTML, reload logs or tool availability with full browser/scan coverage.
+
 ### Docker rerun and dotenv fix (review source 336e271)
 
 - Kali confirms Docker acceptance at 578c489: 1 passed in 960.66s with cold cache,
