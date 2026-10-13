@@ -5,78 +5,11 @@
 P2 is validated by the user on Kali at 695ef2d / vendor 7acb66a: 124 unit +
 3 integration tests passed, loopback light scan ~7s instead of ~279s, audit
 complete, health fixed. katana/dnsx were installed in ~/go/bin all along.
-Earlier pending-T6 notes below are historical. P3 implementation follows §15.
+P3–P7b implementation is complete with unit gates. P8 host acceptance is pending;
+see ACCEPTANCE.md. Earlier pending-T6 and deny-before-spawn notes below are
+historical and superseded by the confirmed P2 result and audited-spawn design.
 
 ## P3 — ASM core
-
-## P4 — Brief/scaffold/export
-
-- Brief/scaffold generation is wired after ingest/diff/rank. PROGRAM.md is created
-  once; PUT accepts only user-section text, never overwrites generated policy/scope.
-  Exact PUT body: {content: string}. Folders and user notes remain intact.
-- Brief preserves all scope rules and section headings within <12000 UTF-8 bytes;
-  optional surface/signals are capped. If mandatory scope alone exceeds the budget,
-  generation fails explicitly instead of silently dropping rules (reviewable default).
-- Intel reuses intel_engine.py --json through the same audited subprocess/cleanup
-  path, with 15s timeout and 1MB output cap; failure is a warning. Manual brief regen
-  uses that scan's cached intel and findings, does not repeat outbound requests.
-- ZIP is built to a temporary disk file and served with cleanup; symlinks rejected,
-  hidden internals/system dotfiles and temporary/lock files excluded. Manifest and
-  regenerated brief use the same completed/partial scan. Includes empty directories.
-- Gate passed: 157 unit tests, 3 integration deselected; 200MB export fixture used
-  <20MB Python peak allocation. UTF-8 tests fixed for native Windows.
-- Raw monitor output can contain credentials in recon files; include_recon=false
-  is the compact handoff option. Dashboard finding metadata is redacted.
-
-### P3 implementation details
-
-## P5 — API completion
-
-- Added portfolio sorted by NEW count, program detail/scans/scope/schedule,
-  assets/surface filtering and stable rank ordering, diff and finding filters,
-  schedule control and explicit-depth one-shot scan API. Canonical UI flow remains
-  resolve → review → launch. Existing WS replay/config/cancel endpoints are reused.
-- List APIs use bounded limits and parameterized SQL. Missing program uses the
-  existing structured 422 ScopeError contract. Schedule config is optional; without
-  it the selected depth's defaults are captured when enabling monitoring.
-- Unit gate: 159 passed, 3 integration deselected. No real target traffic.
-- P4's first push encountered GitHub DNS resolution failure; local commit retained
-  and push retried with P5. No implementation was lost.
-
-### Earlier P3 notes
-
-## P6 — Dashboard
-
-- React/TypeScript dashboard includes portfolio, raw/H1 input, config review with
-  category and per-host exclusion controls, explicit launch, cancellation and WS
-  replay reconnect. Target tabs expose overview, surface, assets, diff, findings,
-  brief, PROGRAM editing and ZIP options. Dark/light and narrow-screen CSS included.
-- FastAPI serves the built bundle when BBASM_STATIC exists; Vite proxies API/WS
-  in dev. No third-party font request. Markdown renderer does not enable raw HTML.
-- Gate: 160 backend unit tests; 6 Vitest tests; production build passes. npm audit
-  reports 0 vulnerabilities after updating initial build/test pins. Node >=22.12 is
-  required (newer than the spec's illustrative node:20 stage); CI/Docker use Node22.
-- Localhost portfolio was visually checked. Full browser example.com e2e and
-  phone-device acceptance remain integration/user checks, not claimed as run.
-
-### Historical P3 details
-
-## P7 — Docker/runtime
-
-- Added multistage frontend/Go tools/Python image, localhost-published Compose,
-  volume persistence, startup migration, bounded audited template refresh and
-  optional subfinder/capability overrides. Default nmap remains -sT without caps.
-- Reviewed vendor install_tools.sh: it attempts Homebrew bootstrap, unsuitable
-  for a root Debian build. A Linux container install adapter compiles the same
-  tools at pinned Go-proxy versions; recon itself remains the untouched fork.
-  Trufflehog builds inside its tagged source module to honor replace directives.
-- Tool versions were resolved against proxy.golang.org, but **Docker compilation
-  and real tool CLI compatibility are not validated here**. Docker daemon is not
-  running; per task instructions no Docker build was attempted. This is a P8
-  acceptance item for Kali/Docker, not a claim that the image has been built.
-- Unit gate: 162 passed, 3 integration deselected. Shell syntax checks passed.
-
-### Earlier ASM details
 
 - Implemented diff_engine, ranking, framework monitors and persistent scheduling.
   Runner captures a durable pre-ingest baseline, runs gated monitors inside the
@@ -102,6 +35,89 @@ Earlier pending-T6 notes below are historical. P3 implementation follows §15.
   Optional local coverage command (install coverage separately):
   `python -m coverage run --source=backend.asm,backend.jobs.runner,backend.scope_gate -m pytest -m "not integration"`.
 
+
+## P4 — Brief/scaffold/export
+
+- Brief/scaffold generation is wired after ingest/diff/rank. PROGRAM.md is created
+  once; PUT accepts only user-section text, never overwrites generated policy/scope.
+  Exact PUT body: {content: string}. Folders and user notes remain intact.
+- Brief preserves all scope rules and section headings within <12000 UTF-8 bytes;
+  optional surface/signals are capped. If mandatory scope alone exceeds the budget,
+  generation fails explicitly instead of silently dropping rules (reviewable default).
+- Intel reuses intel_engine.py --json through the same audited subprocess/cleanup
+  path, with 15s timeout and 1MB output cap; failure is a warning. Manual brief regen
+  uses that scan's cached intel and findings, does not repeat outbound requests.
+- ZIP is built to a temporary disk file and served with cleanup; symlinks rejected,
+  hidden internals/system dotfiles and temporary/lock files excluded. Manifest and
+  regenerated brief use the same completed/partial scan. Includes empty directories.
+- Gate passed: 157 unit tests, 3 integration deselected; 200MB export fixture used
+  <20MB Python peak allocation. UTF-8 tests fixed for native Windows.
+- Raw monitor output can contain credentials in recon files; include_recon=false
+  is the compact handoff option. Dashboard finding metadata is redacted.
+
+## P5 — API completion
+
+- Added portfolio sorted by NEW count, program detail/scans/scope/schedule,
+  assets/surface filtering and stable rank ordering, diff and finding filters,
+  schedule control and explicit-depth one-shot scan API. Canonical UI flow remains
+  resolve → review → launch. Existing WS replay/config/cancel endpoints are reused.
+- List APIs use bounded limits and parameterized SQL. Missing program uses the
+  existing structured 422 ScopeError contract. Schedule config is optional; without
+  it the selected depth's defaults are captured when enabling monitoring.
+- Unit gate: 159 passed, 3 integration deselected. No real target traffic.
+- P4's first push encountered GitHub DNS resolution failure; local commit retained
+  and push retried with P5. No implementation was lost.
+
+## P6 — Dashboard
+
+- React/TypeScript dashboard includes portfolio, raw/H1 input, config review with
+  category and per-host exclusion controls, explicit launch, cancellation and WS
+  replay reconnect. Target tabs expose overview, surface, assets, diff, findings,
+  brief, PROGRAM editing and ZIP options. Dark/light and narrow-screen CSS included.
+- FastAPI serves the built bundle when BBASM_STATIC exists; Vite proxies API/WS
+  in dev. No third-party font request. Markdown renderer does not enable raw HTML.
+- Gate: 160 backend unit tests; 6 Vitest tests; production build passes. npm audit
+  reports 0 vulnerabilities after updating initial build/test pins. Node >=22.12 is
+  required (newer than the spec's illustrative node:20 stage); CI/Docker use Node22.
+- Localhost portfolio was visually checked. Full browser example.com e2e and
+  phone-device acceptance remain integration/user checks, not claimed as run.
+
+## P7 — Docker/runtime
+
+- Added multistage frontend/Go tools/Python image, localhost-published Compose,
+  volume persistence, startup migration, bounded audited template refresh and
+  optional subfinder/capability overrides. Default nmap remains -sT without caps.
+- Reviewed vendor install_tools.sh: it attempts Homebrew bootstrap, unsuitable
+  for a root Debian build. A Linux container install adapter compiles the same
+  tools at pinned Go-proxy versions; recon itself remains the untouched fork.
+  Trufflehog builds inside its tagged source module to honor replace directives.
+- Tool versions were resolved against proxy.golang.org, but **Docker compilation
+  and real tool CLI compatibility are not validated here**. Docker daemon is not
+  running; per task instructions no Docker build was attempted. This is a P8
+  acceptance item for Kali/Docker, not a claim that the image has been built.
+- Unit gate: 162 passed, 3 integration deselected. Shell syntax checks passed.
+
+## P7b — CI/logging/smoke and P8 handoff
+
+- Added structured HTTP request logs with generated request IDs; request bodies,
+  query values and exception messages are omitted. Errors return structured 500.
+- CI runs backend non-integration tests, frontend tests/build and shell LF checks.
+- Added opt-in smoke, Docker integration and Playwright integration scripts.
+  Real scan/build/browser integration has not been run here.
+- Final unit gate: 163 passed, 5 integration deselected; one upstream warning.
+  Core aggregate coverage is 93% (ASM, brief/export, runner, scope_gate).
+- Compose parses with the example env; fixed empty ENV values whose inline
+  comments were interpreted as values. No Docker daemon/build was used.
+- Added a synthetic token comparison script. Tokenizer installation was not
+  executed because automatic approval review failed with a usage-limit error.
+  No token savings numbers are claimed. See ACCEPTANCE.md for host commands.
+
+## Historical phase records
+
+The records below describe the state at each earlier phase, not today's feature
+availability. The P2 open/pending restrictions were superseded by its later plan
+and the user-confirmed 695ef2d / 7acb66a validation above.
+
 ## P0 scope
 
 - Read BUILD_SPEC.md v2.4, README.md and .env.example before implementation.
@@ -126,7 +142,7 @@ Earlier pending-T6 notes below are historical. P3 implementation follows §15.
   values. Missing optional keys remain valid, and secrets are masked in settings repr.
 - Dependencies currently cover P0 only; later phases add their required libraries.
 
-## Phase boundary
+## Historical P2 phase boundary (superseded)
 
 P0/P1 and P2 implementation T1–T5 are complete. P2_COMPLETION_PLAN.md supersedes
 the earlier egress-blocking decision preserved below. T6 real-tool integration and

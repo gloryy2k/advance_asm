@@ -4,7 +4,7 @@ Bug Bounty **Attack Surface Management** dashboard — tăng tốc & khử-token
 
 Web dashboard (FastAPI + React, đóng Docker) ngồi trên framework recon (`claude-bug-bounty`, vendored submodule). Nhập **HackerOne handle/URL** hoặc **raw scope** → **review config** → recon (depth tùy chỉnh) → ranked attack surface + diff theo thời gian → sinh `PROGRAM.md` + `AGENT_BRIEF.md` để Claude agent `cd` vào hunt với ~0 token setup.
 
-> **Trạng thái:** backend, dashboard và cấu hình Docker đã triển khai. P2 đã được xác nhận trên Kali; các phase sau có unit test. **Docker build và acceptance với recon thật chưa chạy trong môi trường triển khai này.** Nguồn chuẩn: [`BUILD_SPEC.md`](./BUILD_SPEC.md); kết quả/giới hạn: [`NOTES.md`](./NOTES.md).
+> **Trạng thái:** backend, dashboard và cấu hình Docker đã triển khai. P2 đã được xác nhận trên Kali; các phase sau có unit test. **Docker build và acceptance với recon thật chưa chạy trong môi trường triển khai này.** Nguồn chuẩn: [`BUILD_SPEC.md`](./BUILD_SPEC.md); kết quả/giới hạn: [`NOTES.md`](./NOTES.md). Nhánh mới nhất: `build/p8-acceptance`; hướng dẫn pull và checklist Kali: [`ACCEPTANCE.md`](./ACCEPTANCE.md).
 
 ---
 
@@ -31,7 +31,8 @@ Web dashboard (FastAPI + React, đóng Docker) ngồi trên framework recon (`cl
 # 1. Clone KÈM submodule (bắt buộc)
 git clone --recurse-submodules https://github.com/gloryy2k/advance_asm.git
 cd advance_asm
-# (nếu lỡ clone thiếu:  git submodule update --init)
+git switch build/p8-acceptance
+git submodule update --init --recursive
 
 # 2. Cấu hình
 cp .env.example .env        # điền API key nếu có (optional)
@@ -149,15 +150,27 @@ pytest -m integration
 
 ---
 
+## Kết quả kiểm tra và token benchmark
+
+Backend: **163 passed, 5 integration deselected**; coverage lõi **93%**.
+Frontend P6: **6 tests pass**, production build pass. CI remote và Docker/recon
+thật của các phase mới còn chờ xác nhận; xem ACCEPTANCE.md.
+
+`python scripts/measure_tokens.py` so sánh corpus fixture 30 host/2000 URL với
+CLAUDE.md + PROGRAM.md + AGENT_BRIEF.md bằng cl100k_base (cần cài `tiktoken`).
+**Chưa đo được số token**: bước cài tokenizer chưa thực hiện do lỗi hạn mức của
+hệ thống xét duyệt. Không có tuyên bố phần trăm tiết kiệm; phép đo fixture cũng
+không thay thế đánh giá hunt thật. Scope bắt buộc vượt budget brief sẽ báo lỗi.
+
 ## Cấu trúc repo
 
 ```
 advance_asm/
 ├── BUILD_SPEC.md              # spec thi công đầy đủ (nguồn chuẩn)
 ├── .env.example  .gitattributes
-├── docker-compose.yml  Dockerfile  entrypoint.sh   # (sẽ tạo khi build)
-├── backend/                   # FastAPI, DB, scope resolver/gate (P0–P1)
-├── frontend/                  # Khung thư mục; React/Vite ở P6
+├── docker-compose.yml  Dockerfile  entrypoint.sh   # Docker runtime
+├── backend/                   # API, runner, scope, ASM, brief/export
+├── frontend/                  # React/Vite dashboard
 ├── vendor/claude-bug-bounty/  # submodule @7acb66a (toggle patch trên nền @32131c1)
 ├── targets/                   # output per-target (gitignore)
 └── data/bbasm.db              # SQLite (gitignore)

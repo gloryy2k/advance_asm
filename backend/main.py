@@ -19,6 +19,7 @@ from backend.db import Database
 from backend.jobs.scope_resolver import ScopeError, ScopeResolver
 from backend.jobs.runner import JobRunner
 from backend.asm.scheduler import ScanScheduler
+from backend.request_logging import install_request_logging
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -34,6 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await app.state.runner.close()
 
     app = FastAPI(title="BBASM", version="0.1.0", lifespan=lifespan)
+    install_request_logging(app)
     app.state.settings = settings
     app.state.database = Database(settings.BBASM_DATA / "bbasm.db")
     app.state.scope_resolver = ScopeResolver(settings, app.state.database)
@@ -67,6 +69,8 @@ app = create_app()
 
 
 if __name__ == "__main__":
+    import logging
     import uvicorn
 
-    uvicorn.run(app, host=app.state.settings.BBASM_BIND, port=app.state.settings.BBASM_PORT)
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    uvicorn.run(app, host=app.state.settings.BBASM_BIND, port=app.state.settings.BBASM_PORT, access_log=False)
