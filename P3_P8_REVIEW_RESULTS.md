@@ -79,6 +79,16 @@ python scripts/measure_tokens.py       # 96.89% reduction (fixture)
 ```
 Host: Kali Linux 6.12 x86_64; scan ID 2/3/4/5 trên program `127.0.0.1`.
 
+### Bổ sung từ triển khai sau handoff 9fa4b8c (chưa phải Kali retest)
+
+FIX-1..4 đã có code + regression: psutil tree/session teardown; output claim và
+archive orphan; diff mất live có điều kiện; TC-RK-1 sửa kỳ vọng thành >=6.
+Unit trên Windows: **177 passed, 7 integration deselected**. Vendor vẫn 7acb66a.
+Integration mới phủ child qua GNU timeout với process group tách, SIGTERM-resistant,
+cả cancel/hard timeout/parent-exited. **Chưa chạy integration trên máy triển khai**.
+Giữ nguyên bằng chứng và kết luận review bên trên; HIGH-1 còn chặn nghiệm thu cho
+đến khi Kali test lại. Quyết định/giới hạn FIX-2/FIX-3 ghi tại NOTES.md.
+
 ## 8. Đề xuất nghiệm thu
 - **Chặn merge P8** cho tới khi fix **HIGH-1** (rò rỉ tiến trình khi cancel/timeout) — đây là vấn đề an toàn (tiếp tục scan sau huỷ) + đúng đắn teardown.
 - MED-1 nên fix trước khi deploy đa-volume. LOW-1/LOW-2 có thể để sau.

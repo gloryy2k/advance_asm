@@ -4,3 +4,4 @@ uvicorn==0.38.0
 httpx==0.28.1
 pytest==8.4.2
 APScheduler==3.11.0
+psutil==7.0.0

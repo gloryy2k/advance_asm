@@ -1,7 +1,7 @@
 import asyncio
 import json
 import signal
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -118,16 +118,48 @@ def test_tc_run_3_hard_timeout(settings, output, expected):
     asyncio.run(scenario())
 
 
-def test_process_group_term_then_kill_even_if_parent_exited(monkeypatch):
+def test_process_tree_term_then_kill_includes_new_session_members(monkeypatch):
     async def scenario():
-        calls = []
-        monkeypatch.setattr("backend.jobs.runner.os.killpg", lambda pid, sig: calls.append((pid, sig)), raising=False)
-        # signal.SIGKILL is absent on Windows; only the mocked portable unit case uses it.
+        from types import SimpleNamespace
+        children = [Mock(pid=pid) for pid in (12345, 12346, 12347)]
+        snapshots = Mock(side_effect=[{p.pid: p for p in children[:2]}, {children[2].pid: children[2]}])
+        monkeypatch.setattr("backend.jobs.runner.process_family", snapshots)
+        wait = Mock(return_value=([], children[1:2]))
+        monkeypatch.setattr("backend.jobs.runner.psutil.wait_procs", wait)
+        killpg = Mock()
+        monkeypatch.setattr("backend.jobs.runner.os", SimpleNamespace(name="posix", killpg=killpg))
         monkeypatch.setattr("backend.jobs.runner.signal.SIGKILL", 9, raising=False)
         process = FakeProcess()
-        await stop_process_group(process)
-        assert calls == [(12345, signal.SIGTERM), (12345, 9)]
+        await stop_process_group(process, grace=0.1)
+        for child in children[:2]:
+            child.terminate.assert_called_once()
+        for child in children:
+            child.kill.assert_called_once()
+        wait.assert_called_once_with(children[1:2], timeout=0.1)
+        killpg.assert_called_once_with(12345, 9)
     asyncio.run(scenario())
+
+
+def test_process_family_finds_orphans_after_root_exits(monkeypatch):
+    import psutil
+    from types import SimpleNamespace
+    from backend.jobs.runner import process_family
+    monkeypatch.setattr("backend.jobs.runner.psutil.Process", Mock(side_effect=psutil.NoSuchProcess(12345)))
+    orphan, unrelated = Mock(pid=12346), Mock(pid=98765)
+    monkeypatch.setattr("backend.jobs.runner.psutil.process_iter", lambda: [orphan, unrelated])
+    monkeypatch.setattr("backend.jobs.runner.os", SimpleNamespace(name="posix", getsid=lambda pid: 12345 if pid == 12346 else 98765))
+    assert process_family(12345) == {12346: orphan}
+
+
+def test_process_family_includes_detached_descendants(monkeypatch):
+    from types import SimpleNamespace
+    from backend.jobs.runner import process_family
+    root, child, grandchild = Mock(pid=1), Mock(pid=2), Mock(pid=3)
+    root.children.return_value = [child, grandchild]
+    monkeypatch.setattr("backend.jobs.runner.psutil.Process", lambda pid: root)
+    monkeypatch.setattr("backend.jobs.runner.os", SimpleNamespace(name="nt"))
+    assert process_family(1) == {1: root, 2: child, 3: grandchild}
+    root.children.assert_called_once_with(recursive=True)
 
 
 def test_disabled_runner_refuses_live_egress_without_spawning(settings):

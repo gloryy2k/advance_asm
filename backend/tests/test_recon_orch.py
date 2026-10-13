@@ -108,3 +108,31 @@ def test_tc_ro_5_missing_script_is_warning(settings):
 def test_cidr_oos_overlap_never_becomes_recon_input(settings):
     db, _, result = environment(settings, ["10.0.0.0/24", "# OUT", "10.0.0.5"])
     assert ReconOrchestrator(settings, db).build(result.scan_id).commands == []
+
+
+def test_stale_output_preserved_but_claim_cannot_be_reused(settings):
+    db, _, result = environment(settings)
+    stale = settings.BBASM_TARGETS / result.slug / "recon" / "scans" / str(result.scan_id)
+    write_output(stale, "old.txt", "previous database output")
+    orch = ReconOrchestrator(settings, db)
+    plan = orch.build(result.scan_id)
+    archives = list(stale.parent.glob(f".orphan-{result.scan_id}-*"))
+    assert len(archives) == 1
+    assert (archives[0] / "old.txt").read_text() == "previous database output"
+    assert not (plan.root / "old.txt").exists()
+    assert "Preserved orphan" in plan.warnings[0]
+    with pytest.raises(ValueError, match="already claimed"):
+        orch.build(result.scan_id)
+
+
+@pytest.mark.parametrize("status", ["running", "done", "done_partial", "failed", "cancelled"])
+def test_existing_output_of_executed_scan_is_never_moved(settings, status):
+    db, _, result = environment(settings)
+    stale = settings.BBASM_TARGETS / result.slug / "recon" / "scans" / str(result.scan_id)
+    write_output(stale, "keep.txt", "owned")
+    with db.connect() as conn, conn:
+        conn.execute("UPDATE scan_run SET status=? WHERE id=?", (status, result.scan_id))
+    with pytest.raises(ValueError, match="already owned"):
+        ReconOrchestrator(settings, db).build(result.scan_id)
+    assert (stale / "keep.txt").read_text() == "owned"
+    assert not list(stale.parent.glob(".orphan-*"))

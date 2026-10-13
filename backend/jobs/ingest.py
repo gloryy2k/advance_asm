@@ -86,7 +86,7 @@ class Ingester:
             for host in set(canonical.subdomains + nested.get_subdomains()):
                 asset(host, "ip" if ":" in host or re.fullmatch(r"[0-9.]+", host) else "web")
             for url in set(canonical.live_hosts + nested.get_live_hosts()):
-                if host := asset(url):
+                if host := asset(url, http_live=True):
                     urls[url] = (host, "httpx")
             for line in lines(root / "live" / "httpx_full.txt"):
                 try:
@@ -94,6 +94,14 @@ class Ingester:
                     asset(url, status_code=status, title=title, tech=tech, ip=ip)
                 except (ValueError, TypeError, IndexError):
                     continue
+            # The pinned engine supplies subdomains/all.txt directly to httpx,
+            # then creates live/urls.txt. Missing files or skipped probing are
+            # not negative evidence. Diff additionally requires a complete scan.
+            if (plan.config.depth != "passive" and command.env.get("BBASM_SKIP_HTTPX") == "0"
+                    and (root / "live" / "httpx_full.txt").is_file()
+                    and (root / "live" / "urls.txt").is_file()):
+                for resource in lines(root / "subdomains" / "all.txt"):
+                    asset(resource, http_probed=True)
             for url in set(canonical.urls + nested.get_urls()):
                 if host := asset(url):
                     urls[url] = (host, "recon")

@@ -566,7 +566,7 @@ CHAOS_KEY=  GITHUB_TOKEN=  H1_USER=  H1_TOKEN=
 - TC-IN-1 fixture recon dir → đúng N asset/url/finding. · **TC-IN-2** chạy ingest 2 lần cùng scan → KHÔNG nhân đôi (idempotent). · TC-DF-1 scan2 thêm host→1 NEW. · TC-DF-2 mất host→1 GONE+state=gone. · TC-DF-3 tech đổi→CHANGED. · TC-DF-4 cùng tập host→0 diff (ổn định).
 
 ### Ranking
-- TC-RK-1 `api.acme.com` graphql 200 NEW→score≥7 reasons⊇{api,graphql,fresh}. · TC-RK-2 `www` 200 no-tech→<3. · TC-RK-3 nuclei medium→+2. · TC-RK-4 score∈[0,10].
+- TC-RK-1 `api.acme.com` graphql 200 NEW→score≥6 reasons⊇{api,graphql,fresh}: api(2.5)+fresh(1.5)+tech_risk(1.5)+status_200(0.5)=6.0; auth chỉ cộng khi host/title có login/sso/oauth/admin/account. · TC-RK-2 `www` 200 no-tech→<3. · TC-RK-3 nuclei medium→+2. · TC-RK-4 score∈[0,10].
 
 ### Monitors / Scheduler
 - TC-MN-1 takeover fixture→finding takeover high. · TC-MN-2 secret fixture→finding secret. · TC-MN-3 tool vắng→0 finding không crash. · **TC-SCH-1** bật schedule→ghi bảng `schedule`. · **TC-SCH-2** restart (reload scheduler từ DB)→job vẫn còn, `next_run_at` hợp lệ.

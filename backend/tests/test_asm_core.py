@@ -82,9 +82,40 @@ def asset(**overrides):
 
 def test_tc_rk_1_exact_spec_formula():
     score, reasons = score_asset(asset(host="api.example.com", tech_json='["GraphQL"]'), 1)
-    # §12.3 adds to 6.0; TC-RK-1's >=7 contradicts the normative formula.
+    # TC-RK-1 matches §12.3: api + fresh + GraphQL + status_200 = 6.0.
     assert score == 6.0
     assert {"api", "graphql", "fresh"} <= set(reasons)
+
+
+@pytest.mark.parametrize("depth,complete,evidence,live,changed", [
+    ("light", True, True, False, 1),
+    ("strong", True, True, False, 1),
+    ("passive", True, True, False, 0),
+    ("light", False, True, False, 0),
+    ("light", True, False, False, 0),
+    ("light", True, True, True, 0),
+])
+def test_offline_diff_requires_completed_probe(settings, depth, complete, evidence, live, changed):
+    db, resolver, first = environment(settings, ["a.example.com"])
+    observed_scan(settings, db, resolver, first, {"a.example.com": "nginx"})
+    settings.BBASM_DEFAULT_DEPTH = depth
+    result = resolver.resolve(ResolveRequest(input="raw", scope=["a.example.com"]))
+    plan = ReconOrchestrator(settings, db).build(result.scan_id)
+    diff = DiffEngine(db)
+    diff.capture(plan)
+    output = plan.commands[0].output
+    write_output(output, "subdomains/all.txt", "a.example.com\n")
+    if evidence:
+        write_output(output, "live/httpx_full.txt", "")
+        write_output(output, "live/urls.txt", "https://a.example.com\n" if live else "")
+    stats = Ingester(settings, db).ingest(plan)
+    assert diff.apply(plan, stats["observations"], complete=complete)["changed"] == changed
+    with db.connect() as conn:
+        status = conn.execute("SELECT status_code FROM asset WHERE host='a.example.com'").fetchone()[0]
+        assert status == (None if changed else 200)
+        if changed:
+            detail = conn.execute("SELECT detail_json FROM diff_event WHERE scan_run_id=?", (plan.scan_id,)).fetchone()[0]
+            assert json.loads(detail)["status_code"] == {"before": 200, "after": None}
 
 
 def test_tc_rk_2_plain_www():

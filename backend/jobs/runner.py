@@ -6,6 +6,7 @@ import json
 import os
 import signal
 import sys
+import psutil
 
 from backend.db import utc_now
 from backend.jobs.recon_orch import AuditedEgress, ClosedEgress, ReconOrchestrator, read_config
@@ -31,22 +32,52 @@ async def spawn_process(command):
     )
 
 
-async def stop_process_group(process, grace=1.0):
-    # pid is the session/process-group ID from start_new_session=True. Use it even
-    # after the parent exits so surviving grandchildren are not left behind.
+def process_family(pid):
+    """Include orphaned session members as well as children in separate groups."""
+    members = {}
     try:
-        os.killpg(process.pid, signal.SIGTERM)
-    except ProcessLookupError:
+        root = psutil.Process(pid)
+        members = {p.pid: p for p in root.children(recursive=True)}
+        members[pid] = root
+    except psutil.NoSuchProcess:
         pass
-    try:
-        await asyncio.wait_for(process.wait(), grace)
-    except asyncio.TimeoutError:
-        pass
-    finally:
+    if os.name == "posix":
+        for candidate in psutil.process_iter():
+            try:
+                if os.getsid(candidate.pid) == pid:
+                    members[candidate.pid] = candidate
+            except (ProcessLookupError, psutil.NoSuchProcess):
+                continue
+    return members
+
+
+def terminate_family(pid, grace):
+    members = process_family(pid)
+    for child in members.values():
         try:
-            os.killpg(process.pid, signal.SIGKILL)
+            child.terminate()
+        except psutil.NoSuchProcess:
+            pass
+    # asyncio owns waitpid for the root; psutil must not reap it.
+    psutil.wait_procs([p for p in members.values() if p.pid != pid], timeout=grace)
+    # Re-snapshot the session: bash may have exited/reparented its descendants,
+    # or a child may have spawned between the first snapshot and SIGTERM.
+    for child_pid, child in process_family(pid).items():
+        members.setdefault(child_pid, child)
+    for child in members.values():
+        try:
+            child.kill()  # psutil checks process identity against PID reuse.
+        except psutil.NoSuchProcess:
+            pass
+    if os.name == "posix":
+        try:
+            os.killpg(pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
+
+
+async def stop_process_group(process, grace=1.0):
+    await asyncio.to_thread(terminate_family, process.pid, grace)
     await process.wait()
 
 
@@ -180,9 +211,11 @@ class JobRunner:
             row = await asyncio.to_thread(self.status, scan_id)
             lock = self.program_locks.setdefault(row["program_id"], asyncio.Lock())
             async with lock:
-                if not await asyncio.to_thread(self._transition, scan_id, "running"):
+                if (await asyncio.to_thread(self.status, scan_id))["status"] != "queued":
                     return
                 plan = await asyncio.to_thread(self.orchestrator.build, scan_id)
+                if not await asyncio.to_thread(self._transition, scan_id, "running"):
+                    return
                 await asyncio.to_thread(self.diff_engine.capture, plan)
                 for message in plan.warnings:
                     await self.logs.emit(scan_id, "log", level="warning", message=message)
@@ -301,7 +334,8 @@ class JobRunner:
             return
         task = self.tasks.get(scan_id)
         if task is not None:
-            task.cancel()
+            if not task.cancelling():
+                task.cancel()
             await asyncio.gather(task, return_exceptions=True)
             # A Task cancelled before its coroutine starts never enters _execute's
             # exception handler. Persist cancellation in that race as well.

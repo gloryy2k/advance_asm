@@ -6,6 +6,7 @@ import ipaddress
 import os
 from pathlib import Path
 import shutil
+from uuid import uuid4
 from urllib.parse import urlsplit
 
 from backend.framework import load_module
@@ -112,10 +113,9 @@ class ReconOrchestrator:
         deny = [e.pattern for e in eligible if e.kind == "out"] + config.excluded_hosts
         gate = ScopeGate(allow, deny, target / "audit.jsonl", self.settings)
         root = target / "recon" / "scans" / str(scan_id)
-        if root.exists():
-            raise ValueError("Scan output already exists; create a new scan instead of reusing stale output")
-        root.mkdir(parents=True)
+        warnings = self._claim_output(scan_id, root)
         plan = ReconPlan(scan_id, scan["program_id"], scan["slug"], config, root, target / "audit.jsonl", gate)
+        plan.warnings.extend(warnings)
         seeds = []
         for entry in entries:
             if entry.kind != "in":
@@ -142,6 +142,33 @@ class ReconOrchestrator:
         if seeds:
             self._host_list(plan, seeds)
         return plan
+
+    def _claim_output(self, scan_id, root):
+        # Persist ownership before touching files. A failed build must be retried
+        # with a new scan, not allowed to ingest potentially stale partial output.
+        with self.database.connect() as conn, conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT stats_json,status FROM scan_run WHERE id=?", (scan_id,)).fetchone()
+            stats = json.loads(row[0] or "{}")
+            if row["status"] not in {"draft", "queued"}:
+                raise ValueError("Scan output already owned by an executed scan")
+            if stats.get("output_claim"):
+                raise ValueError("Scan output already claimed; create a new scan")
+            # Legacy completed/running scans with evidence of execution remain
+            # owned even though they predate output_claim.
+            if any(key in stats for key in ("diff_baseline", "diff_complete", "observations")):
+                raise ValueError("Scan output already exists for an executed scan")
+            stats["output_claim"] = uuid4().hex
+            conn.execute("UPDATE scan_run SET stats_json=? WHERE id=?", (json.dumps(stats), scan_id))
+        if any(path.is_symlink() for path in (root, *root.parents)):
+            raise ValueError("Refusing scan output symlink")
+        warnings = []
+        if root.exists():
+            archive = root.with_name(f".orphan-{scan_id}-{uuid4().hex}")
+            root.rename(archive)
+            warnings.append(f"Preserved orphan scan output at {archive.name}")
+        root.mkdir(parents=True)
+        return warnings
 
     def _recon(self, plan, target, discovery=False, target_type=None, skip_historical=False):
         script = self.settings.tool_path("recon_engine.sh")

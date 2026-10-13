@@ -2,6 +2,39 @@
 
 ## Current phase
 
+### P8 handoff fixes (review source: 9fa4b8c)
+
+- FIX-1: psutil 7.0.0 snapshots recursive descendants and, on POSIX, all members
+  of the subprocess session. TERM, bounded child wait, a second session snapshot
+  and KILL cover GNU timeout's separate process groups and reparented children.
+  asyncio retains ownership of reaping the root. Teardown runs off the event loop;
+  repeated cancel requests do not interrupt an already-cancelling task's cleanup.
+  No vendor edit. Unit mocks cover detached descendants/orphans; integration now
+  covers GNU timeout + TERM-resistant child for cancel, hard timeout and exited
+  parent. These real-process tests are NOT run here; Kali must revalidate HIGH-1.
+  This is teardown of framework jobs, not containment of malicious daemonization.
+- FIX-2: persist a random output_claim in existing scan stats under BEGIN IMMEDIATE
+  before filesystem work; only draft/queued scans can claim. Runner claims before
+  marking running. Existing unclaimed output is preserved as .orphan-ID-UUID;
+  same-DB repeated claims and executed scans fail closed. Legacy execution stats
+  also prevent reuse. No schema migration, deletion or output layout change.
+  If disk setup fails after claim, create a new scan rather than retry that ID.
+  DB and filesystem are not transactional together; keep paired backups. Old
+  orphan directories are deliberately retained and excluded from hidden-file ZIPs.
+- FIX-3: negative live evidence requires non-passive depth, HTTPX enabled, the
+  engine's subdomains/all.txt input and both live/httpx_full.txt and live/urls.txt
+  outputs. Complete scan + no live URL/status yields status_code X -> null, also
+  clearing the DB status. Partial, discovery-only, passive or missing files do not.
+  Assumption for review: vendor masks httpx exit errors (`|| true`), so these
+  artifacts prove a probe attempt, not every successful request. An empty result
+  can indicate transport/tool failure as well as downtime; no claim of definitive
+  host outage. No broad recon rewrite or new vendor instrumentation added.
+- FIX-4: TC-RK-1 now matches the existing 6.0 formula; no ranking weight changes.
+- Unit regression: 177 passed, 7 integration deselected. Pending real-tool cancel/
+  timeout recheck and Docker/browser/H1/WSL2/remote CI remain in ACCEPTANCE.md.
+- Kali review measured fixture input tokens 32004 -> 994 (96.89% reduction,
+  brief 2638 bytes) at 4882a9d; this supersedes the earlier pending-token note.
+
 P2 is validated by the user on Kali at 695ef2d / vendor 7acb66a: 124 unit +
 3 integration tests passed, loopback light scan ~7s instead of ~279s, audit
 complete, health fixed. katana/dnsx were installed in ~/go/bin all along.

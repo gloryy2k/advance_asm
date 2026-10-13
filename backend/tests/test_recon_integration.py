@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import shutil
+import psutil
 
 import pytest
 
@@ -40,21 +42,52 @@ def test_tc_ro_6_passive_toggles_skip_active_commands(tmp_path):
     assert not (output / "ports/nmap_results.txt").exists()
 
 
-def test_tc_run_2_real_child_process_group_cleanup(tmp_path):
+@pytest.mark.parametrize("mode", ["cancel", "hard_timeout", "parent_exited"])
+def test_tc_run_2_real_child_process_group_cleanup(tmp_path, mode):
+    if not shutil.which("timeout") or not shutil.which("bash"):
+        pytest.skip("GNU timeout and Bash required")
     async def scenario():
         child_file = tmp_path / "child.pid"
-        code = "import subprocess,sys,time,pathlib; p=subprocess.Popen([sys.executable,'-c','import time; time.sleep(120)']); pathlib.Path(sys.argv[1]).write_text(str(p.pid)); time.sleep(120)"
-        process = await asyncio.create_subprocess_exec(sys.executable, "-c", code, str(child_file), start_new_session=True)
+        code = "import os,signal,time,pathlib,sys; signal.signal(signal.SIGTERM,signal.SIG_IGN); pathlib.Path(sys.argv[1]).write_text(str(os.getpid())); time.sleep(300)"
+        wrapper = 'timeout 300 "$1" -c "$2" "$3" & while [ ! -s "$3" ]; do sleep 0.01; done; '
+        wrapper += "exit 0" if mode == "parent_exited" else "wait"
+        process = await asyncio.create_subprocess_exec("bash", "-c", wrapper, "bbasm-test", sys.executable, code, str(child_file), start_new_session=True)
+        child = None
         try:
             async def ready():
-                while not child_file.exists():
+                while not child_file.exists() or child_file.stat().st_size == 0:
                     await asyncio.sleep(0.01)
             await asyncio.wait_for(ready(), 5)
             child_pid = int(child_file.read_text())
-            await stop_process_group(process, grace=0.2)
-            # A reparented zombie is dead but can remain until PID 1 reaps it.
-            status = Path(f"/proc/{child_pid}/status")
-            assert not status.exists() or "State:\tZ" in status.read_text()
+            child = psutil.Process(child_pid)
+            assert os.getpgid(child_pid) != process.pid
+            assert os.getsid(child_pid) == process.pid
+            async def wait_with_cleanup():
+                try:
+                    await asyncio.Future()
+                finally:
+                    await stop_process_group(process, grace=0.2)
+            if mode == "parent_exited":
+                await asyncio.wait_for(process.wait(), 5)
+                await stop_process_group(process, grace=0.2)
+            elif mode == "hard_timeout":
+                with pytest.raises(asyncio.TimeoutError):
+                    await asyncio.wait_for(wait_with_cleanup(), 0.1)
+            else:
+                task = asyncio.create_task(wait_with_cleanup())
+                await asyncio.sleep(0)
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+            async def dead():
+                while child.is_running() and child.status() != psutil.STATUS_ZOMBIE:
+                    await asyncio.sleep(0.01)
+            await asyncio.wait_for(dead(), 3)
         finally:
             await stop_process_group(process, grace=0.2)
+            if child is not None:
+                try:
+                    child.kill()
+                except psutil.NoSuchProcess:
+                    pass
     asyncio.run(scenario())

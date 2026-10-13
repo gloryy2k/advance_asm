@@ -152,15 +152,15 @@ pytest -m integration
 
 ## Kết quả kiểm tra và token benchmark
 
-Backend: **163 passed, 5 integration deselected**; coverage lõi **93%**.
+Backend sau P8 fixes: **177 passed, 7 integration deselected**.
 Frontend P6: **6 tests pass**, production build pass. CI remote và Docker/recon
 thật của các phase mới còn chờ xác nhận; xem ACCEPTANCE.md.
 
 `python scripts/measure_tokens.py` so sánh corpus fixture 30 host/2000 URL với
 CLAUDE.md + PROGRAM.md + AGENT_BRIEF.md bằng cl100k_base (cần cài `tiktoken`).
-**Chưa đo được số token**: bước cài tokenizer chưa thực hiện do lỗi hạn mức của
-hệ thống xét duyệt. Không có tuyên bố phần trăm tiết kiệm; phép đo fixture cũng
-không thay thế đánh giá hunt thật. Scope bắt buộc vượt budget brief sẽ báo lỗi.
+Kali đo tại `4882a9d`: **32004 → 994 input tokens (giảm 96.89%)**, brief 2638 byte.
+Đây là phép đo fixture, không phải chi phí hay mức tiết kiệm của hunt thật;
+xem `P3_P8_REVIEW_RESULTS.md`. Scope bắt buộc vượt budget brief sẽ báo lỗi.
 
 ## Cấu trúc repo
 

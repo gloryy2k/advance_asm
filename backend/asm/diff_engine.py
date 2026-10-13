@@ -39,6 +39,13 @@ class DiffEngine:
                     event(host, "new", {"after": current})
                     continue
                 changes = {}
+                if (complete and plan.config.depth != "passive" and current.get("http_probed")
+                        and not current.get("http_live")
+                        and "status_code" not in current and before["state"] == "active"
+                        and before["status_code"] is not None):
+                    current["status_code"] = None
+                    conn.execute("UPDATE asset SET status_code=NULL WHERE program_id=? AND host=?",
+                                 (plan.program_id, host))
                 if before["state"] == "gone":
                     changes["state"] = {"before": "gone", "after": "active"}
                 if "status_code" in current and current["status_code"] != before["status_code"]:
