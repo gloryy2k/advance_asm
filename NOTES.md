@@ -2,6 +2,28 @@
 
 ## Current phase
 
+### Docker rerun and dotenv fix (review source 336e271)
+
+- Kali confirms Docker acceptance at 578c489: 1 passed in 960.66s with cold cache,
+  including image build/run/health/static. This supersedes the build-timeout blocker.
+  Precision: nine release binaries are downloaded; subjack still compiles in its
+  own stage. The report's 'no Go compilation' is not literally true. 960.66s is
+  total test time, not an isolated build duration.
+- Fixed shared .env.example: all four filesystem paths are commented defaults,
+  so copying it supports local dev without /opt or /app. Dockerfile keeps container
+  defaults; Compose explicitly overrides BBROOT/DATA/TARGETS/STATIC to match mounts,
+  even when a user's .env has custom host paths. Custom container layout requires
+  a Compose override. Other user ENV values and credentials remain configurable.
+- The 13 shell unit tests now explicitly disable dotenv loading. Added regression
+  for copying the example from another cwd and for an existing container dotenv.
+  Full unit suite: 195 passed, 7 deselected both normally and with a temporary
+  legacy container dotenv configured as the settings default. User .env untouched.
+- Compose config parse confirms /opt/claude-bug-bounty and /app/{data,targets,
+  backend/static}. No new Docker build/real scan here. README includes a targeted
+  migration for old .env files; do not overwrite saved secrets with a new template.
+- P8 remains open for browser E2E, Windows/WSL2, H1 real program, remote CI and
+  any remaining live acceptance checklist items. No merge performed.
+
 ### Docker build-perf fix (Kali report d77a2c3)
 
 - P8_FIX_VERIFICATION.md confirms all four fixes on Kali at 101b0ef, including

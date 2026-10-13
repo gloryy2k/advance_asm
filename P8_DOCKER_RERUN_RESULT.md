@@ -30,3 +30,14 @@ BBASM_DOCKER_TESTS=1 pytest -s -m integration backend/tests/test_docker_integrat
 ## Tổng kết trạng thái nghiệm thu Docker
 - compose config: ✅ · image build (binary-release): ✅ ~16' · container health đủ tool + static: ✅
 - Còn lại P8 (chưa chạy, môi trường): browser E2E, Windows/WSL2, H1 program thật, CI remote.
+
+## Phản hồi triển khai sau 336e271
+
+- Đã sửa `.env.example`: comment cả bốn path BBROOT/DATA/TARGETS/STATIC; dev dùng
+  defaults theo repo. Compose đặt path container riêng theo volume mounts.
+- Shell unit helper dùng `_env_file=None`; regression xác nhận dotenv container
+  không ảnh hưởng. **195 unit pass, 7 deselected**, cả lần chạy mô phỏng dotenv cũ.
+- Compose parse xác nhận path container đúng. Chưa chạy lại container sau thay đổi
+  config này; hướng dẫn giữ API key khi chỉnh `.env` cũ có trong README/ACCEPTANCE.
+- Đính chính mô tả build ở trên: 9 tool dùng release binary, **subjack vẫn compile**
+  tại commit cũ trong stage riêng; 960.66s là tổng thời gian bài test acceptance.

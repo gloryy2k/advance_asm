@@ -8,10 +8,10 @@ Kali/Docker. Không có scan thật hay Docker build trong môi trường triể
 
 | Hạng mục | Kết quả / giới hạn |
 |---|---|
-| Backend unit | Sau Docker build fix: `pytest -m "not integration"`: 193 passed, 7 deselected; Windows Python 3.13.2 |
+| Backend unit | Sau dotenv fix: 195 passed, 7 deselected; Windows Python 3.13.2; cũng pass với dotenv giả lập path container cũ |
 | Frontend | 6 Vitest tests và production build đã pass ở P6 |
 | Coverage lõi | 93% tổng các module ASM, brief/export, runner, scope_gate; không phải coverage toàn repo |
-| Docker | Kali build cũ timeout 3600s (P8_DOCKER_RESULT.md); đã đổi 9 tool sang release binary có checksum, chờ retest build/health/static |
+| Docker | Kali tại 578c489: build/run/health/static PASS, 960.66s toàn bài test cold cache; xem P8_DOCKER_RERUN_RESULT.md. Compose path fix mới đã parse, chưa rerun container |
 | P2 thực tế | Người dùng xác nhận tại parent `695ef2d`, vendor `7acb66a`: 124 unit + 3 integration; localhost light ~7s; health đúng |
 | P3–P7 | Kali xác nhận 4/4 fixes tại 101b0ef, gồm cancel nuclei thật; HIGH-1 đã gỡ chặn, xem P8_FIX_VERIFICATION.md |
 | CI remote | Có workflow unit/frontend/shell; chưa xác nhận kết quả GitHub Actions của nhánh bàn giao |
@@ -39,9 +39,11 @@ npm run build
 cd ..
 ```
 
-Chạy backend bằng `python -m backend.main` sau khi kiểm ENV local (không dùng
-đường dẫn container trong `.env` cho dev). Hoặc copy `.env.example` sang `.env`
-nếu chưa có, rồi `docker compose up -d --build`.
+`.env.example` mới dùng chung dev/Docker: path local dùng mặc định repo, Compose
+đặt path container. Với `.env` từ mẫu cũ, comment/xóa chỉ BBASM_BBROOT/DATA/TARGETS/
+STATIC đang trỏ `/opt` hoặc `/app` trước khi chạy dev; giữ API key và config khác.
+Chạy backend bằng `python -m backend.main`. Với Docker, copy `.env.example` sang
+`.env` nếu chưa có, rồi `docker compose up -d --build`.
 
 ```bash
 # Integration hiện có; hai bài Docker/browser mới mặc định skip khi chưa opt in.
@@ -59,7 +61,9 @@ make smoke TARGET=YOUR_AUTHORIZED_DOMAIN DEPTH=light
 ## Các mục còn cần xác nhận (§17, §22, §24)
 
 HIGH-1 đã được Kali xác nhận lại bằng nuclei thật và 4 integration tests; xem
-P8_FIX_VERIFICATION.md. Ưu tiên hiện tại: retest bản tối ưu Docker, giữ cache:
+P8_FIX_VERIFICATION.md. Docker build/health/static cũng đã pass tại 578c489.
+Sau dotenv fix có thể kiểm Compose config và khởi động lại với cache hiện có;
+để chạy lại bài Docker đầy đủ khi cần:
 
 ```bash
 BBASM_DOCKER_TESTS=1 pytest -s -m integration backend/tests/test_docker_integration.py
@@ -69,10 +73,10 @@ sudo env BBASM_DOCKER_TESTS=1 .venv/bin/python -m pytest -s -m integration backe
 
 Chạy một trong hai lệnh phù hợp với quyền Docker trên host. Ghi commit, elapsed
 build time, kiến trúc, cold/warm cache, kết quả health/static vào báo cáo. Test vẫn
-giới hạn 3600s; chưa khẳng định build đã nhanh hơn khi chưa có số đo thực tế.
+giới hạn 3600s. Kết quả 960.66s là tổng test, không tách riêng thời gian compile/download.
 
-1. Docker build/start trên máy chỉ có Docker; health báo tool, dashboard tải được.
-   Kiểm cả Windows/WSL2 và Linux; kiểm volume DB/target còn sau restart.
+1. Docker build/start + health/static đã pass Kali. Còn Windows/WSL2 và kiểm volume
+   DB/target sau restart; kiểm lại config Compose sau dotenv fix.
 2. H1 light: review IN/OUT/category/policy đúng, chỉ launch sau review; raw domain,
    wildcard, IP/CIDR và mobile/source scope đúng luồng. Lưu scan ID và audit.
 3. Hai scan cùng program: portfolio NEW, surface/rank/reasons, diff NEW/GONE/CHANGED;
@@ -93,8 +97,8 @@ giới hạn 3600s; chưa khẳng định build đã nhanh hơn khi chưa có s�
 - Scope bắt buộc quá lớn cho brief sẽ báo lỗi, không lược bỏ quy tắc scope.
 - Audit hiện ghi scope và subprocess spawn, **không ghi/chặn mọi request nội bộ
   của tool**. Đây là giới hạn đã ghi từ P2; không chứng minh network containment.
-- Tool Docker pin + checksum nhưng image mới chưa build/scan kiểm tương thích CLI;
-  subjack giữ source pin riêng; Node >=22.12.
+- Image release-binary đã build + health/static pass; test này chưa chứng minh
+  mọi CLI recon chạy đúng. Subjack vẫn compile source pin riêng; Node >=22.12.
 - Schedule khi không gửi config lấy defaults của depth chọn, không tự sao chép
   mọi lựa chọn của scan trước. Backend chạy một process để tránh lịch trùng.
 

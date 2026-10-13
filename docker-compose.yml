@@ -7,6 +7,9 @@ services:
     env_file: .env
     environment:
       BBASM_BIND: 0.0.0.0
+      BBASM_BBROOT: /opt/claude-bug-bounty
+      BBASM_DATA: /app/data
+      BBASM_TARGETS: /app/targets
       BBASM_STATIC: /app/backend/static
     volumes:
       - ./data:/app/data

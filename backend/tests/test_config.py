@@ -51,3 +51,28 @@ def test_checked_in_env_example_is_valid():
     settings = Settings(_env_file=PROJECT_ROOT / ".env.example")
     assert settings.BBASM_DEFAULT_DEPTH == "light"
     assert settings.SUBFINDER_CONFIG_DIR is None
+    assert settings.BBASM_BBROOT == PROJECT_ROOT / "vendor" / "claude-bug-bounty"
+    assert settings.BBASM_DATA == PROJECT_ROOT / "data"
+    assert settings.BBASM_TARGETS == PROJECT_ROOT / "targets"
+    assert settings.BBASM_STATIC == PROJECT_ROOT / "frontend" / "dist"
+    assert settings.tool_path("recon_engine.sh").is_file()
+
+
+def test_copied_env_example_supports_dev_from_another_cwd(tmp_path, monkeypatch):
+    dotenv = tmp_path / ".env"
+    dotenv.write_bytes((PROJECT_ROOT / ".env.example").read_bytes())
+    monkeypatch.chdir(tmp_path)
+    settings = Settings(_env_file=dotenv)
+    assert settings.tool_path("recon_engine.sh").is_file()
+    assert settings.BBASM_DATA == PROJECT_ROOT / "data"
+    assert settings.BBASM_TARGETS == PROJECT_ROOT / "targets"
+    assert settings.BBASM_STATIC == PROJECT_ROOT / "frontend" / "dist"
+
+
+def test_shell_unit_helper_ignores_user_dotenv(tmp_path, monkeypatch):
+    from backend.tests.test_vendor_safe_flags import shell_function
+    dotenv = tmp_path / ".env"
+    dotenv.write_text("BBASM_BBROOT=/nonexistent-container-framework\nBBASM_TOOLS_SUBDIR=wrong-layout\n", encoding="utf-8")
+    monkeypatch.setitem(Settings.model_config, "env_file", dotenv)
+    assert Settings().BBASM_TOOLS_SUBDIR == "wrong-layout"
+    assert "_bbasm_tool_args()" in shell_function("recon_engine.sh", "_bbasm_tool_args")

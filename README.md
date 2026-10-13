@@ -4,7 +4,7 @@ Bug Bounty **Attack Surface Management** dashboard — tăng tốc & khử-token
 
 Web dashboard (FastAPI + React, đóng Docker) ngồi trên framework recon (`claude-bug-bounty`, vendored submodule). Nhập **HackerOne handle/URL** hoặc **raw scope** → **review config** → recon (depth tùy chỉnh) → ranked attack surface + diff theo thời gian → sinh `PROGRAM.md` + `AGENT_BRIEF.md` để Claude agent `cd` vào hunt với ~0 token setup.
 
-> **Trạng thái:** backend, dashboard và cấu hình Docker đã triển khai. P2 đã được xác nhận trên Kali; các phase sau có unit test. **Docker build và acceptance với recon thật chưa chạy trong môi trường triển khai này.** Nguồn chuẩn: [`BUILD_SPEC.md`](./BUILD_SPEC.md); kết quả/giới hạn: [`NOTES.md`](./NOTES.md). Nhánh mới nhất: `build/p8-acceptance`; hướng dẫn pull và checklist Kali: [`ACCEPTANCE.md`](./ACCEPTANCE.md).
+> **Trạng thái:** backend/dashboard đã triển khai; Kali xác nhận các fix P8 và Docker build + health/static tại `578c489` (960.66s tổng bài test, cold cache). **P8 chưa hoàn tất:** còn browser E2E, Windows/WSL2, H1 thật và CI remote. Nguồn chuẩn: [`BUILD_SPEC.md`](./BUILD_SPEC.md); kết quả/giới hạn: [`NOTES.md`](./NOTES.md). Nhánh mới nhất: `build/p8-acceptance`; hướng dẫn pull và checklist Kali: [`ACCEPTANCE.md`](./ACCEPTANCE.md).
 
 ---
 
@@ -37,7 +37,7 @@ git submodule update --init --recursive
 # 2. Cấu hình
 cp .env.example .env        # điền API key nếu có (optional)
 
-# 3. Build & chạy (thời gian tùy mạng/cache; chưa có số đo sau tối ưu)
+# 3. Build & chạy (Kali cold-cache acceptance ~16 phút; tùy mạng/cache)
 docker compose up -d --build
 
 # 4. Mở dashboard
@@ -75,9 +75,13 @@ python -m backend.main
 ```
 
 Dev local có thể bỏ `.env`: mặc định dùng framework trong `vendor/`, cùng `data/`
-và `targets/` tại root repo. `.env.example` dùng đường dẫn dành cho container;
-nếu copy sang `.env` để dev local, sửa `BBASM_BBROOT`, `BBASM_DATA`, `BBASM_TARGETS`
-cho đúng máy. ENV của process ưu tiên hơn `.env`. `python -m backend.main` đọc
+và `targets/` tại root repo. `.env.example` mới dùng chung cho dev và Docker:
+các path được comment để dev dùng mặc định repo; Dockerfile/Compose đặt path
+container riêng. Nếu đã copy mẫu cũ, comment/xóa **chỉ bốn dòng path**
+`BBASM_BBROOT`, `BBASM_DATA`, `BBASM_TARGETS`, `BBASM_STATIC` đang trỏ `/opt` hoặc
+`/app` trước khi chạy dev; giữ nguyên API key và các tùy chỉnh khác. Nếu cần path
+local riêng, đặt đường dẫn đúng máy. Không để giá trị path rỗng.
+ENV của process ưu tiên hơn `.env`. `python -m backend.main` đọc
 `BBASM_BIND`/`BBASM_PORT` (mặc định `127.0.0.1:8000`).
 
 Health trả `ok: true` khi API hoạt động, kể cả khi thiếu tool; xem từng boolean
@@ -110,7 +114,10 @@ localhost của published port nếu chưa chủ động muốn expose dashboard
 Docker tải 9 release binary đã pin phiên bản + SHA-256 trong
 `scripts/tool-releases.json` (Linux amd64/arm64), cache theo từng layer. Chỉ subjack
 còn compile để giữ đúng commit cũ. Không dùng `--no-cache` khi retry build bị ngắt.
-Lần build trước trên Kali vượt 3600s; bản tối ưu đang chờ retest, chưa hứa thời gian.
+Kali cold-cache acceptance tại `578c489` pass trong 960.66s (~16 phút cả build/run/
+health/static), so với lần cũ timeout 3600s. Đây không phải thời gian build cố định.
+Compose cố định path container theo volume mount, không lấy path dev trong `.env`;
+nếu muốn đổi layout container, dùng Compose override tương ứng cả path và mounts.
 
 P1: `POST /api/scope/resolve` nhận `{"input":"raw","scope":["*.example.com"]}`
 hoặc `{"input":"h1:<handle>"}` / URL HackerOne `/policy_scopes`. Kết quả có
@@ -157,9 +164,10 @@ pytest -m integration
 
 ## Kết quả kiểm tra và token benchmark
 
-Backend sau Docker build fix: **193 passed, 7 integration deselected**.
-Frontend P6: **6 tests pass**, production build pass. CI remote và Docker/recon
-thật của các phase mới còn chờ xác nhận; xem ACCEPTANCE.md.
+Backend sau dotenv fix: **195 passed, 7 integration deselected**, cả khi mô phỏng
+dotenv container cũ. Compose parse xác nhận bốn path container vẫn đúng.
+Frontend P6: **6 tests pass**, production build pass. CI remote, H1 thật, browser
+E2E và WSL2 còn chờ xác nhận; Docker acceptance đã pass trên Kali, xem ACCEPTANCE.md.
 
 `python scripts/measure_tokens.py` so sánh corpus fixture 30 host/2000 URL với
 CLAUDE.md + PROGRAM.md + AGENT_BRIEF.md bằng cl100k_base (cần cài `tiktoken`).

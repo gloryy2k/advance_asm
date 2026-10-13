@@ -11,7 +11,7 @@ from backend.config import Settings
 
 
 def shell_function(filename, name):
-    source = Settings().tool_path(filename).read_text(encoding="utf-8")
+    source = Settings(_env_file=None).tool_path(filename).read_text(encoding="utf-8")
     return re.search(rf"(?ms)^{name}\(\) \{{.*?^\}}", source).group()
 
 
