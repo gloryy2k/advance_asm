@@ -123,3 +123,23 @@ chứng thực tế trong các báo cáo được liên kết.
 
 Nếu lỗi: ghi command, commit, OS, traceback đã bỏ secrets và scan ID; không ghi
 credential/raw secret vào Git. Các báo cáo P0–P2 cũ trong NOTES là lịch sử.
+
+## v1.1 Guided UX — bổ sung nghiệm thu (TC-UX-*)
+
+Đã có bằng chứng trong cloud sandbox (mock H1, Chromium): xem `backend/tests/test_ui_e2e_mock_h1.py`, `frontend/src/App.test.tsx`.
+
+| TC | Nội dung | Trạng thái |
+|---|---|---|
+| UX-1 | Portfolio trống → có brief bằng raw `127.0.0.1` passive ≤5 click | E2E `test_browser_integration` PASS (sandbox) |
+| UX-2 | URL H1 có `?type=team`, handle trần | Vitest + unit PASS |
+| UX-3 | `#OUT`/`# OUTT`/`OUT:` không thể làm host OUT thành IN | unit + E2E PASS |
+| UX-4 | Policy H1 hiện ở Review, có trong PROGRAM.md; depth ≠ passive cần xác nhận | E2E mock PASS — **H1 thật chưa** |
+| UX-5 | CIDR /24 = 1 dòng; brief ≤12KB, ASSET MỚI ≤30 | unit PASS |
+| UX-6 | Refresh giữ tab Program | E2E PASS |
+| UX-7 | Scan xong hiện lệnh `cd … && claude` | Vitest + E2E PASS; **đường dẫn Docker/host cần xác nhận trên máy bạn** |
+| UX-8 | 390px không cuộn ngang (5 route) | E2E PASS; tương phản AA chưa đo bằng công cụ |
+| UX-9 | Lỗi API hiển thị câu tiếng Việt + gợi ý | Vitest PASS |
+| UX-10 | Diff/Findings/Assets phân trang | unit + Vitest PASS (1000+ dòng chưa đo hiệu năng) |
+
+Vẫn cần máy của bạn: Docker (kiểm `BBASM_HOST_TARGETS` và `cd targets/<slug>`), recon thật, H1 program được phép
+(nên thử tab HackerOne với `H1_USER/H1_TOKEN` để xác nhận policy API thật), Windows/WSL2, tick scheduler thật.

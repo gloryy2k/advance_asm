@@ -44,6 +44,10 @@ docker compose up -d --build
 #    http://127.0.0.1:8000
 ```
 
+**Dùng dashboard (3 bước):** *Thêm program* (HackerOne handle/URL hoặc raw scope — hai ô IN/OUT, có bảng kiểm tra từng dòng) →
+*Review* (xem policy, scope, chọn mức Passive/Light/Strong, xác nhận program cho phép scan tự động) → *Run* (tiến độ, rồi lệnh hunt).
+Docker: đặt `BBASM_HOST_TARGETS` trong `.env` (đường dẫn `./targets` trên máy bạn) để nút "Sao chép lệnh" hiện đường dẫn tuyệt đối.
+
 Hunt một target sau khi scan xong:
 ```bash
 cd targets/<slug>        # vd targets/acme

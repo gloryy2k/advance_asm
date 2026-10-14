@@ -1,5 +1,5 @@
 # BBASM — Bug Bounty Attack Surface Management Dashboard
-## BUILD SPEC / INSTRUCTION cho agent triển khai — **v2.4**
+## BUILD SPEC / INSTRUCTION cho agent triển khai — **v2.5**
 
 > **Mục đích tài liệu:** Đây là bản kịch bản thi công đầy đủ. Agent triển khai đọc file này + các file nguồn được tham chiếu, rồi build ra sản phẩm. Mỗi phần có **tiêu chuẩn (standard)** và **test case**. Không tự ý đổi quyết định kiến trúc đã chốt ở §1. Nếu thiếu thông tin, hỏi người dùng (`vinhtqk5@gmail.com`) chứ không đoán.
 
@@ -45,6 +45,18 @@
 ### 📌 CHANGELOG v2.3 → v2.4 — System requirements + cross-platform (Windows/WSL2)
 - **[§24 mới]** System Requirements & Deploy Notes: yêu cầu host (compose v2, RAM/disk, build-time internet, clone --recurse-submodules), cross-platform phải bake vào code (`.gitattributes` LF, `chmod +x`, mount subfinder optional, nmap `-sT` fallback), Windows/WSL2 notes, +4 test TC-SYS-*, acceptance bổ sung.
 - **`.gitattributes`** thêm vào repo (ép LF cho `*.sh` — chặn lỗi CRLF khi build trên Windows).
+
+### 📌 CHANGELOG v2.4 → v2.5 — Guided UX (không đổi §1 và non-goals)
+Nguồn: `CLOUD_REVIEW_RESULTS.md` (F1–F10) + kế hoạch v1.1. Chi tiết triển khai: NOTES.md "v1.1".
+- **[§8.1 raw scope]** Ô **IN** và **OUT** tách riêng (`scope` + `scope_out`); header OUT mọi kiểu viết (`# OUT`, `#OUT`, `OUT:`…) hợp lệ, **dòng giống header nhưng sai là lỗi**, không đoán. Chấp nhận phân tách `, ; khoảng trắng`, bullet, comment cuối dòng, dải IP, `https://*.x`, `host:port`, GitHub URL (tự thêm `repo:`). Lỗi nêu **ô + số dòng**. Mới `POST /api/scope/preview` (thuần parse, không ghi gì).
+- **[§22.2 H1 input]** Handle chấp nhận `h1:x`, `x`, `hackerone.com/x`, `www.`, query/fragment, hậu tố `/policy|/policy_scopes|/thanks|/hacktivity`; host lạ/userinfo vẫn bị từ chối.
+- **[§22.4 policy]** Policy H1 lưu ổn định (`policy_text`, `policy_source`, `fetched_at`) và **vào `PROGRAM.md`**; người dùng có thể dán policy khi resolve (`policy_text`). `PROGRAM.md` sinh từ lúc resolve (sửa được trước scan đầu).
+- **[§22.1 review]** Review hiển thị policy, cảnh báo, nguồn dữ liệu, tool thiếu theo depth; **xác nhận automation** (UI) cho depth ≠ passive, ghi `automation_ack` vào scan + audit.
+- **[§8.3/§12 CIDR]** CIDR/IP = **một range asset** (`category=cidr`, không rank "fresh"); asset IP con chỉ khi có bằng chứng (httpx/finding) hoặc là IP scope tường minh.
+- **[§22.1 draft]** Resolve **không** ghi đè `scope_rule` của program đã có; áp snapshot ở **launch**. `DELETE /api/scans/{id}` (draft), `GET /api/drafts`, tự dọn draft >7 ngày; program chỉ có draft không hiện ở Portfolio.
+- **[§7 API]** `X-Total-Count` + `limit/offset/filter` cho assets/diff/findings; `GET /api/programs/{slug}/summary`; `POST /api/programs/{slug}/rescan`; `GET /api/scans/{id}/review`; health thêm `missing_by_depth`, `h1_api`, và nhận diện `httpx` ProjectDiscovery (không thực thi tool).
+- **[§9 brief]** Thêm cột lý do rank, dải range, `GHI CHÚ SCOPE` (instruction từng asset), gợi ý test sinh từ lý do; ASSET MỚI ≤30 dòng + tổng.
+- **[§11 frontend]** Viết lại theo `api/ lib/ hooks/ components/ pages/`; luồng Thêm program → Review → Run → Program; tab/bước nằm trong URL; Docker hiển thị lệnh hunt đúng đường dẫn máy người dùng (`BBASM_HOST_TARGETS`).
 
 ---
 

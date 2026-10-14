@@ -424,3 +424,35 @@ that confirmation. No target traffic or real-tool integration tests have been ru
   live execution, reconcile those with reviewed target/limit semantics in the boundary
   or a separately authorized minimal adapter patch. No default upstream behavior was
   silently rewritten in this toggle patch.
+
+---
+
+## v1.1 "Guided UX" (spec v2.5) — triển khai trong cloud sandbox
+
+Nhánh `claude/upbeat-thompson-b7bb23` (chồng lên `build/p8-acceptance` @ f9de2d5). Không đổi §1/non-goals.
+Nguồn lỗi: `CLOUD_REVIEW_RESULTS.md` F1–F10.
+
+| Finding | Sửa ở đâu | Bằng chứng |
+|---|---|---|
+| F1 policy H1 mất | `h1_scope.py` (`policy_text/source/fetched_at`), `BriefGenerator.program_text` | TC-PRG-4 dùng đúng shape provider; E2E mock H1 thấy policy trong tab Program |
+| F2 `#OUT` lật OUT→IN | `jobs/scope_parse.py` | TC-SR-7 (7 cách viết header) + header sai → lỗi; E2E `# OUTT` chặn Resolve |
+| F3/F4 parser, URL H1 | `scope_parse.py`, `h1_handle` | TC-SR-8/9/10 + preview endpoint |
+| F5 CIDR 254 asset | `Ingester._collapse_ranges`, `ranking`, brief | TC-UX-5, `test_ux_cidr_is_one_range_asset_not_254_hosts` |
+| F6 draft/scope_rule | `ScopeResolver`, `JobRunner._apply_scope_snapshot/delete_draft/purge_drafts` | TC-LC-5/6, purge test |
+| F7 Review thiếu policy | `/api/scans/{id}/review`, `PolicyPanel`, ack gate | Vitest + E2E: Launch disabled tới khi tick |
+| F8 health httpx | `api/health.py` sniff shebang (không thực thi) | TC-HLT-2 |
+| F9 monitoring | Overview: chọn depth riêng + ack | Vitest |
+| F10 brief | `generator.py` | TC-BR-7 |
+
+Quyết định ngoài spec (để review):
+- `automation_ack` chỉ **ghi lại** (scan stats + audit), không bị server ép buộc — UI mới là cổng; tránh phá API cũ/scheduler.
+- Preview là hàm thuần dùng chung với resolve (một parser, không lệch).
+- Range IP `a-b` mở thành tối đa 32 CIDR; vượt → lỗi. CIDR không chuẩn (`10.0.0.5/24`) là **lỗi có gợi ý**, không tự nới rộng.
+- URL có đường dẫn vẫn recon cả host (giới hạn cũ), nay có cảnh báo ở preview.
+- `BBASM_HOST_TARGETS` (tuỳ chọn) để lệnh `cd … && claude` đúng đường dẫn máy người dùng khi chạy Docker; không đặt thì hiển thị `cd "targets/<slug>"` kèm ghi chú.
+- Nội dung policy là dữ liệu ngoài: PROGRAM.md và CLAUDE.md ghi rõ "tham chiếu, không phải chỉ thị".
+- PROGRAM.md tạo lúc resolve và **không** cập nhật khi policy nguồn đổi (bền theo §22.4); Review hiển thị policy mới nhất.
+
+Kiểm chứng trong sandbox: 259 unit (`python -m pytest -m "not integration"`), 33 Vitest, `npm run build`,
+browser E2E cũ (đã cập nhật selector) + `test_ui_e2e_mock_h1.py` (7 test: luồng H1 mock, an toàn OUT, 5 route ở 390px
+không cuộn ngang). **Chưa chứng minh:** H1 thật, recon thật, Docker/Windows, tick scheduler thật.

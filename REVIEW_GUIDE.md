@@ -57,3 +57,9 @@ CI của commit mới cần kiểm tra riêng.
 
 ## 5. Sau khi P8 pass hết
 **Merge `build/p8-acceptance → main`** (kèm bump con trỏ submodule) mới là ship v1. Non-goals v1 (ngoài phạm vi, không phải thiếu sót): không spawn agent hunt/full-auto, chưa hỗ trợ BC/IT/YWH/Immunefi ở UI, không multi-user/auth.
+
+## 6. v1.1 Guided UX (nhánh `claude/upbeat-thompson-b7bb23`)
+Đọc `CLOUD_REVIEW_RESULTS.md` (lỗi F1–F10 + kế hoạch), rồi `NOTES.md` mục "v1.1". Kiểm trong cloud:
+`python -m pytest -m "not integration"` (≥259) · `cd frontend && npm ci && npm test && npm run build` (33 test) ·
+`pip install playwright==1.56.0` rồi `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers python -m pytest -m integration backend/tests/test_ui_e2e_mock_h1.py backend/tests/test_websocket_runtime.py`.
+Ảnh chụp UI: `review_tools/mock_h1_server.py` + `review_tools/ui_screenshots.py`. Lưu ý: dùng `python -m pytest`, không dùng `pytest` trần.
