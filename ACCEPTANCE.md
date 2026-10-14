@@ -143,3 +143,18 @@ credential/raw secret vào Git. Các báo cáo P0–P2 cũ trong NOTES là lịc
 
 Vẫn cần máy của bạn: Docker (kiểm `BBASM_HOST_TARGETS` và `cd targets/<slug>`), recon thật, H1 program được phép
 (nên thử tab HackerOne với `H1_USER/H1_TOKEN` để xác nhận policy API thật), Windows/WSL2, tick scheduler thật.
+
+## v1.2 — bổ sung nghiệm thu
+
+Đã có bằng chứng trong cloud (mock H1 + dữ liệu mẫu `demo-shop`): 301 unit · 46 Vitest · 17 browser E2E (`test_ui_e2e_mock_h1.py`) · E2E gốc + WS pass.
+
+| Mục | Bằng chứng | Còn cần trên máy bạn |
+|---|---|---|
+| Mỗi bước nói rõ: làm gì, chạm target?, đã chạy/bỏ qua/0 kết quả, xem ở đâu | E2E `test_results_are_explained_step_by_step_and_openable` | xem trên scan thật |
+| URL inventory + phễu + lọc + export .txt | unit + E2E | chạy lại Passive #9 trên máy thật để xem 8.8k URL |
+| Diff Passive→Light | TC-DF-5 | **chạy lại chuỗi Passive→Light trên máy thật** (R4) |
+| Tuỳ chỉnh: bật/tắt bước, giá trị, profile, mặc định theo program | Vitest + E2E | dùng thử với program thật |
+| Nhãn "CHƯA XÁC MINH" cho H1 công khai | unit + E2E | H1 thật có/không có token |
+| Export `filtered` loại dòng ngoài scope | unit | kiểm ZIP với scan thật |
+| Điện thoại: 10 route không cuộn ngang, nút Launch luôn thấy | E2E | thiết bị thật |
+| Migration DB v1→v2 | TC-MIG-1..4 | **thử trên bản sao `data/bbasm.db` thật** (có backup tự động) |

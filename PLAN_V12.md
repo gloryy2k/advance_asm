@@ -1,7 +1,7 @@
 # PLAN v1.2 — An toàn tốc độ, độ tin cậy dữ liệu, giá trị recon và khả năng tuỳ chỉnh
 
 Ngày 2026-10-14 · Soạn bởi Claude (cloud) sau khi đọc `V11_HOST_RESULTS.md`, `V11_FOLLOWUP_NOTES.md`, `V11_PRODUCT_REVIEW.md` của Codex.
-Nhánh làm việc: `claude/upbeat-thompson-b7bb23` (đã fast-forward tới `caf55d0`). **Tài liệu này chỉ là kế hoạch — chưa có code nào được viết. Chờ bạn duyệt (mục 8).**
+Nhánh làm việc: `claude/upbeat-thompson-b7bb23` (đã fast-forward tới `caf55d0`). **Cập nhật 2026-10-14 sau phản hồi của bạn:** (1) **bỏ** toàn bộ phần ép giới hạn tốc độ (R1/V3, shim, chặn cứng, quy tắc program) — scan giữ nguyên tốc độ hiện tại, giá trị nào chỉnh được thì cho chỉnh; (2) ưu tiên **giao diện dễ nhìn/dễ dùng**, mỗi chức năng nói rõ làm gì và **xem output ở đâu**; (3) dữ liệu scan #9–#12 của Codex đã dùng để xử lý R3/R4. Trạng thái triển khai: xem `NOTES.md` mục "v1.2".
 Không đổi §1 kiến trúc và non-goals v1 (không spawn agent, không multi-user, không BC/IT/YWH/IMF).
 
 ---

@@ -63,3 +63,9 @@ CI của commit mới cần kiểm tra riêng.
 `python -m pytest -m "not integration"` (≥259) · `cd frontend && npm ci && npm test && npm run build` (33 test) ·
 `pip install playwright==1.56.0` rồi `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers python -m pytest -m integration backend/tests/test_ui_e2e_mock_h1.py backend/tests/test_websocket_runtime.py`.
 Ảnh chụp UI: `review_tools/mock_h1_server.py` + `review_tools/ui_screenshots.py`. Lưu ý: dùng `python -m pytest`, không dùng `pytest` trần.
+
+## 7. v1.2 (nhánh `claude/upbeat-thompson-b7bb23`)
+`python -m pytest -m "not integration"` (≥301) · `cd frontend && npm ci && npm test && npm run build` (46 test) ·
+`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers python -m pytest -m integration backend/tests/test_ui_e2e_mock_h1.py` (17 test; cần `npm run build`).
+Ảnh chụp mọi màn hình với dữ liệu mẫu: `SCR=/tmp/bbasm-mock PYTHONPATH=. python review_tools/mock_h1_server.py &` rồi `python review_tools/ui_screenshots.py`.
+**Lưu ý nâng cấp:** lần chạy đầu sau khi cập nhật sẽ tự nâng DB lên v2 và tạo `bbasm.db.bak-v1-<thời gian>` (giữ 3 bản gần nhất).

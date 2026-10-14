@@ -1,5 +1,5 @@
 # BBASM — Bug Bounty Attack Surface Management Dashboard
-## BUILD SPEC / INSTRUCTION cho agent triển khai — **v2.5**
+## BUILD SPEC / INSTRUCTION cho agent triển khai — **v2.6**
 
 > **Mục đích tài liệu:** Đây là bản kịch bản thi công đầy đủ. Agent triển khai đọc file này + các file nguồn được tham chiếu, rồi build ra sản phẩm. Mỗi phần có **tiêu chuẩn (standard)** và **test case**. Không tự ý đổi quyết định kiến trúc đã chốt ở §1. Nếu thiếu thông tin, hỏi người dùng (`vinhtqk5@gmail.com`) chứ không đoán.
 
@@ -57,6 +57,12 @@ Nguồn: `CLOUD_REVIEW_RESULTS.md` (F1–F10) + kế hoạch v1.1. Chi tiết tr
 - **[§7 API]** `X-Total-Count` + `limit/offset/filter` cho assets/diff/findings; `GET /api/programs/{slug}/summary`; `POST /api/programs/{slug}/rescan`; `GET /api/scans/{id}/review`; health thêm `missing_by_depth`, `h1_api`, và nhận diện `httpx` ProjectDiscovery (không thực thi tool).
 - **[§9 brief]** Thêm cột lý do rank, dải range, `GHI CHÚ SCOPE` (instruction từng asset), gợi ý test sinh từ lý do; ASSET MỚI ≤30 dòng + tổng.
 - **[§11 frontend]** Viết lại theo `api/ lib/ hooks/ components/ pages/`; luồng Thêm program → Review → Run → Program; tab/bước nằm trong URL; Docker hiển thị lệnh hunt đúng đường dẫn máy người dùng (`BBASM_HOST_TARGETS`).
+
+### 📌 CHANGELOG v2.5 → v2.6 — v1.2 (không đổi §1, non-goals; **không** thêm kiểm soát tốc độ)
+- **[§6]** Schema v2 (migration có backup): `url.tags_json/score/verification/status_code/shape`, `scan_run.baseline_scan_id`, `scan_config.options_json`, bảng `profile`, `program.default_profile_id`.
+- **[§7]** API mới: `/api/programs/{slug}/urls|urls/summary|urls/export`, `/api/scans/{id}/phases|artifact|artifact/download`, `/api/meta/phases|plan`, `/api/profiles` CRUD, `PUT /api/programs/{slug}/default-profile`; export `mode=brief|filtered|full`.
+- **[§8.3/§12.2]** Diff so với scan hoàn tất gần nhất (observations), có tên mốc. **[§9]** Brief: ENDPOINT ĐÁNG XEM, tech chips, nhãn độ tin cậy scope.
+- **[§11]** UI: Xem lại (bước + công tắc + preset/profile + thanh hành động cố định), Kết quả theo bước + trình xem file, Program 5 khu vực (Tổng quan · Dữ liệu · Phát hiện · Lịch sử · Hướng dẫn & scope), Trợ giúp "Chức năng & kết quả", Profile quét.
 
 ---
 

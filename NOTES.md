@@ -456,3 +456,30 @@ Quyết định ngoài spec (để review):
 Kiểm chứng trong sandbox: 259 unit (`python -m pytest -m "not integration"`), 33 Vitest, `npm run build`,
 browser E2E cũ (đã cập nhật selector) + `test_ui_e2e_mock_h1.py` (7 test: luồng H1 mock, an toàn OUT, 5 route ở 390px
 không cuộn ngang). **Chưa chứng minh:** H1 thật, recon thật, Docker/Windows, tick scheduler thật.
+
+
+---
+
+## v1.2 — rõ chức năng, rõ output, URL inventory, tuỳ chỉnh (spec v2.6)
+
+Phạm vi theo phản hồi của người dùng: **không** ép/siết giới hạn tốc độ (scan giữ nhanh như cũ); giá trị nào đổi được thì cho đổi.
+Nguồn: `V11_HOST_RESULTS.md`, `V11_FOLLOWUP_NOTES.md`, `V11_PRODUCT_REVIEW.md`, `V11_SCAN_9_12_EVIDENCE.md`, `PLAN_V12.md`.
+
+| Vấn đề | Đã làm | Bằng chứng |
+|---|---|---|
+| F1 lệnh hunt Windows nhân đôi `\` | `quote_path` theo shell đích (Windows giữ `\`, POSIX escape) | unit + test Codex cũ |
+| R7 native Windows chờ 6 phút rồi lỗi | `health.runtime` + `launch` trả 422 `platform_unsupported` ngay + banner | unit |
+| R8 CI không chạy nhánh làm việc | `ci.yml` thêm `claude/**`, `test/**` | — |
+| F3 test recon cứng path / race | dùng `Settings.tool_path`, `NoSuchProcess` = đã chết | — |
+| DB v1 từ chối nâng cấp | `migrations.py`: v1→v2 có backup, rollback, từ chối bản mới hơn | TC-MIG-1..4 |
+| R4 Diff 0 thay đổi | baseline = **observations của scan hoàn tất gần nhất** (không phải asset row bị ghi đè), lưu `baseline_scan_id` | TC-DF-5 (chuỗi có scan huỷ + asset bị "nhiễm") |
+| R3 8.836 URL chỉ thấy 1 host | `asm/urlintel.py` (tag/score/shape), phễu raw→trong scope→ngoài scope, `/urls`, `/urls/summary`, `/urls/export` | TC-URL-1..3 |
+| URL lịch sử bị hiểu nhầm là live | `verification`: `historical` (gau/wayback) · `observed` (katana). Không bao giờ `live` | test riêng |
+| R2 H1 không token | `trust.py`: nhãn "CHƯA XÁC MINH" ở Review/Program/PROGRAM.md/brief + checklist đối chiếu | TC-H1V |
+| R5 ZIP chứa dữ liệu ngoài scope | export `brief` / `filtered` (mặc định) / `full` có nhãn trong MANIFEST | TC-EXP-7.. |
+| R6 brief cắt giữa JSON | `tech_chips` ("nginx, PHP, +4"), mục ENDPOINT ĐÁNG XEM (một URL mỗi dạng đường dẫn) | TC-BR-8 |
+| "Mỗi chức năng output ở đâu" | `asm/phases.py`: 12 bước, trạng thái từ **bằng chứng** (ran/empty/skipped/missing_tool/no_output), file viewer an toàn (path trong thư mục scan, không symlink, secret bị ẩn) | TC-PH-1..3 |
+| Tuỳ chỉnh | `ScanConfig` thêm: skip_ffuf/historical/takeover/secrets, max_js_files, url_exclude_patterns, brief_*; profile (CRUD, nhân bản, mặc định theo program); `/api/meta/plan` cho biết bước nào sẽ chạy | TC-CFG/PR |
+
+Quyết định ngoài spec: (1) **không** có shim rate-limit và không có "quy tắc program" cứng — người dùng muốn scan nhanh; UI chỉ ghi rõ rằng một số công cụ có giới hạn riêng. (2) `url_exclude_patterns` chỉ lọc kết quả/brief, **không** ngăn công cụ truy cập đường dẫn đó (nói rõ trong UI). (3) Profile chỉ chứa cách quét, không chứa scope. (4) Giá trị bí mật trong file kết quả bị ẩn khi xem (`reveal=true` mới hiện). (5) Export mặc định là "đã lọc scope".
+Giới hạn đã biết: nguyên nhân gốc thật của "Diff = 0" trên DB của Codex chưa tái hiện được từ dữ liệu xuất (chuỗi sạch cho kết quả đúng) — đã đổi sang baseline bất biến + lưu `baseline_scan_id` để lần sau chẩn đoán được; cần chạy lại Passive→Light trên máy thật để xác nhận.
