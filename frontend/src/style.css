@@ -844,3 +844,17 @@ fieldset.plainfs {
     flex-basis: 100%;
   }
 }
+
+.rawdoc {
+  background: #080f0c;
+  color: #c2d6c8;
+  padding: 16px;
+  border-radius: 8px;
+  overflow: auto;
+  font: 13px/1.6 ui-monospace, monospace;
+  max-height: 70vh;
+}
+[data-theme="light"] .rawdoc {
+  background: #eef3ee;
+  color: #1d3a2b;
+}

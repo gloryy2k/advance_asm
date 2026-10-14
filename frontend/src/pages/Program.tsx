@@ -348,7 +348,8 @@ function BriefTab({ base, slug, summary }: { base: string; slug: string; summary
       </div>
       <ErrorBox text={error} />
       <State data={brief.data} error={brief.error}>
-        <ReactMarkdown>{text}</ReactMarkdown>
+        {/* Raw on purpose: this is exactly what the agent reads (tables/lists use single newlines). */}
+        <pre className="rawdoc" aria-label="AGENT_BRIEF.md">{text}</pre>
       </State>
     </section>
   );

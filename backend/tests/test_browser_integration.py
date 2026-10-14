@@ -27,6 +27,6 @@ def test_browser_resolve_review_launch_to_brief():
             page.goto(base + "/#/")
             page.get_by_role("heading", name=target, exact=True).click()
             page.get_by_role("tab", name="Brief", exact=True).click()
-            sync_api.expect(page.get_by_role("heading", name=re.compile("AGENT BRIEF"))).to_be_visible()
+            sync_api.expect(page.get_by_label("AGENT_BRIEF.md")).to_contain_text("# AGENT BRIEF")
         finally:
             browser.close()
