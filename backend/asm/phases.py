@@ -71,12 +71,30 @@ def disabled_reason(config, key, *, historical_off=False):
         return "Bạn đã tắt crawl chủ động"
     if key == "nuclei" and config.skip_nuclei:
         return "Bạn đã tắt nuclei"
-    if key == "url_history" and historical_off:
+    if key == "url_history" and (historical_off or getattr(config, "skip_historical", False)):
         return "Nguồn lịch sử bị tắt"
     for flag, phase in (("skip_takeover", "takeover"), ("skip_secrets", "secrets")):
         if key == phase and getattr(config, flag, False):
             return "Bạn đã tắt bước này"
     return None
+
+
+def plan_for(config, settings, missing_tools):
+    """What a scan with this config WILL do, step by step — shown in Review before anything runs."""
+    missing = set(missing_tools)
+    out = []
+    for phase in PHASES:
+        reason = disabled_reason(config, phase["key"], historical_off=settings.BBASM_SKIP_HISTORICAL)
+        absent = [t for t in phase["tools"] if t in missing]
+        if reason:
+            status = "off"
+        elif phase["tools"] and len(absent) == len(phase["tools"]):
+            status, reason = "missing_tool", "Thiếu " + ", ".join(absent) + " — bước này sẽ bị bỏ qua."
+        else:
+            status = "on"
+        out.append({"key": phase["key"], "title": phase["title"], "what": phase["what"], "touches": phase["touches"],
+                    "status": status, "reason": reason, "view": phase["view"]})
+    return out
 
 
 def scan_root(settings, slug, scan_id):

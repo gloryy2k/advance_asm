@@ -59,6 +59,13 @@ async def phase_catalog():
     return [{k: p[k] for k in ("key", "title", "what", "touches", "tools", "count_label", "view")} | {"files": p["files"]} for p in PHASES]
 
 
+@router.post("/api/meta/plan")
+async def plan_preview(config: ScanConfig, request: Request):
+    from backend.asm.phases import plan_for
+    state = request.app.state
+    return {"phases": plan_for(config, state.settings, state.runner.orchestrator.missing_tools())}
+
+
 @router.get("/api/scans/{scan_id}/phases")
 async def scan_phases(scan_id: int, request: Request):
     from backend.asm.phases import build_report

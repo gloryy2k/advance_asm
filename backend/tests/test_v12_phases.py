@@ -107,3 +107,24 @@ def test_phase_catalog_endpoint_and_unknown_scan(settings):
         assert [c["key"] for c in catalog][:3] == ["subdomain_enum", "live_probe", "port_scan"]
         environment(settings)
         assert client.get("/api/scans/999/phases").status_code == 422
+
+
+def test_tc_ph_3_plan_preview_follows_the_config_before_anything_runs(settings, monkeypatch):
+    from backend.jobs.recon_orch import ReconOrchestrator as RO
+    monkeypatch.setattr(RO, "missing_tools", lambda self: ["katana", "nuclei"])
+    base = dict(depth="light", threads=50, rate_limit=150, scan_timeout=900, nuclei_severity="low", skip_nmap=True,
+                skip_nuclei=False, skip_active_crawl=False, categories_enabled=["web"])
+    with TestClient(create_app(settings)) as client:
+        def plan(**over):
+            return {p["key"]: p for p in client.post("/api/meta/plan", json={**base, **over}).json()["phases"]}
+        light = plan()
+        assert light["live_probe"]["status"] == "on" and light["port_scan"]["status"] == "off"
+        assert light["nuclei"]["status"] == "missing_tool" and "nuclei" in light["nuclei"]["reason"]
+        assert light["url_crawl"]["status"] == "missing_tool"
+        assert plan(skip_historical=True)["url_history"]["status"] == "off"
+        assert plan(skip_takeover=True)["takeover"]["status"] == "off" and plan(skip_secrets=True)["secrets"]["status"] == "off"
+        passive = plan(depth="passive", scan_timeout=300, skip_nuclei=True, skip_active_crawl=True)
+        assert passive["live_probe"]["status"] == "off" and passive["subdomain_enum"]["status"] == "on"
+        strong = plan(depth="strong", scan_timeout=2700, skip_nmap=False)
+        assert strong["port_scan"]["status"] in {"on", "missing_tool"} and strong["dir_fuzz"]["status"] in {"on", "missing_tool"}
+        assert client.post("/api/meta/plan", json={**base, "threads": 999}).status_code == 422
