@@ -84,7 +84,7 @@ export function ArtifactViewer({
         )}
         <div className="filters">
           <input aria-label="Tìm trong file" placeholder="Tìm trong file…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <a className="button secondary small" href={`/api/scans/${scanId}/artifact/download?path=${encodeURIComponent(path)}`}>
+          <a className="button secondary small" href={`/api/scans/${scanId}/artifact/download?path=${encodeURIComponent(path)}${reveal ? "&reveal=true" : ""}`}>
             Tải file ↓
           </a>
         </div>

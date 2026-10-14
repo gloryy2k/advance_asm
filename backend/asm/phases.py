@@ -184,17 +184,41 @@ def build_report(settings, database, scan_id, tools_missing=None):
             "phases": report, "funnel": stats.get("url_funnel"), "missing_tools": sorted(missing)}
 
 
+# Credentials with a recognisable shape are hidden in every file, not only in scanner output.
+_KNOWN_SECRETS = re.compile(
+    r"AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}"
+    r"|sk_(?:live|test)_[A-Za-z0-9]{10,}|AIza[0-9A-Za-z_\-]{30,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"
+    r"|-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)")
+_KEY_VALUE = re.compile(
+    r"(?i)(\b[\w.-]*(?:token|secret|passw(?:or)?d|api[_-]?key|credential|authorization|bearer)[\w.-]*[\"']?\s*[=:]\s*[\"']?)((?:(?:bearer|basic)\s+)?[^\s\"',;&]{3,})")
+
+
+def scrub(line):
+    """Hide anything that looks like a credential. Plain URL lines keep their query values: they are recon data."""
+    line = _KNOWN_SECRETS.sub(lambda m: m.group(0)[:4] + "…[ẩn]", line)
+    if not line.lstrip().lower().startswith(("http://", "https://")):
+        line = _KEY_VALUE.sub(lambda m: m.group(1) + "[ẩn]", line)
+    return line
+
+
 def redact(line, name):
     """Secret scanners store the secret itself; show the finding, not the credential."""
-    if name not in SECRET_FILES:
-        return line
-    try:
-        data = json.loads(line)
-        if isinstance(data, dict):
-            return json.dumps({k: ("[ẩn]" if k in SECRET_KEYS else v) for k, v in data.items()}, ensure_ascii=False)
-    except ValueError:
-        pass
-    return re.sub(r"[A-Za-z0-9_\-+/=]{20,}", lambda m: m.group(0)[:4] + "…[ẩn]", line)
+    if name in SECRET_FILES:
+        try:
+            data = json.loads(line)
+            if not isinstance(data, dict):
+                raise ValueError
+            line = json.dumps({k: ("[ẩn]" if k in SECRET_KEYS else v) for k, v in data.items()}, ensure_ascii=False)
+        except ValueError:
+            line = re.sub(r"[A-Za-z0-9_\-+/=]{20,}", lambda m: m.group(0)[:4] + "…[ẩn]", line)
+    return scrub(line)
+
+
+def redacted_lines(path, name):
+    """Stream a file with credentials hidden; the safe default for downloads."""
+    with path.open("r", encoding="utf-8", errors="replace") as stream:
+        for line in stream:
+            yield redact(line.rstrip("\n\r"), name) + "\n"
 
 
 def read_artifact(settings, database, scan_id, relative, *, offset=0, limit=200, query="", reveal=False):
@@ -214,15 +238,17 @@ def read_artifact(settings, database, scan_id, relative, *, offset=0, limit=200,
             or resolved.suffix.lower() not in TEXT_SUFFIXES or resolved.stat().st_size > MAX_SCAN_BYTES):
         return None
     needle = query.lower()
-    page, matched = [], 0
+    page, matched, hidden = [], 0, False
     with resolved.open("r", encoding="utf-8", errors="replace") as stream:
         for line in stream:
             line = line.rstrip("\n\r")
-            if needle and needle not in line.lower():
+            # Search what the user can see: a hidden value must not be findable by guessing its characters.
+            shown = line if reveal else redact(line, resolved.name)
+            if needle and needle not in shown.lower():
                 continue
             if offset <= matched < offset + limit:
-                text = line if reveal else redact(line, resolved.name)
-                page.append(text[:MAX_LINE] + ("…" if len(text) > MAX_LINE else ""))
+                hidden = hidden or shown != line
+                page.append(shown[:MAX_LINE] + ("…" if len(shown) > MAX_LINE else ""))
             matched += 1
     return {"path": relative, "name": resolved.name, "total": matched, "offset": offset, "limit": limit,
-            "lines": page, "redacted": resolved.name in SECRET_FILES and not reveal, "filtered": bool(needle)}
+            "lines": page, "redacted": not reveal and (resolved.name in SECRET_FILES or hidden), "filtered": bool(needle)}

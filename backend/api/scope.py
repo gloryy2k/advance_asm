@@ -31,13 +31,14 @@ def preview_scope(body: PreviewRequest):
     if body.input.strip() == "raw":
         lines = parse_scope(body.scope, body.scope_out)
         summary = summarize(lines)
-        ok = summary["errors"] == 0 and summary["in"] > 0
-        message = "" if ok else ("Có dòng lỗi; sửa trước khi tiếp tục" if summary["errors"] else "Chưa có mục IN hợp lệ")
+        ok = summary["errors"] == 0 and summary["effective_in"] > 0
+        message = "" if ok else ("Có dòng lỗi; sửa trước khi tiếp tục" if summary["errors"] else
+                                 "Mọi mục IN đều bị OUT loại; không còn gì để quét" if summary["in"] else "Chưa có mục IN hợp lệ")
         return {"mode": "raw", "ok": ok, "message": message, "summary": summary,
                 "lines": [line.public() for line in lines]}
     try:
         return {"mode": "h1", "ok": True, "handle": h1_handle(body.input), "message": "", "lines": [],
-                "summary": {"in": 0, "out": 0, "errors": 0, "warnings": 0}}
+                "summary": {"in": 0, "out": 0, "effective_in": 0, "errors": 0, "warnings": 0}}
     except ScopeError as exc:
         return {"mode": "h1", "ok": False, "handle": None, "message": str(exc), "lines": [],
-                "summary": {"in": 0, "out": 0, "errors": 1, "warnings": 0}}
+                "summary": {"in": 0, "out": 0, "effective_in": 0, "errors": 1, "warnings": 0}}

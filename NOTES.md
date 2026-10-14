@@ -483,3 +483,18 @@ Nguồn: `V11_HOST_RESULTS.md`, `V11_FOLLOWUP_NOTES.md`, `V11_PRODUCT_REVIEW.md`
 
 Quyết định ngoài spec: (1) **không** có shim rate-limit và không có "quy tắc program" cứng — người dùng muốn scan nhanh; UI chỉ ghi rõ rằng một số công cụ có giới hạn riêng. (2) `url_exclude_patterns` chỉ lọc kết quả/brief, **không** ngăn công cụ truy cập đường dẫn đó (nói rõ trong UI). (3) Profile chỉ chứa cách quét, không chứa scope. (4) Giá trị bí mật trong file kết quả bị ẩn khi xem (`reveal=true` mới hiện). (5) Export mặc định là "đã lọc scope".
 Giới hạn đã biết: nguyên nhân gốc thật của "Diff = 0" trên DB của Codex chưa tái hiện được từ dữ liệu xuất (chuỗi sạch cho kết quả đúng) — đã đổi sang baseline bất biến + lưu `baseline_scan_id` để lần sau chẩn đoán được; cần chạy lại Passive→Light trên máy thật để xác nhận.
+
+## v1.2.1 — sửa theo QA host (V12_HOST_RESULTS.md)
+
+| Finding | Cách sửa | Test |
+|---|---|---|
+| F1 secret lộ trong trình xem file | `scrub()` che credential ở **mọi** file (AKIA/ghp_/xox/JWT/private key + `token=…`, `password:…`, `Authorization: Bearer …`); dòng URL giữ nguyên query vì là dữ liệu recon; tìm kiếm chạy trên nội dung đã che; tải về mặc định đã che, `reveal=true` mới ra bản gốc | `test_f1_*` |
+| F2 DB v1 không tự migrate khi khởi động | `lifespan` gọi `Database.migrate()` (có backup) nếu file DB đã tồn tại; cài mới vẫn tạo DB lười (health vẫn fail-soft) | `test_f2_*` |
+| F3 URL cũ không được phân loại | migration v2 chạy thêm `_backfill_urls`: tag/score/shape cho mọi URL cũ, `verification='historical'` (không bao giờ "observed"); idempotent, cùng transaction nên lỗi thì rollback | `test_f3_*`, `test_tc_mig_1` |
+| F4 OUT không thắng IN trong preview | `apply_precedence`: dòng IN bị OUT phủ hoàn toàn bị đánh dấu `shadowed_by`, `summary.effective_in`; nếu không còn IN hiệu lực thì preview `ok=false` và resolve báo `scope_empty_after_out` (ScopeGate lúc chạy vẫn deny trước, nên an toàn từ trước) | `test_f4_*` |
+| F5 test trên Windows | `BBASM_HOST_TARGETS` là `str` nguyên văn (không qua `Path` nên đường dẫn WSL/POSIX không bị đổi `/`→`\`); E2E "launch tới done" bỏ qua trên Windows gốc. **Bộ unit chạy ở Linux/WSL2/CI**; 6 test enqueue recon trên Windows gốc vẫn bị từ chối `platform_unsupported` theo thiết kế | — |
+| F6 API nhận Light không ack | `require_ack`: `/launch` và `POST /api/scans` trả 422 `ack_required` nếu depth ≠ passive mà thiếu `automation_ack`. **Lịch (scheduler) chưa có ack riêng** — ghi nhận là việc còn lại | `test_f6_*` |
+| F7 PUT profile đổi depth ngầm | PUT gộp vào config đã lưu; depth chỉ đổi khi gửi rõ | `test_f7_*` |
+| F8 a11y | link trong văn bản có gạch chân; mọi `.table-wrap`/`pre` cuộn được có `tabindex=0` + `role=region`; axe (wcag2a/aa) 10 route × 390/1366px: 0 lỗi serious/critical | axe chạy ngoài repo |
+
+Chưa làm: Review trên mobile vẫn dài (~4.9k px); ack cho schedule; xác nhận trên host với dữ liệu thật (F2/F3 cần chạy lại T3).

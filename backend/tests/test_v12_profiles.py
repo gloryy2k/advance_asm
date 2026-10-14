@@ -133,3 +133,16 @@ def test_tc_pr_default_profile_seeds_new_drafts_but_keeps_their_scope(settings):
         client.delete(f"/api/profiles/{profile['id']}")  # deleting the profile clears the default; later drafts fall back
         later = client.post(f"/api/programs/{first['slug']}/rescan").json()
         assert client.get(f"/api/scans/{later['scan_id']}/config").json()["depth"] == "light"
+
+
+def test_f7_partial_profile_update_keeps_the_saved_depth(settings):
+    from fastapi.testclient import TestClient
+    from backend.main import create_app
+    with TestClient(create_app(settings)) as client:
+        made = client.post("/api/profiles", json={"name": "calm", "based_on": "passive", "config": {}}).json()
+        assert made["config"]["depth"] == "passive"
+        updated = client.put(f"/api/profiles/{made['id']}", json={"name": "calm", "based_on": "passive", "config": {"threads": 1, "rate_limit": 1}}).json()
+        assert updated["config"]["depth"] == "passive" and updated["config"]["threads"] == 1
+        changed = client.put(f"/api/profiles/{made['id']}", json={"name": "calm", "based_on": "light", "config": {"depth": "light"}}).json()
+        assert changed["config"]["depth"] == "light" and changed["config"]["threads"] == 1  # explicit depth wins, other fields kept
+        assert client.put("/api/profiles/999", json={"name": "x", "config": {}}).status_code == 422

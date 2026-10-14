@@ -137,6 +137,7 @@ export type PreviewLine = {
   category: string;
   normalized: string;
   note: string;
+  shadowed_by?: string;
 };
 
 export type Preview = {
@@ -144,7 +145,7 @@ export type Preview = {
   ok: boolean;
   message: string;
   handle?: string | null;
-  summary: { in: number; out: number; errors: number; warnings: number };
+  summary: { in: number; out: number; effective_in?: number; errors: number; warnings: number };
   lines: PreviewLine[];
 };
 

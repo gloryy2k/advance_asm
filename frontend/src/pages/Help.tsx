@@ -30,7 +30,7 @@ export function Help() {
       </Panel>
       <Panel id="phases-h" title="Các bước quét" hint="Đây là những gì một scan có thể làm. Mỗi scan cho biết từng bước đã chạy, bỏ qua (và vì sao) hay không có dữ liệu.">
         <State data={phases.data} error={phases.error}>
-          <div className="table-wrap">
+          <div className="table-wrap" tabIndex={0} role="region" aria-label="Bảng dữ liệu, cuộn được">
             <table>
               <thead><tr><th>Bước</th><th>Làm gì</th><th>Request tới target?</th><th>Công cụ</th><th>Xem kết quả ở</th></tr></thead>
               <tbody>
@@ -56,7 +56,7 @@ export function Help() {
         </div>
       </Panel>
       <Panel id="other-h" title="Các chức năng khác">
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0} role="region" aria-label="Bảng dữ liệu, cuộn được">
           <table>
             <thead><tr><th>Chức năng</th><th>Làm gì</th><th>Xem ở</th></tr></thead>
             <tbody>{OTHER.map(([a, b, c]) => <tr key={a}><td><strong>{a}</strong></td><td>{b}</td><td>{c}</td></tr>)}</tbody>

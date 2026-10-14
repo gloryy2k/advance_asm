@@ -147,12 +147,14 @@ def test_preview_endpoint_is_pure_and_per_line(settings):
         assert ("in", 1, "ok") in statuses and ("in", 2, "skip") in statuses and ("in", 3, "error") in statuses
         assert ("out", 1, "ok") in statuses
         good = client.post("/api/scope/preview", json={"input": "raw", "scope": ["x.com"]}).json()
-        assert good["ok"] is True and good["summary"] == {"in": 1, "out": 0, "errors": 0, "warnings": 0}
+        assert good["ok"] is True and good["summary"] == {"in": 1, "out": 0, "effective_in": 1, "errors": 0, "warnings": 0}
         h1 = client.post("/api/scope/preview", json={"input": "https://hackerone.com/live_nation?type=team"}).json()
         assert h1["ok"] and h1["handle"] == "live_nation"
         bad = client.post("/api/scope/preview", json={"input": "https://evil.com/x"}).json()
         assert bad["ok"] is False and bad["message"]
-        assert not settings.BBASM_DATA.exists() and not settings.BBASM_TARGETS.exists()  # nothing written
+        # Preview must add no program, draft or target folder.
+        assert client.get("/api/programs?include_drafts=true").json() == [] and client.get("/api/drafts").json() == []
+        assert not settings.BBASM_TARGETS.exists()
 
 
 def test_tc_prg_4_h1_policy_reaches_program_md(settings, tmp_path):
@@ -230,6 +232,22 @@ def test_health_reports_recon_support_and_launch_rejects_unsupported_platform(se
         assert runtime["recon_supported"] is True and runtime["reason"] == ""
         made = client.post("/api/scope/resolve", json={"input": "raw", "scope": ["a.example.com"]}).json()
         monkeypatch.setattr(runner_module.os, "name", "nt")
-        denied = client.post(f"/api/scans/{made['scan_id']}/launch", json={})
+        denied = client.post(f"/api/scans/{made['scan_id']}/launch", json={"automation_ack": True})
         assert denied.status_code == 422 and denied.json()["error"]["code"] == "platform_unsupported"
         assert client.get(f"/api/scans/{made['scan_id']}").json()["status"] == "draft"  # nothing was queued
+
+
+def test_f4_out_beats_in_in_the_preview_and_blocks_an_empty_effective_scope(tmp_path):
+    from backend.jobs.scope_parse import entries_or_raise, parse_scope, summarize
+    from backend.jobs.scope_resolver import ScopeError
+    shadowed = parse_scope(["a.com"], ["a.com"])
+    assert summarize(shadowed)["effective_in"] == 0 and shadowed[0].shadowed_by == "a.com" and "OUT" in shadowed[0].note
+    with pytest.raises(ScopeError) as err:
+        entries_or_raise(shadowed)
+    assert err.value.code == "scope_empty_after_out"
+    wildcard = [r for r in parse_scope(["a.x.com", "b.com", "x.com"], ["*.x.com"]) if r.kind == "in"]
+    assert [r.shadowed_by for r in wildcard] == ["*.x.com", "", ""]  # x.com itself is not under *.x.com
+    cidr = parse_scope(["10.0.0.5", "10.1.0.0/24"], ["10.0.0.0/24"])
+    assert [bool(r.shadowed_by) for r in cidr if r.kind == "in"] == [True, False]
+    entries, warnings = entries_or_raise(cidr)  # one IN left, so it still resolves; the shadowed line is a warning
+    assert any("OUT" in w for w in warnings)

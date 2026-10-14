@@ -42,7 +42,7 @@ export function useAssets(path: string, revision = 0) {
 
 export function AssetTable({ rows }: { rows: Asset[] }) {
   return rows.length ? (
-    <div className="table-wrap">
+    <div className="table-wrap" tabIndex={0} role="region" aria-label="Bảng dữ liệu, cuộn được">
       <table>
         <thead><tr><th>Host</th><th>Rank</th><th>Status</th><th>Tech</th><th>Lý do</th></tr></thead>
         <tbody>
@@ -250,7 +250,7 @@ function FindingsTab({ base }: { base: string }) {
         {(result.state?.items.length || 0) === 0 ? (
           <EmptyState title="Chưa có finding">Finding xuất hiện khi nuclei/takeover/secrets tìm thấy kết quả. Kiểm tra tab Lịch sử → scan → “Kết quả theo bước” để biết các bước đó đã chạy chưa.</EmptyState>
         ) : (
-          <div className="table-wrap">
+          <div className="table-wrap" tabIndex={0} role="region" aria-label="Bảng dữ liệu, cuộn được">
             <table>
               <thead><tr><th>Mức</th><th>Tên</th><th>Loại</th><th>Asset</th><th>Chi tiết</th></tr></thead>
               <tbody>
@@ -282,7 +282,7 @@ function HistoryArea({ slug, view, summary, detail }: { slug: string; view: stri
         <>
           <p className="viewintro"><strong>Các lần scan.</strong> Bấm vào một scan để xem từng bước đã chạy gì, tìm được bao nhiêu và đọc file kết quả.</p>
           {(detail?.scans || []).length === 0 ? <EmptyState title="Chưa có scan">Hãy bấm “Scan lại” để tạo bản nháp đầu tiên.</EmptyState> : (
-            <div className="table-wrap">
+            <div className="table-wrap" tabIndex={0} role="region" aria-label="Bảng dữ liệu, cuộn được">
               <table>
                 <thead><tr><th>Scan</th><th>Mức</th><th>Trạng thái</th><th>Kết quả</th><th>Lúc</th></tr></thead>
                 <tbody>
@@ -356,7 +356,7 @@ function BriefView({ base, summary }: { base: string; summary: Summary }) {
         {text && <span className="muted">{new Blob([text]).size.toLocaleString("vi-VN")} / 12.000 byte</span>}
       </div>
       <ErrorBox text={error} />
-      <State data={brief.data} error={brief.error}><pre className="rawdoc" aria-label="AGENT_BRIEF.md">{text}</pre></State>
+      <State data={brief.data} error={brief.error}><pre className="rawdoc" tabIndex={0} aria-label="AGENT_BRIEF.md">{text}</pre></State>
     </section>
   );
 }

@@ -73,6 +73,7 @@ def browser():
         browser.close()
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Needs a Linux/WSL2/Docker backend: native Windows cannot run recon")
 def test_h1_flow_policy_gate_launch_and_program_md(mock_app, browser):
     from playwright.sync_api import expect
     page = browser.new_page(viewport={"width": 1366, "height": 850})

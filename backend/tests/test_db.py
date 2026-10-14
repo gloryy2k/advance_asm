@@ -68,8 +68,10 @@ def test_tc_mig_1_v1_database_is_upgraded_with_backup_and_data_intact(tmp_path):
     with db.connect() as conn:
         assert [r[0] for r in conn.execute("SELECT version FROM schema_meta")] == [SCHEMA_VERSION]
         assert conn.execute("SELECT slug FROM program").fetchone()[0] == "acme"
-        row = conn.execute("SELECT url,tags_json,score,verification,status_code FROM url").fetchone()
-        assert tuple(row) == ("https://acme.com/a", None, None, None, None)  # old rows get NULL, not defaults
+        row = conn.execute("SELECT url,tags_json,score,verification,status_code,shape FROM url").fetchone()
+        # F3: old rows are classified during the upgrade (never "observed": how they were learned is unknown).
+        assert row["url"] == "https://acme.com/a" and row["tags_json"] is not None and row["score"] is not None
+        assert row["verification"] == "historical" and row["shape"] and row["status_code"] is None
         assert conn.execute("SELECT threads,options_json FROM scan_config").fetchone()[0] == 7
         assert conn.execute("SELECT baseline_scan_id FROM scan_run").fetchone()[0] is None
         conn.execute("INSERT INTO profile(name,config_json) VALUES('mine','{}')")
@@ -119,3 +121,37 @@ def test_backups_are_capped_at_three(tmp_path):
     build_v1(path)
     Database(path).migrate()
     assert len(list(tmp_path.glob("bbasm.db.bak-*"))) == 3
+
+
+def test_f3_backfill_classifies_every_old_url_and_is_idempotent(tmp_path):
+    path = tmp_path / "bbasm.db"
+    build_v1(path)
+    conn = sqlite3.connect(path)
+    conn.executemany("INSERT INTO url(program_id,asset_id,url,source,first_seen_scan,last_seen_scan) VALUES(1,1,?,'gau',1,1)",
+                     [(f"https://acme.com/api/v1/users/{i}?id={i}",) for i in range(6000)] + [("https://acme.com/logo.png",)])
+    conn.commit()
+    conn.close()
+    db = Database(path)
+    db.migrate()
+    with db.connect() as conn:
+        assert conn.execute("SELECT count(*) FROM url WHERE tags_json IS NULL OR shape IS NULL OR score IS NULL").fetchone()[0] == 0
+        assert "static" in conn.execute("SELECT tags_json FROM url WHERE url LIKE '%logo.png'").fetchone()[0]
+        assert conn.execute("SELECT count(DISTINCT shape) FROM url WHERE url LIKE '%/users/%'").fetchone()[0] == 1  # ids collapse
+    db.migrate()  # second run changes nothing
+
+
+def test_f2_app_startup_migrates_and_backs_up_a_v1_database(tmp_path):
+    from fastapi.testclient import TestClient
+    from backend.config import Settings
+    from backend.main import create_app
+    data = tmp_path / "data"
+    data.mkdir()
+    build_v1(data / "bbasm.db")
+    settings = Settings(BBASM_DATA=data, BBASM_TARGETS=tmp_path / "targets", BBASM_STATIC=tmp_path / "none")
+    with TestClient(create_app(settings)) as client:  # lifespan runs
+        summary = client.get("/api/programs/acme/urls/summary")
+        assert summary.status_code == 200 and summary.json()["total"] == 1
+        assert client.get("/api/programs/acme/urls?limit=5").status_code == 200
+    assert len(list(data.glob("bbasm.db.bak-v1-*"))) == 1
+    conn = sqlite3.connect(data / "bbasm.db")
+    assert conn.execute("SELECT version FROM schema_meta").fetchall() == [(SCHEMA_VERSION,)]

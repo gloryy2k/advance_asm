@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import sqlite3
 
-from backend.migrations import MIGRATIONS, SCHEMA_VERSION
+from backend.migrations import AFTER, MIGRATIONS, SCHEMA_VERSION
 
 
 def utc_now() -> str:
@@ -76,6 +76,8 @@ class Database:
                 for version in range(current + 1, SCHEMA_VERSION + 1):
                     for statement in MIGRATIONS[version]:
                         conn.execute(statement)
+                    if version in AFTER:
+                        AFTER[version](conn)
                     conn.execute("UPDATE schema_meta SET version=?", (version,))
                 conn.commit()
             except Exception:

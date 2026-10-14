@@ -62,9 +62,13 @@ def create_profile(body: ProfileBody, request: Request):
 def update_profile(profile_id: int, body: ProfileBody, request: Request):
     state = request.app.state
     state.database.migrate()
-    recipe = normalize_recipe(state.settings, body.config)
     try:
         with state.database.connect() as conn, conn:
+            stored = conn.execute("SELECT config_json FROM profile WHERE id=?", (profile_id,)).fetchone()
+            if stored is None:
+                raise ScopeError("Không tìm thấy profile", "profile_not_found")
+            # A partial update keeps what was saved (including depth) instead of silently falling back to Light.
+            recipe = normalize_recipe(state.settings, {**json.loads(stored["config_json"]), **body.config})
             if conn.execute("UPDATE profile SET name=?,description=?,based_on=?,config_json=?,updated_at=? WHERE id=?",
                             (clean_name(body.name), body.description, body.based_on, json.dumps(recipe), utc_now(), profile_id)).rowcount == 0:
                 raise ScopeError("Không tìm thấy profile", "profile_not_found")

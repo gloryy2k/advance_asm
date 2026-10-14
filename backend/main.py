@@ -27,6 +27,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings if settings is not None else Settings()
     @asynccontextmanager
     async def lifespan(app):
+        # Upgrade (with an automatic backup) before serving anything: read endpoints must never see an old schema.
+        # A brand-new install still creates its database lazily (health stays fail-soft on missing paths).
+        if app.state.database.path.exists():
+            await asyncio.to_thread(app.state.database.migrate)
         await asyncio.to_thread(app.state.runner.recover)
         app.state.scheduler.start()
         try:

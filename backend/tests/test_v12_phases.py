@@ -133,3 +133,19 @@ def test_tc_ph_3_plan_preview_follows_the_config_before_anything_runs(settings, 
         assert light["nuclei"]["forced"] is False and plan(skip_nuclei=True)["nuclei"]["forced"] is False
         assert plan(depth="passive", scan_timeout=300)["url_crawl"]["forced"] is True
         assert strong["port_scan"]["forced"] is False and strong["dir_fuzz"]["forced"] is False
+
+
+def test_f1_credentials_are_hidden_in_any_file_viewer_search_and_default_download(settings):
+    db, result, plan = scan_with_output(settings)
+    marker = "hunter2-very-secret-value"
+    write_output(plan.root, "notes/anything.txt", f"H1_TOKEN={marker}\nAuthorization: Bearer {marker}\nplain recon line\n"
+                 "https://a.com/p?token=public-looking&x=1\n")
+    with TestClient(create_app(settings)) as client:
+        base = f"/api/scans/{result.scan_id}/artifact"
+        shown = client.get(base, params={"path": "notes/anything.txt"}).json()
+        assert marker not in json.dumps(shown) and shown["redacted"] is True
+        assert "plain recon line" in shown["lines"] and "https://a.com/p?token=public-looking&x=1" in shown["lines"]  # URLs are recon data
+        assert client.get(base, params={"path": "notes/anything.txt", "q": "hunter2"}).json()["total"] == 0  # cannot be found by guessing
+        assert marker not in client.get(base + "/download", params={"path": "notes/anything.txt"}).text
+        assert marker in client.get(base + "/download", params={"path": "notes/anything.txt", "reveal": "true"}).text
+        assert marker in client.get(base, params={"path": "notes/anything.txt", "reveal": "true"}).text

@@ -36,11 +36,12 @@ class LineResult:
     normalized: str = ""
     note: str = ""
     entry: ScopeEntry | None = field(default=None, repr=False)
+    shadowed_by: str = ""   # the OUT rule that cancels this IN line (OUT always wins)
 
     def public(self) -> dict:
         return {"box": self.box, "line": self.line, "raw": self.raw, "status": self.status,
                 "kind": self.kind, "category": self.category,
-                "normalized": self.normalized, "note": self.note}
+                "normalized": self.normalized, "note": self.note, "shadowed_by": self.shadowed_by}
 
 
 def _expand_range(token: str):
@@ -153,16 +154,50 @@ def parse_box(lines, box="in", default_kind=None):
     return results
 
 
+def _network(value):
+    try:
+        return ipaddress.ip_network(value, strict=False)
+    except ValueError:
+        return None
+
+
+def _covers(out_pattern, in_pattern):
+    """True when the OUT rule removes the whole IN rule. Partial overlaps stay with ScopeGate at scan time."""
+    if out_pattern == in_pattern:
+        return True
+    out_net, in_net = _network(out_pattern), _network(in_pattern)
+    if out_net is not None or in_net is not None:
+        return bool(out_net and in_net and out_net.version == in_net.version and in_net.subnet_of(out_net))
+    if out_pattern.startswith("*."):
+        return in_pattern.removeprefix("*.").endswith("." + out_pattern[2:])
+    return False
+
+
+def apply_precedence(results):
+    """OUT beats IN. Show that in the preview instead of listing an excluded host as scannable."""
+    outs = [r.entry.pattern for r in results if r.entry is not None and r.kind == "out"]
+    for r in results:
+        if r.entry is None or r.kind != "in":
+            continue
+        rule = next((o for o in outs if _covers(o, r.entry.pattern)), None)
+        if rule:
+            r.shadowed_by = rule
+            r.status = "warn" if r.status == "ok" else r.status
+            r.note = (r.note + "; " if r.note else "") + f"Bị OUT '{rule}' loại: OUT luôn thắng IN, mục này sẽ không được quét"
+    return results
+
+
 def parse_scope(scope_in, scope_out=()):
     """IN box (may contain legacy headers) + dedicated OUT box -> ordered line results."""
     results = parse_box(scope_in, "in")
     results += parse_box(scope_out, "out", default_kind="out")
-    return results
+    return apply_precedence(results)
 
 
 def summarize(results):
     entries = [r for r in results if r.entry is not None]
     return {"in": sum(1 for r in entries if r.kind == "in"), "out": sum(1 for r in entries if r.kind == "out"),
+            "effective_in": sum(1 for r in entries if r.kind == "in" and not r.shadowed_by),
             "errors": sum(1 for r in results if r.status == "error"),
             "warnings": sum(1 for r in results if r.status == "warn")}
 
@@ -173,6 +208,9 @@ def entries_or_raise(results):
         detail = "; ".join(f"ô {r.box.upper()} dòng {r.line}: {r.note} ({r.raw.strip()[:60]})" for r in errors[:5])
         extra = f" (+{len(errors) - 5} lỗi nữa)" if len(errors) > 5 else ""
         raise ScopeError(f"Scope có {len(errors)} dòng lỗi — {detail}{extra}", "scope_invalid")
+    if any(r.kind == "in" and r.entry is not None for r in results) and not any(
+            r.kind == "in" and r.entry is not None and not r.shadowed_by for r in results):
+        raise ScopeError("Mọi mục IN đều nằm trong OUT nên không còn gì để quét. OUT luôn thắng IN; kiểm lại hai ô.", "scope_empty_after_out")
     unique = {}
     for r in results:
         if r.entry is not None:

@@ -129,7 +129,7 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
       {rows === null ? <p className="muted">Đang tải…</p> : rows.items.length === 0 ? (
         <EmptyState title="Không có URL phù hợp">{summary?.total ? "Thử bỏ bớt bộ lọc." : "Chưa có URL: scan chưa thu thập URL, hoặc chưa có scan hoàn tất."}</EmptyState>
       ) : (
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0} role="region" aria-label="Bảng dữ liệu, cuộn được">
           <table className="urls">
             <thead><tr><th>Điểm</th><th>URL</th><th>Nhãn</th><th>Nguồn</th></tr></thead>
             <tbody>

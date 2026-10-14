@@ -3,7 +3,7 @@
 import asyncio
 
 from fastapi import APIRouter, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from backend.models import LaunchRequest, ScanConfig
 from backend.models import ResolveRequest
@@ -20,6 +20,14 @@ class AutoScanRequest(BaseModel):
     scope: list[str] = []
     depth: Literal["passive", "light", "strong"]
     config: ScanConfig | None = None
+    automation_ack: bool = False
+
+
+def require_ack(depth: str, acked: bool):
+    """Anything above passive touches the target. The UI asks; the API enforces, so a direct client cannot skip it."""
+    if depth != "passive" and not acked:
+        raise ScopeError("Scan chủ động (light/strong) cần xác nhận chương trình cho phép công cụ tự động (automation_ack=true).",
+                         "ack_required")
 
 
 @router.post("/api/scans")
@@ -27,6 +35,7 @@ async def auto_scan(body: AutoScanRequest, request: Request):
     state = request.app.state
     if body.config and body.depth != body.config.depth:
         raise ScopeError("depth must match config.depth")
+    require_ack(body.depth, body.automation_ack)
     await asyncio.to_thread(state.database.migrate)
     result = await asyncio.to_thread(state.scope_resolver.resolve, ResolveRequest(input=body.input, scope=body.scope))
     from backend.brief.generator import BriefGenerator
@@ -89,14 +98,20 @@ async def scan_artifact(scan_id: int, request: Request, path: str = Query(..., m
 
 
 @router.get("/api/scans/{scan_id}/artifact/download")
-async def scan_artifact_download(scan_id: int, request: Request, path: str = Query(..., max_length=300)):
-    from backend.asm.phases import read_artifact, scan_root
+async def scan_artifact_download(scan_id: int, request: Request, path: str = Query(..., max_length=300), reveal: bool = False):
+    from backend.asm.phases import read_artifact, redacted_lines, scan_root
     state = request.app.state
     ok = await asyncio.to_thread(read_artifact, state.settings, state.database, scan_id, path, limit=1)
     if ok is None:
         raise ScopeError("Không đọc được file này (không tồn tại hoặc ngoài thư mục scan).", "artifact_unavailable")
     slug = (await asyncio.to_thread(state.runner.review, scan_id))["slug"]
-    return FileResponse(scan_root(state.settings, slug, scan_id) / path, filename=f"scan{scan_id}-{ok['name']}", media_type="text/plain")
+    target = scan_root(state.settings, slug, scan_id) / path
+    if reveal:
+        return FileResponse(target, filename=f"scan{scan_id}-{ok['name']}", media_type="text/plain")
+    # The default download hides credentials, same as the viewer; raw needs reveal=true.
+    return StreamingResponse(redacted_lines(target, ok["name"]), media_type="text/plain",
+                             headers={"Content-Disposition": f'attachment; filename="scan{scan_id}-{ok["name"]}"'})
+
 
 
 @router.get("/api/drafts")
@@ -113,6 +128,8 @@ async def delete_draft(scan_id: int, request: Request):
 @router.post("/api/scans/{scan_id}/launch")
 async def launch(scan_id: int, body: LaunchRequest, request: Request):
     runner = request.app.state.runner
+    depth = body.config.depth if body.config else (await asyncio.to_thread(runner.config, scan_id)).depth
+    require_ack(depth, body.automation_ack)
     await runner.submit(scan_id, body.config)
     if body.automation_ack:
         await asyncio.to_thread(runner.record_ack, scan_id)

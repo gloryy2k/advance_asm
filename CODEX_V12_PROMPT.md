@@ -18,7 +18,7 @@ Bạn là QA host cho BBASM v1.2 trên máy này (Windows + Docker Desktop). Ch�
 git fetch origin; git switch claude/upbeat-thompson-b7bb23 && git pull; git submodule update --init --recursive; git switch -c test/v12-host-results. Ghi OS, python/node/docker/compose version, git log -1, submodule status. Tạo worktree/.env tạm như ràng buộc.
 
 ## T1 Test tự động nền (kỳ vọng từ cloud: 301 unit, 46 Vitest, 17 mock-H1 E2E)
-- python -m venv .venv; pip install -r requirements.txt; python -m pytest -m "not integration" -q  → ghi số passed/failed. Khác 301 thì ghi lý do. Riêng test hunt_command trên Windows (đường dẫn C:\...) PHẢI pass.
+- python -m venv .venv; pip install -r requirements.txt; python -m pytest -m "not integration" -q  → ghi số passed/failed. Từ v1.2.1: gate là Linux/WSL2/CI (cloud: 307 passed). Trên Windows gốc chỉ ghi tên các test fail, không coi là lỗi sản phẩm. Nếu có WSL2 thì chạy thêm ở đó. Khác 301 thì ghi lý do. Riêng test hunt_command trên Windows (đường dẫn C:\...) PHẢI pass.
 - cd frontend && npm ci && npm test && npm run build → kỳ vọng 46 passed.
 - pip install playwright && python -m playwright install chromium (nếu thiếu). Chạy: python -m pytest -m integration backend/tests/test_websocket_runtime.py backend/tests/test_ui_e2e_mock_h1.py -q → kỳ vọng 1 + 17 passed.
 - Docker: docker compose -p bbasm-v12 up -d --build; BBASM_DOCKER_TESTS=1 python -m pytest -m integration backend/tests/test_docker_integration.py -q -s; rồi BBASM_E2E_TARGET=127.0.0.1 BBASM_E2E_URL=http://127.0.0.1:18765 python -m pytest -m integration backend/tests/test_browser_integration.py -q.
