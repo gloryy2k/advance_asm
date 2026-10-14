@@ -5,10 +5,13 @@ export function PresetPicker({
   value,
   onChange,
   missing,
+  blocked = {},
 }: {
   value: Depth;
   onChange: (depth: Depth) => void;
   missing: Record<string, string[]>;
+  /** depth -> why this level cannot be used with the scope/policy data we have */
+  blocked?: Record<string, string>;
 }) {
   return (
     <div className="presets" role="radiogroup" aria-label="Depth">
@@ -19,6 +22,8 @@ export function PresetPicker({
           role="radio"
           aria-checked={value === p.depth}
           className={"preset " + (value === p.depth ? "selected" : "") + (p.depth === "strong" ? " strong" : "")}
+          disabled={!!blocked[p.depth]}
+          title={blocked[p.depth] || undefined}
           onClick={() => onChange(p.depth)}
         >
           <strong>{p.title}</strong>
@@ -27,6 +32,7 @@ export function PresetPicker({
           <span className="meta">
             {p.touches ? "Chạm target" : "Không chạm target"} · {p.eta}
             {missing[p.depth]?.length ? ` · thiếu ${missing[p.depth].length} tool` : ""}
+            {blocked[p.depth] ? " · chưa đủ dữ liệu scope/policy" : ""}
           </span>
         </button>
       ))}

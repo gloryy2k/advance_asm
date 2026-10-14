@@ -503,3 +503,17 @@ Chưa làm: Review trên mobile vẫn dài (~4.9k px); ack cho schedule; xác nh
 - N1 race ack: `automation_ack` được ghi **trong cùng transaction** với chuyển sang `queued` (`submit(..., ack=True)`), nên worker nhanh không thể ghi đè hoặc chạy trước; audit `automation_ack_by_user` ghi ngay sau commit. Đã bỏ `record_ack` rời.
 - `test_recon_integration.py` nhớ `BBASM_BBROOT`/`BBASM_TOOLS_SUBDIR` lúc import (conftest xoá env mỗi test nên `Settings()` rơi về `/app/vendor`); chạy nguyên trạng trong image.
 - Sáu test cần recon được `skipif(os.name != "posix")`; trên Windows gốc: 301 passed, 6 skipped. Mobile không còn là tiêu chí nghiệm thu (người dùng chỉ dùng desktop).
+
+## v1.2.3 — N2: nguồn H1 công khai và cổng Light/Strong
+
+**Thứ tự nguồn** (`backend/jobs/h1_scope.py`): `api` (có `H1_USER/H1_TOKEN`) → `public_page` (đọc chỉ-đọc policy + structured scope của đúng handle, không credential) → `public_dump` (bounty-targets-data). Mỗi lần Resolve lưu `policy.attempts` (nguồn nào đã thử, lý do ngắn không chứa token/body từ xa), `fetched_at`, `classification` (số asset phân loại / không phân loại).
+
+**An toàn truy cập:** chỉ ba host (`api.hackerone.com`, `hackerone.com`, `raw.githubusercontent.com`) qua ScopeGate + audit; `follow_redirects=False` (3xx = lỗi, không bao giờ theo sang host khác); timeout 20s; trang giới hạn 5 MB và ≤20 request phân trang theo `endCursor` (không theo link do server đưa); trang chỉ chấp nhận khi `team.handle` khớp đúng handle và mọi asset có `eligible_for_submission` kiểu bool — sai cấu trúc thì coi như lỗi và rơi xuống dump (có gắn cờ thiếu dữ liệu). Token chỉ gửi tới `api.hackerone.com`.
+
+**Phân loại asset** (`_entries`): chỉ asset gọi tên rõ (domain/wildcard có domain cụ thể/IP/CIDR/repo/app) vào scope gate. "Open Scope", loại `OTHER`, `*`, `*.com`, văn bản tự do **không** bị suy diễn thành quyền quét; chúng được liệt kê trong "chưa phân loại" (và là cảnh báo trên Review). Ineligible vẫn thắng nhãn pool IN của dump.
+
+**Cổng Light/Strong** (`backend/trust.py: launch_gate`, lưu theo từng draft trong `stats.launch_gate`): chỉ cho khi (1) nguồn là `api` hoặc `public_page`, (2) có policy (từ program hoặc do bạn dán ở bước nhập), (3) không có mục OUT chưa phân loại, (4) có ít nhất một IN phân loại rõ. Dump-only → chỉ Passive, kể cả khi dán policy. Cưỡng chế ở server: `/launch`, `POST /api/scans`, `/programs/{slug}/schedule` → 422 `scope_incomplete`. Review hiển thị nguồn + thời điểm + chuỗi đã thử + phần còn thiếu, khoá Light/Strong và tự chuyển về Passive nếu bản nháp đang ở mức bị khoá. Program nhập tay (raw) không bị cổng này (đã có ack).
+
+**Test:** `backend/tests/test_h1_sources.py` (21 ca, mock cả ba nguồn: thứ tự, fallback khi trang đổi cấu trúc/redirect/quá lớn/sai handle, phân trang, Open Scope, thiếu policy, dump + policy dán tay, API end-to-end, token không lộ), 2 ca Vitest. Ảnh Review desktop trước/sau: `review_evidence/n2_review/` (`before_dump` = hành vi cũ cho Strong trên dump; `after_dump`, `after_page`, `after_api`); harness `review_tools/mock_h1_modes.py` + `n2_screenshots.py`.
+
+**Giới hạn chưa xác minh:** truy vấn GraphQL công khai (`PAGE_QUERY`) được viết theo schema công khai và **chỉ kiểm bằng mock** — cloud không truy cập được hackerone.com. Nếu tên trường sai, provider báo "Public page structure unexpected" và rơi về dump (an toàn, chỉ Passive). Cần Codex/bạn kiểm một handle công khai trên máy có mạng và chỉnh `PAGE_QUERY` nếu cần; chỉ đọc metadata, không scan.

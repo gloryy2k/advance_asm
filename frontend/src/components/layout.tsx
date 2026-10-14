@@ -96,10 +96,11 @@ export function Chip({ tone, children, title }: { tone?: string; children: React
 
 export function TrustBadge({ trust, full = false }: { trust?: Trust; full?: boolean }) {
   if (!trust) return null;
-  const tone = trust.level === "public" ? "warn" : trust.verified ? "good" : "plain";
+  const unverifiedPublic = trust.level === "public" || trust.level === "public_page";
+  const tone = unverifiedPublic ? "warn" : trust.verified ? "good" : "plain";
   return (
     <div className={"trust " + tone}>
-      <strong>{trust.verified ? "✓ " : trust.level === "public" ? "⚠ " : "ℹ "}{trust.label}</strong>
+      <strong>{trust.verified ? "✓ " : unverifiedPublic ? "⚠ " : "ℹ "}{trust.label}</strong>
       {full && (
         <>
           <p>{trust.detail}</p>

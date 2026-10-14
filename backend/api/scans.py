@@ -15,6 +15,12 @@ from backend.jobs.scope_resolver import ScopeError
 router = APIRouter()
 
 
+def require_gate(depth: str, gate: dict):
+    """Light/Strong need enough verified scope + policy data; the Review page shows why, the API enforces it."""
+    if depth != "passive" and depth not in gate.get("allowed_depths", []):
+        raise ScopeError("Chưa đủ dữ liệu scope/policy để chạy " + depth + ": " + " ".join(gate.get("reasons", [])), "scope_incomplete")
+
+
 class AutoScanRequest(BaseModel):
     input: str
     scope: list[str] = []
@@ -42,6 +48,11 @@ async def auto_scan(body: AutoScanRequest, request: Request):
     BriefGenerator(state.settings, state.database).ensure_program(result.slug)
     config = body.config or default_config(state.settings.model_copy(update={"BBASM_DEFAULT_DEPTH": body.depth}),
         [entry for group in result.assets_by_category.values() for entry in group])
+    try:
+        require_gate(config.depth, (await asyncio.to_thread(state.runner.review, result.scan_id))["launch_gate"])
+    except ScopeError:
+        await asyncio.to_thread(state.runner.delete_draft, result.scan_id)  # do not leave a draft nobody asked to keep
+        raise
     await state.runner.submit(result.scan_id, config, ack=body.automation_ack)
     return {"scan_id": result.scan_id, "slug": result.slug, "status": "queued"}
 
@@ -130,6 +141,7 @@ async def launch(scan_id: int, body: LaunchRequest, request: Request):
     runner = request.app.state.runner
     depth = body.config.depth if body.config else (await asyncio.to_thread(runner.config, scan_id)).depth
     require_ack(depth, body.automation_ack)
+    require_gate(depth, (await asyncio.to_thread(runner.review, scan_id))["launch_gate"])
     await runner.submit(scan_id, body.config, ack=body.automation_ack)
     return {"scan_id": scan_id, "status": "queued"}
 

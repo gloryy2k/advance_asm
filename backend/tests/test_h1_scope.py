@@ -52,16 +52,16 @@ def test_structured_scope_preserves_oos_wildcards_and_categories(provider_settin
 
     provider = HackerOneScopeProvider(provider_settings, httpx.MockTransport(transport), run)
     entries, policy, warnings = provider.resolve("acme", tmp_path / "audit.jsonl")
-    assert len(requests) == 1
+    assert [r.url.host for r in requests] == ["hackerone.com", "raw.githubusercontent.com"]  # page tried first, then the dump
     assert entries[0].pattern == "*.acme.com"
     assert entries[-1].kind == "out"
     assert entries[2].category == "source_code"
     assert entries[3].category == "mobile"
     assert policy["assets"][2]["instruction"] == "Read source only"
     records = [json.loads(line) for line in (tmp_path / "audit.jsonl").read_text().splitlines()]
-    assert records[0]["host"] == "raw.githubusercontent.com"
-    assert records[0]["decision"] == "allow"
-    assert records[1]["transport"] == "disabled"
+    assert [r["host"] for r in records[:2]] == ["hackerone.com", "raw.githubusercontent.com"]
+    assert all(r["decision"] == "allow" for r in records[:2])
+    assert records[2]["transport"] == "disabled"
 
 
 def test_api_pagination_never_follows_untrusted_next(provider_settings, tmp_path):
@@ -103,9 +103,9 @@ def test_missing_token_and_failed_api_fall_back_without_leaking_auth(provider_se
 
     provider = HackerOneScopeProvider(provider_settings, httpx.MockTransport(transport), Mock(return_value=subprocess.CompletedProcess([], 0)))
     entries, _, warnings = provider.resolve("acme", tmp_path / "audit.jsonl")
-    assert len(requests) == 2
+    assert [r.url.host for r in requests] == ["api.hackerone.com", "hackerone.com", "raw.githubusercontent.com"]
     assert entries
-    assert warnings[0] == "HackerOne API unavailable; using public metadata"
+    assert warnings[0] == "HackerOne API unavailable; trying the public page"
     assert any("nguồn công khai" in w for w in warnings)  # public dump is flagged as possibly stale
     assert "secret" not in (tmp_path / "audit.jsonl").read_text()
 
@@ -121,7 +121,7 @@ def test_redirects_fail_closed(provider_settings, tmp_path):
     provider = HackerOneScopeProvider(provider_settings, httpx.MockTransport(transport), run)
     with pytest.raises(ScopeError):
         provider.resolve("acme", tmp_path / "audit.jsonl")
-    assert len(calls) == 1
+    assert [c.url.host for c in calls] == ["hackerone.com", "raw.githubusercontent.com"]  # a 3xx is never followed
     run.assert_not_called()
 
 
@@ -152,4 +152,4 @@ def test_real_offline_aggregator_adapter(provider_settings, metadata, tmp_path):
     entries, _, warnings = provider.resolve("acme", tmp_path / "audit.jsonl")
     assert entries[0].pattern == "*.acme.com"
     assert entries[-1].kind == "out"
-    assert not warnings
+    assert not [w for w in warnings if "Aggregator" in w]

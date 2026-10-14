@@ -147,6 +147,45 @@ describe("Review", () => {
     expect(screen.getByText(/CHƯA XÁC MINH/, { selector: "strong" })).toBeInTheDocument();  // scope trust is the first thing shown
   });
 
+  test("N2: dump-only H1 data shows source, time and what is missing, and cannot be launched above passive", async () => {
+    const dump = baseReview({
+      trust: { level: "public", verified: false, label: "CHƯA XÁC MINH — dữ liệu công khai", detail: "Bản sao.", missing: ["policy đầy đủ"], checklist: [], official_url: null },
+      policy: { text: "", source: "public_dump", fetched_at: "2026-10-14T01:00:00Z", user_text: "",
+        attempts: [{ source: "api", ok: false, reason: "Chưa cấu hình H1_USER/H1_TOKEN" }, { source: "public_page", ok: false, reason: "HTTP 404" }, { source: "public_dump", ok: true }],
+        classification: { classified: 2, unclassified_count: 1, unclassified: [{ identifier: "Open Scope", kind: "in", asset_type: "OTHER", reason: "Loại asset không rõ" }] } },
+      launch_gate: { allowed_depths: ["passive"], missing: ["nguồn có cấu trúc hiện hành", "policy"], reasons: ["Scope chỉ lấy từ bản sao bounty-targets-data."] },
+    });
+    const fetch = setup(dump);
+    expect(await screen.findByText(/Chưa đủ dữ liệu để chạy Light\/Strong/)).toBeInTheDocument();
+    expect(screen.getByText(/Đã thử:/)).toHaveTextContent("Trang công khai ✗ (HTTP 404)");
+    expect(screen.getByText(/Bản sao bounty-targets-data \(có thể cũ/)).toBeInTheDocument();
+    expect(screen.getByText(/1 asset chưa phân loại — không đưa vào scope gate/)).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Light/ })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: /Strong/ })).toBeDisabled();
+    // The saved config is Light, which this data cannot support: the page starts on Passive instead.
+    await waitFor(() => expect(screen.getByRole("radio", { name: /Passive/ })).toHaveAttribute("aria-checked", "true"));
+    const launch = screen.getByRole("button", { name: "Launch scan" });
+    await waitFor(() => expect(launch).toBeEnabled());
+    fireEvent.click(launch);
+    await waitFor(() => expect(location.hash).toBe("#/scan/4"));
+    expect(JSON.parse(calls(fetch, "/launch")[0][1]!.body as string).config.depth).toBe("passive");
+  });
+
+  test("N2: public page data is labelled, unverified, and still lets Light proceed after the ack", async () => {
+    const page = baseReview({
+      trust: { level: "public_page", verified: false, label: "Trang công khai HackerOne — chưa xác minh bằng API", detail: "Đọc chỉ-đọc.", missing: [], checklist: [], official_url: "https://hackerone.com/acme" },
+      policy: { text: "Automated scanning allowed, 5 req/s.", source: "public_page", fetched_at: "2026-10-14T01:00:00Z", user_text: "",
+        attempts: [{ source: "api", ok: false, reason: "Chưa cấu hình H1_USER/H1_TOKEN" }, { source: "public_page", ok: true }] },
+      launch_gate: { allowed_depths: ["passive", "light", "strong"], missing: [], reasons: [] },
+    });
+    setup(page);
+    expect(await screen.findByText(/Trang công khai HackerOne — chưa xác minh bằng API/, { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText(/Đã thử:/)).toHaveTextContent("Trang công khai ✓");
+    expect(screen.queryByText(/Chưa đủ dữ liệu để chạy/)).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Light/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Launch scan" })).toBeDisabled();  // still needs the ack
+  });
+
   test("Launch needs explicit automation ack above passive; sends ack + reviewed config", async () => {
     const fetch = setup();
     const launch = await screen.findByRole("button", { name: "Launch scan" });

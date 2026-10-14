@@ -44,6 +44,7 @@ export function Review({ id }: { id: string }) {
   const [newName, setNewName] = useState("");
   const [asDefault, setAsDefault] = useState(false);
   const confirmRef = useRef<HTMLElement>(null);
+  const autoPassive = useRef(false);
 
   useEffect(() => {
     let live = true;
@@ -80,6 +81,16 @@ export function Review({ id }: { id: string }) {
     [config, ins],
   );
 
+  // A draft saved at Light/Strong but resolved from data that only supports Passive starts on Passive, once.
+  const allowed = info.data?.launch_gate?.allowed_depths;
+  useEffect(() => {
+    if (autoPassive.current || !config || !allowed || allowed.includes(config.depth) || config.depth === "passive") return;
+    autoPassive.current = true;
+    const found = profiles?.builtin.find((p) => p.id === "builtin:passive");
+    setConfig(found ? { ...config, ...found.config } : applyPreset(config, "passive"));
+    setBaseId("builtin:passive");
+  }, [allowed, config, profiles]);
+
   if (info.error && !info.data) return <ErrorBox text={info.error} />;
   if (!info.data || !config) return <><ErrorBox text={error} /><Loading label="Đang tải cấu hình…" /></>;
   const review = info.data;
@@ -87,8 +98,14 @@ export function Review({ id }: { id: string }) {
   const preset = PRESETS.find((p) => p.depth === config.depth)!;
   const isDraft = review.scan.status === "draft";
   const needAck = config.depth !== "passive";
+  // Light/Strong need verified-enough scope + policy; the server enforces it too (scope_incomplete).
+  const gate = review.launch_gate;
+  const gateReason = gate && gate.allowed_depths.length < 3 ? "Thiếu dữ liệu: " + (gate.missing.join(", ") || "scope/policy") : "";
+  const blockedDepths: Record<string, string> = gateReason ? Object.fromEntries((["light", "strong"] as Depth[]).filter((d) => !gate!.allowed_depths.includes(d)).map((d) => [d, gateReason])) : {};
+  const depthBlocked = !!blockedDepths[config.depth];
   const unsupported = health.data?.runtime && !health.data.runtime.recon_supported;
   const blocker = !isDraft ? "Scan này đã được launch."
+    : depthBlocked ? gateReason + ". Chỉ chạy được Passive cho tới khi đủ dữ liệu."
     : unsupported ? health.data!.runtime!.reason
     : included.length === 0 ? "Chưa có mục IN nào được chọn để kiểm tra."
     : needAck && !ack ? "Cần xác nhận program cho phép scan tự động."
@@ -192,7 +209,7 @@ export function Review({ id }: { id: string }) {
       </Panel>
 
       <Panel id="preset-h" title="Mức quét" hint="Chọn một preset, một profile của bạn, hoặc chỉnh từng phần ở dưới. Preset chỉ là điểm xuất phát — mọi giá trị đều sửa được.">
-        <PresetPicker value={config.depth} missing={missing} onChange={choosePreset} />
+        <PresetPicker value={config.depth} missing={missing} blocked={blockedDepths} onChange={choosePreset} />
         <div className="profilebar">
           <label>Profile của tôi
             <select value={profiles?.custom.some((p) => String(p.id) === baseId) ? baseId : ""} onChange={(e) => { const p = profiles?.custom.find((x) => String(x.id) === e.target.value); if (p) chooseBase(p); }}>

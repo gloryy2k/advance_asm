@@ -159,6 +159,9 @@ async def schedule(slug: str, body: ScheduleRequest, request: Request):
     config = body.config or default_config(state.settings.model_copy(update={"BBASM_DEFAULT_DEPTH": body.depth}), entries)
     if config.depth != body.depth:
         raise ScopeError("depth must match config.depth")
+    from backend.api.scans import require_gate
+    from backend.trust import launch_gate
+    require_gate(config.depth, launch_gate(program["source"], json.loads(program.get("policy_json") or "{}")))
     return state.scheduler.configure(program["id"], body.interval, config, body.enabled)
 
 

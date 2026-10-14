@@ -14,7 +14,7 @@ from backend.jobs.recon_orch import AuditedEgress, ClosedEgress, ReconOrchestrat
 from backend.jobs.scope_resolver import ScopeError
 from backend.log_buffer import LogBuffer, ReconLogParser
 from backend.scope_gate import audit, normalize_pattern
-from backend.trust import scope_trust
+from backend.trust import launch_gate, scope_trust
 
 
 def store_config(conn, scan_id, config):
@@ -191,10 +191,13 @@ class JobRunner:
             "target_path": str((self.settings.BBASM_TARGETS / program["slug"]).resolve()),
             **self.settings.hunt_target(program["slug"]),
             "trust": scope_trust(program["source"], program["handle"], policy),
+            # The gate was computed from the data this very draft was resolved with.
+            "launch_gate": stats.get("launch_gate") or launch_gate(program["source"], policy),
             "scope": stats.get("resolved_scope", []), "warnings": stats.get("warnings", []),
             "automation_ack": stats.get("automation_ack"),
             "policy": {"text": text if isinstance(text, str) else "", "source": policy.get("policy_source"),
-                       "fetched_at": policy.get("fetched_at"), "user_text": policy.get("user_policy_text", "")},
+                       "fetched_at": policy.get("fetched_at"), "user_text": policy.get("user_policy_text", ""),
+                       "attempts": policy.get("attempts", []), "classification": policy.get("classification") or {}},
             "stats": {k: stats[k] for k in ("subs", "live", "urls", "findings", "observed", "diff") if k in stats},
         }
 

@@ -111,14 +111,20 @@ export type UrlSummary = {
   hosts: { host: string; count: number }[];
 };
 export type Trust = {
-  level: "manual" | "api" | "public";
+  level: "manual" | "api" | "public_page" | "public";
   verified: boolean;
   label: string;
   detail: string;
   missing: string[];
   checklist: string[];
   official_url: string | null;
+  source?: string | null;
+  fetched_at?: string | null;
 };
+
+export type LaunchGate = { allowed_depths: Depth[]; reasons: string[]; missing: string[] };
+export type SourceAttempt = { source: "api" | "public_page" | "public_dump"; ok: boolean; reason?: string };
+export type Unclassified = { identifier: string; kind: "in" | "out"; asset_type: string; reason: string };
 
 export type ScopeEntry = {
   pattern: string;
@@ -176,7 +182,10 @@ export type ReviewData = {
     source: string | null;
     fetched_at: string | null;
     user_text: string;
+    attempts?: SourceAttempt[];
+    classification?: { classified?: number; unclassified_count?: number; unclassified?: Unclassified[] };
   };
+  launch_gate?: LaunchGate;
   stats: Record<string, any>;
 };
 

@@ -14,7 +14,24 @@ from backend.scope_gate import ScopeGate, audit
 
 DUMP_URL = "https://raw.githubusercontent.com/arkadiyt/bounty-targets-data/main/data/hackerone_data.json"
 API_BASE = "https://api.hackerone.com/v1/hackers/programs"
+PAGE_GRAPHQL_URL = "https://hackerone.com/graphql"
 MAX_METADATA_BYTES = 50 * 1024 * 1024
+MAX_PAGE_BYTES = 5 * 1024 * 1024   # a public program page is text; anything bigger is not what we asked for
+MAX_PAGE_REQUESTS = 20             # 100 assets per request
+# The read-only query the public program page itself issues for policy + structured scope.
+# NOTE: written from the documented public schema and covered by mocks only; the field names must be
+# confirmed against the live site on a networked host. If they are wrong the provider reports
+# "page structure unexpected" and the resolver falls back to the dump, flagged as insufficient.
+PAGE_QUERY = """query BbasmPolicyScope($handle: String!, $cursor: String) {
+  team(handle: $handle) {
+    handle name policy
+    structured_scopes(first: 100, after: $cursor, archived: false) {
+      pageInfo { hasNextPage endCursor }
+      edges { node { asset_type asset_identifier eligible_for_submission eligible_for_bounty instruction max_severity } }
+    }
+  }
+}"""
+AUTO_CATEGORIES = {"web", "wildcard", "ip", "cidr"}  # what recon can actually target
 
 
 class HackerOneScopeProvider:
@@ -23,19 +40,52 @@ class HackerOneScopeProvider:
         self.transport = transport
         self.run = run or subprocess.run
 
-    def _get(self, client, gate, url, **kwargs):
+    def _get(self, client, gate, url, *, method="GET", limit=MAX_METADATA_BYTES, **kwargs):
         if not gate.in_scope(url):
             raise ScopeError("Metadata destination denied", "metadata_denied")
-        # No redirects/proxies: never forward H1 credentials to another origin.
-        with client.stream("GET", url, **kwargs) as response:
+        # No redirects/proxies: a 3xx raises below, so credentials never travel to another origin.
+        with client.stream(method, url, **kwargs) as response:
             response.raise_for_status()
             chunks, size = [], 0
             for chunk in response.iter_bytes():
                 size += len(chunk)
-                if size > MAX_METADATA_BYTES:
+                if size > limit:
                     raise ScopeError("Scope metadata exceeds size limit")
                 chunks.append(chunk)
         return json.loads(b"".join(chunks))
+
+    def _public_page(self, client, gate, handle):
+        """Policy + structured scope of one public program, read without any credential."""
+        targets = {"in_scope": [], "out_of_scope": []}
+        name, policy, cursor = "", "", None
+        for _ in range(MAX_PAGE_REQUESTS):
+            data = self._get(client, gate, PAGE_GRAPHQL_URL, method="POST", limit=MAX_PAGE_BYTES,
+                             json={"query": PAGE_QUERY, "variables": {"handle": handle, "cursor": cursor}},
+                             headers={"Accept": "application/json"})
+            team = ((data or {}).get("data") or {}).get("team") if isinstance(data, dict) else None
+            if (not isinstance(data, dict) or data.get("errors") or not isinstance(team, dict)
+                    or str(team.get("handle", "")).lower() != handle):
+                raise ScopeError("Public page structure unexpected", "public_page_unexpected")
+            name = team.get("name") if isinstance(team.get("name"), str) else name
+            policy = team.get("policy") if isinstance(team.get("policy"), str) else policy
+            scopes = team.get("structured_scopes")
+            if not isinstance(scopes, dict) or not isinstance(scopes.get("edges"), list):
+                raise ScopeError("Public page structure unexpected", "public_page_unexpected")
+            for edge in scopes["edges"]:
+                node = edge.get("node") if isinstance(edge, dict) else None
+                if not isinstance(node, dict) or not isinstance(node.get("asset_identifier"), str) \
+                        or not isinstance(node.get("eligible_for_submission"), bool):
+                    raise ScopeError("Public page scope item malformed", "public_page_unexpected")
+                targets["in_scope" if node["eligible_for_submission"] else "out_of_scope"].append(node)
+            info = scopes.get("pageInfo") or {}
+            if not info.get("hasNextPage"):
+                if not policy.strip() and not targets["in_scope"] and not targets["out_of_scope"]:
+                    raise ScopeError("Public page returned neither policy nor scope", "public_page_unexpected")
+                return {"handle": handle, "name": name, "policy": policy, "targets": targets}
+            cursor = info.get("endCursor")
+            if not isinstance(cursor, str):
+                raise ScopeError("Public page pagination malformed", "public_page_unexpected")
+        raise ScopeError("Public page pagination limit exceeded", "public_page_unexpected")
 
     def _api_program(self, client, gate, handle):
         auth = (self.settings.H1_USER.get_secret_value(), self.settings.H1_TOKEN.get_secret_value())
@@ -71,47 +121,90 @@ class HackerOneScopeProvider:
 
     @staticmethod
     def _entries(program):
+        """(entries, unclassified). Only assets we can name precisely reach the scope gate.
+
+        "Open Scope", a bare "*", "*.com" or free text are never widened into "scan anything": they are listed
+        as unclassified so the Review page can say what is missing."""
         targets = program.get("targets")
         if not isinstance(targets, dict) or not isinstance(targets.get("in_scope"), list) or not isinstance(targets.get("out_of_scope"), list):
             raise ScopeError("Cannot distinguish IN/OUT scope; refusing unlabelled output")
-        result = []
+        result, unclassified = [], []
         for key, kind in (("in_scope", "in"), ("out_of_scope", "out")):
             for asset in targets[key]:
                 if isinstance(asset, str):
-                    result.append(classify(asset, kind))
+                    identifier, asset_type, instruction, actual_kind = asset, None, "", kind
                 elif isinstance(asset, dict) and isinstance(asset.get("asset_identifier"), str):
-                    eligibility = asset.get("eligible_for_submission")
+                    identifier, asset_type = asset["asset_identifier"], asset.get("asset_type")
+                    instruction = asset.get("instruction") or ""
                     # Explicit ineligibility wins over the dump's pool label.
-                    actual_kind = "out" if eligibility is False else kind
-                    result.append(classify(asset["asset_identifier"], actual_kind,
-                                           asset.get("asset_type"), asset.get("instruction") or ""))
+                    actual_kind = "out" if asset.get("eligible_for_submission") is False else kind
                 else:
                     raise ScopeError("Malformed scope asset")
-        return result
+                try:
+                    entry = classify(identifier, actual_kind, asset_type, instruction)
+                except ScopeError:
+                    reason = "Định dạng không nhận diện được"
+                else:
+                    reason = ""
+                    if entry.category == "other":
+                        reason = "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+                    elif entry.category == "wildcard" and "." not in entry.pattern[2:]:
+                        reason = "Wildcard quá rộng (không có domain cụ thể)"
+                if reason:
+                    unclassified.append({"identifier": str(identifier)[:200], "kind": actual_kind,
+                                         "asset_type": str(asset_type or "")[:40], "reason": reason})
+                else:
+                    result.append(entry)
+        return result, unclassified
+
+    @staticmethod
+    def _reason(exc):
+        """A short, credential-free explanation of why a source failed."""
+        if isinstance(exc, ScopeError):
+            return str(exc)[:120]
+        if isinstance(exc, httpx.HTTPStatusError):
+            return f"HTTP {exc.response.status_code}"
+        if isinstance(exc, httpx.HTTPError):
+            return "Lỗi mạng hoặc quá thời gian"
+        return "Dữ liệu trả về không đúng cấu trúc"
 
     def resolve(self, handle: str, audit_path: Path):
         script = self.settings.tool_path("scope_aggregator.sh")
         if not script.is_file() or not self.settings.tool_path("scope_checker.py").is_file():
             raise ScopeError("Framework missing: run git submodule update --init", "framework_missing")
-        gate = ScopeGate(["raw.githubusercontent.com", "api.hackerone.com"], [], audit_path, self.settings)
-        warnings = []
+        gate = ScopeGate(["raw.githubusercontent.com", "api.hackerone.com", "hackerone.com"], [], audit_path, self.settings)
+        warnings, attempts = [], []
         try:
             with httpx.Client(transport=self.transport, timeout=20, follow_redirects=False, trust_env=False) as client:
                 program, source = None, "public_dump"
-                if self.settings.H1_TOKEN.get_secret_value() and self.settings.H1_USER.get_secret_value():
+                has_token = bool(self.settings.H1_TOKEN.get_secret_value() and self.settings.H1_USER.get_secret_value())
+                if has_token:
                     try:
                         program = self._api_program(client, gate, handle)
                         source = "api"
-                    except (httpx.HTTPError, ScopeError, ValueError, KeyError, TypeError):
-                        warnings.append("HackerOne API unavailable; using public metadata")
+                        attempts.append({"source": "api", "ok": True})
+                    except (httpx.HTTPError, ScopeError, ValueError, KeyError, TypeError) as exc:
+                        attempts.append({"source": "api", "ok": False, "reason": self._reason(exc)})
+                        warnings.append("HackerOne API unavailable; trying the public page")
+                else:
+                    attempts.append({"source": "api", "ok": False, "reason": "Chưa cấu hình H1_USER/H1_TOKEN"})
+                if program is None:
+                    try:
+                        program = self._public_page(client, gate, handle)
+                        source = "public_page"
+                        attempts.append({"source": "public_page", "ok": True})
+                    except (httpx.HTTPError, ScopeError, ValueError, KeyError, TypeError) as exc:
+                        attempts.append({"source": "public_page", "ok": False, "reason": self._reason(exc)})
+                        warnings.append("Không đọc được trang công khai HackerOne; dùng bản sao bounty-targets-data (có thể cũ, không có policy)")
                 if program is None:
                     program = self._public_program(client, gate, handle)
+                    attempts.append({"source": "public_dump", "ok": True})
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             if isinstance(exc, ScopeError):
                 raise
             # Do not expose tokens or remote response bodies in API errors.
             raise ScopeError("Scope metadata unavailable", "metadata_unavailable") from None
-        entries = self._entries(program)
+        entries, unclassified = self._entries(program)
         self.settings.BBASM_DATA.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="scope-", dir=self.settings.BBASM_DATA) as directory:
             directory = Path(directory)
@@ -145,9 +238,18 @@ class HackerOneScopeProvider:
         if source == "public_dump":
             warnings.append("Dữ liệu từ nguồn công khai (bounty-targets-data): có thể đã cũ và không có policy đầy đủ. "
                             "Đọc policy chính thức trên HackerOne trước khi chạy.")
+        elif source == "public_page":
+            warnings.append("Dữ liệu đọc từ trang công khai HackerOne, chưa xác minh bằng API: đối chiếu với trang chính thức.")
         if not policy_text:
-            warnings.append("Chưa có nội dung policy; dán policy/hướng dẫn của program hoặc bổ sung ở PROGRAM.md.")
+            warnings.append("Chưa có nội dung policy; dán policy/hướng dẫn của program khi nhập hoặc bổ sung ở PROGRAM.md.")
+        if unclassified:
+            shown = ", ".join(f"{u['identifier'][:40]} ({u['kind'].upper()})" for u in unclassified[:5])
+            warnings.append(f"{len(unclassified)} asset không phân loại rõ nên KHÔNG đưa vào scope gate: {shown}"
+                            + ("…" if len(unclassified) > 5 else ""))
         # Stable top-level keys: consumers must not dig into the raw provider payload.
         return entries, {"program": program, "assets": [entry.model_dump() for entry in entries],
                          "policy_text": policy_text, "policy_source": source,
+                         "attempts": attempts,
+                         "classification": {"classified": len(entries), "unclassified_count": len(unclassified),
+                                            "unclassified": unclassified[:100]},
                          "fetched_at": utc_now()}, warnings
