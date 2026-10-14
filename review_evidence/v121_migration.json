@@ -1,0 +1,125 @@
+{
+  "source_commit": "88250d8",
+  "source_sha256_before": "a8913f3c5db77f67600511032fa2035740df5d5d8daa737f26266d5f195e735e",
+  "source_sha256_after": "a8913f3c5db77f67600511032fa2035740df5d5d8daa737f26266d5f195e735e",
+  "copy_sha256_after": "180cc440e4cb60555ac8070a5a041e1a71d13fe13519dad677a4caed59d4826f",
+  "schema_meta": 2,
+  "backup_files": [
+    "bbasm.db.bak-v1-20261014T150421Z"
+  ],
+  "db_rows": {
+    "program": 6,
+    "scan_run": 12,
+    "asset": 4,
+    "url": 8836,
+    "finding": 0,
+    "diff_event": 4
+  },
+  "url_nulls": {
+    "tags_json": 0,
+    "shape": 0,
+    "score": 0,
+    "verification": 0
+  },
+  "url_tags": {
+    "api": 1248,
+    "auth": 789,
+    "file-param": 157,
+    "id-param": 61,
+    "js": 284,
+    "params": 561,
+    "sensitive": 2,
+    "static": 350
+  },
+  "api": [
+    {
+      "path": "/api/programs",
+      "status": 200,
+      "ms": 35.1,
+      "x_total_count": null
+    },
+    {
+      "path": "/api/programs/qa-vuihoc-v11/urls?limit=50",
+      "status": 200,
+      "ms": 20.8,
+      "x_total_count": "8371"
+    },
+    {
+      "path": "/api/programs/qa-vuihoc-v11/urls?limit=50&offset=1000",
+      "status": 200,
+      "ms": 19.4,
+      "x_total_count": "8371"
+    },
+    {
+      "path": "/api/programs/qa-vuihoc-v11/urls?limit=50&min_score=1",
+      "status": 200,
+      "ms": 13.9,
+      "x_total_count": "2584"
+    },
+    {
+      "path": "/api/programs/qa-vuihoc-v11/urls/summary",
+      "status": 200,
+      "ms": 49.4,
+      "x_total_count": null
+    },
+    {
+      "path": "/api/programs/qa-vuihoc-v11/diff?scan_id=12",
+      "status": 200,
+      "ms": 4.5,
+      "x_total_count": "0"
+    }
+  ],
+  "summary_total": 8721,
+  "summary_funnel": null,
+  "summary_tags": {
+    "api": 1248,
+    "auth": 785,
+    "admin": 0,
+    "sensitive": 2,
+    "redirect-param": 0,
+    "id-param": 61,
+    "file-param": 153,
+    "upload": 0,
+    "js": 284,
+    "docs": 0,
+    "params": 555,
+    "static": 350
+  },
+  "summary_top_shape_count": 25,
+  "scan_12": {
+    "status": "done",
+    "baseline_scan_id": null,
+    "diff_compared_hosts": null,
+    "diff": {
+      "new": 0,
+      "changed": 0,
+      "gone": 0
+    }
+  },
+  "desktop_ui": {
+    "http": 200,
+    "first_row_loaded": true,
+    "first_row_ms": 519.5,
+    "visible_rows": 50,
+    "page_errors": []
+  },
+  "source_rows_before": {
+    "program": 6,
+    "scan_run": 12,
+    "asset": 4,
+    "url": 8836,
+    "finding": 0,
+    "diff_event": 4
+  },
+  "source_schema_meta_before": 1,
+  "backup_validation": {
+    "sha256": "aead9abca8cf6c964f8e6cf91629d40f53631f67f6e8aee703e46ca30aa284a7",
+    "schema_meta": 1,
+    "rows": {
+      "program": 6,
+      "scan_run": 12,
+      "url": 8836
+    },
+    "integrity_check": "ok"
+  }
+}
