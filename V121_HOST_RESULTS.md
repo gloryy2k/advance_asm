@@ -42,9 +42,9 @@ Ngày 2026-10-14 (Asia/Saigon). Nguồn `claude/upbeat-thompson-b7bb23` tại `8
 
 ### N2 — P1: Review H1 từ nguồn công khai chưa đủ dữ liệu nhưng vẫn cho phép Strong sau xác nhận
 
-- **Tái hiện:** không cấu hình H1 API (`/api/health.h1_api=false`), Resolve `https://hackerone.com/verisk_vdp?type=team`; draft #20 có `policy.source=public_dump`, `policy.text=""`, đúng hai wildcard IN (`*.iso.com`, `*.verisk.com`), không OUT/hướng dẫn riêng. Review cho chọn Strong; điều kiện Launch chỉ kiểm hai checkbox xác nhận, không kiểm policy/scope đã được xác minh. Chưa Launch scan này.
+- **Tái hiện:** không cấu hình H1 API (`/api/health.h1_api=false`), Resolve `https://hackerone.com/verisk_vdp?type=team`; draft #20 có `policy.source=public_dump`, `policy.text=""`, đúng hai wildcard IN (`*.iso.com`, `*.verisk.com`), không OUT/hướng dẫn riêng. Chính sách program có trên trang HackerOne công khai nhưng `backend/jobs/h1_scope.py` chỉ gọi API có token hoặc tải `bounty-targets-data`; không có nhánh đọc trang công khai. Review cho chọn Strong; điều kiện Launch chỉ kiểm hai checkbox xác nhận, không kiểm policy/scope đã được xác minh. Chưa Launch scan này.
 - **Tác động:** người dùng không thể đối chiếu điều kiện tự động quét hoặc phạm vi hiện hành ngay trên Review nhưng vẫn có thể chạy công cụ active dựa vào bản sao công khai có thể đã cũ. Đây là rủi ro quyết định sai phạm vi; không kết luận program thật cho phép hay cấm scan.
-- **Hướng sửa:** khi metadata là `public_dump` và thiếu policy, hiển thị Review ở trạng thái chưa đủ điều kiện cho Light/Strong; yêu cầu nhập/xác minh policy và scope hiện hành, hoặc Resolve lại từ API H1. Cho xem timestamp, nguồn và trạng thái từng asset; không gợi ý Strong trước khi có đủ thông tin. Kiểm bằng H1 mock và tình huống fallback.
+- **Hướng sửa:** thêm provider chỉ đọc trang H1 công khai (program + `policy_scopes`) không cần token, trích policy, IN/OUT, loại asset và hướng dẫn, đánh dấu nguồn `public_page` cùng thời điểm và độ tin cậy; kiểm chéo số lượng/mức bao phủ, giữ fallback `public_dump` khi trang không đọc được. API H1 có token vẫn là nguồn có cấu trúc ưu tiên. Khi chỉ có `public_dump` thiếu policy, Review phải thể hiện chưa đủ điều kiện cho Light/Strong; không gợi ý Strong trước khi có đủ thông tin. Kiểm provider mới bằng snapshot/mock và tình huống trang đổi cấu trúc.
 
 ## Giới hạn và mục chưa chạy
 
