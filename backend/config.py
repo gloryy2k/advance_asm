@@ -2,12 +2,29 @@
 
 from pathlib import Path
 import os
+import re
 from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _is_windows_path(value: str) -> bool:
+    return bool(re.match(r"^[A-Za-z]:[\\/]", value)) or value.startswith("\\\\")
+
+
+def quote_path(value: str) -> str:
+    """Double-quote a path for the shell the user will paste it into.
+
+    Windows paths (cmd/PowerShell) must keep their backslashes; POSIX paths need backslash,
+    double quote, dollar and backtick escaped. json.dumps was wrong for both: it doubled every
+    Windows backslash.
+    """
+    if _is_windows_path(value):
+        return '"' + value.replace('"', "") + '"'
+    return '"' + re.sub(r'(["\\$`])', r"\\\1", value) + '"'
 
 
 class Settings(BaseSettings):
@@ -69,16 +86,18 @@ class Settings(BaseSettings):
 
     def hunt_target(self, slug: str) -> dict:
         """The `cd … && claude` command as the *user's* shell needs it, not the container's."""
-        import json as _json
+        note = ""
         if self.BBASM_HOST_TARGETS is not None:
-            where, note = str(self.BBASM_HOST_TARGETS / slug), ""
+            base = str(self.BBASM_HOST_TARGETS)
+            sep = "\\" if _is_windows_path(base) else "/"
+            where = base.rstrip("/\\") + sep + slug
         elif str(self.BBASM_TARGETS).replace("\\", "/").startswith("/app/"):
             where = "targets/" + slug
             note = ("Chạy từ thư mục dự án BBASM trên máy bạn (thư mục ./targets được mount từ container). "
                     "Đặt BBASM_HOST_TARGETS trong .env để hiện đường dẫn tuyệt đối.")
         else:
-            where, note = str((self.BBASM_TARGETS / slug).resolve()), ""
-        return {"hunt_command": f"cd {_json.dumps(where)} && claude", "hunt_note": note}
+            where = str((self.BBASM_TARGETS / slug).resolve())
+        return {"hunt_command": f"cd {quote_path(where)} && claude", "hunt_note": note}
 
     def tool_path(self, name: str) -> Path:
         if not name or name in {".", ".."} or any(c in name for c in "/\\:"):

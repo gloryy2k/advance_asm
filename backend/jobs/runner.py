@@ -136,6 +136,8 @@ class JobRunner:
                 raise ScopeError("Invalid excluded scope pattern") from None
 
     def _enqueue(self, scan_id, config):
+        if os.name != "posix" and self.process_factory is spawn_process and not self.settings.BBASM_RECON_DISABLED:
+            raise ScopeError("Máy chủ chạy trên Windows gốc nên không chạy được recon. Dùng Docker hoặc WSL2.", "platform_unsupported")
         if not self.database.path.exists():
             raise ScopeError("Scan not found", "scan_not_found")
         with self.database.connect() as conn, conn:

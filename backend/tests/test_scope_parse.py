@@ -209,3 +209,27 @@ def test_hunt_command_uses_the_users_path_not_the_containers(tmp_path):
     mapped = Settings(_env_file=None, BBASM_TARGETS="/app/targets", BBASM_HOST_TARGETS="/home/me/bbasm/targets")
     assert mapped.hunt_target("acme") == {"hunt_command": 'cd "/home/me/bbasm/targets/acme" && claude', "hunt_note": ""}
     assert Settings(_env_file=None, BBASM_HOST_TARGETS="").BBASM_HOST_TARGETS is None  # empty .env value
+
+
+def test_quote_path_keeps_windows_backslashes_and_escapes_posix():
+    from backend.config import Settings, quote_path
+    assert quote_path(r"C:\Users\me\My Targets\acme") == '"C:\\Users\\me\\My Targets\\acme"'
+    assert quote_path(r"\\server\share\acme") == '"\\\\server\\share\\acme"'
+    assert quote_path('/home/x y/$t"q`') == '"/home/x y/\\$t\\"q\\`"'
+    win = Settings(_env_file=None, BBASM_HOST_TARGETS=r"C:\Users\me\targets")
+    assert win.hunt_target("acme")["hunt_command"] == 'cd "C:\\Users\\me\\targets\\acme" && claude'
+    assert Settings(_env_file=None, BBASM_HOST_TARGETS="/home/me/t/").hunt_target("a")["hunt_command"] == 'cd "/home/me/t/a" && claude'
+
+
+def test_health_reports_recon_support_and_launch_rejects_unsupported_platform(settings, monkeypatch):
+    from fastapi.testclient import TestClient
+    import backend.jobs.runner as runner_module
+    from backend.main import create_app
+    with TestClient(create_app(settings)) as client:
+        runtime = client.get("/api/health").json()["runtime"]
+        assert runtime["recon_supported"] is True and runtime["reason"] == ""
+        made = client.post("/api/scope/resolve", json={"input": "raw", "scope": ["a.example.com"]}).json()
+        monkeypatch.setattr(runner_module.os, "name", "nt")
+        denied = client.post(f"/api/scans/{made['scan_id']}/launch", json={})
+        assert denied.status_code == 422 and denied.json()["error"]["code"] == "platform_unsupported"
+        assert client.get(f"/api/scans/{made['scan_id']}").json()["status"] == "draft"  # nothing was queued

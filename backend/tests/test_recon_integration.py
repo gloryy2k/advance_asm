@@ -10,14 +10,15 @@ import psutil
 
 import pytest
 
-from backend.config import PROJECT_ROOT
+from backend.config import Settings
 from backend.jobs.runner import stop_process_group
 
 pytestmark = [pytest.mark.integration, pytest.mark.skipif(os.name != "posix", reason="Linux/WSL2 only")]
 
 
 def test_tc_ro_6_passive_toggles_skip_active_commands(tmp_path):
-    script = PROJECT_ROOT / "vendor/claude-bug-bounty/tools/recon_engine.sh"
+    # Works in a checkout and in the Docker image (BBASM_BBROOT=/opt/claude-bug-bounty).
+    script = Settings().tool_path("recon_engine.sh")
     targets = tmp_path / "targets.txt"
     targets.write_text("example.com\n")
     output = tmp_path / "output"
@@ -79,8 +80,14 @@ def test_tc_run_2_real_child_process_group_cleanup(tmp_path, mode):
                 task.cancel()
                 with pytest.raises(asyncio.CancelledError):
                     await task
+            def alive():
+                try:  # The child can exit between the two psutil calls: that is the success case.
+                    return child.is_running() and child.status() != psutil.STATUS_ZOMBIE
+                except psutil.NoSuchProcess:
+                    return False
+
             async def dead():
-                while child.is_running() and child.status() != psutil.STATUS_ZOMBIE:
+                while alive():
                     await asyncio.sleep(0.01)
             await asyncio.wait_for(dead(), 3)
         finally:
