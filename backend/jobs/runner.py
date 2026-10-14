@@ -14,6 +14,7 @@ from backend.jobs.recon_orch import AuditedEgress, ClosedEgress, ReconOrchestrat
 from backend.jobs.scope_resolver import ScopeError
 from backend.log_buffer import LogBuffer, ReconLogParser
 from backend.scope_gate import audit, normalize_pattern
+from backend.trust import scope_trust
 
 
 def store_config(conn, scan_id, config):
@@ -186,6 +187,7 @@ class JobRunner:
             "slug": program["slug"], "source": program["source"], "handle": program["handle"],
             "target_path": str((self.settings.BBASM_TARGETS / program["slug"]).resolve()),
             **self.settings.hunt_target(program["slug"]),
+            "trust": scope_trust(program["source"], program["handle"], policy),
             "scope": stats.get("resolved_scope", []), "warnings": stats.get("warnings", []),
             "automation_ack": stats.get("automation_ack"),
             "policy": {"text": text if isinstance(text, str) else "", "source": policy.get("policy_source"),

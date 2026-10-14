@@ -105,6 +105,9 @@ class BriefGenerator:
         else:
             policy_block = ("Không có policy trong dữ liệu đã resolve; đọc policy chính thức của program "
                             "và bổ sung ở mục ghi chú bên dưới trước khi hunt.")
+        from backend.trust import scope_trust
+        trust = scope_trust(program.get("source"), program.get("handle"), policy)
+        policy_block = f"**Độ tin cậy scope: {trust['label']}.** {trust['detail']}" + (f" Đối chiếu: {trust['official_url']}" if trust["official_url"] and not trust["verified"] else "") + "\n\n" + policy_block
         user_policy = user_policy.strip()
         if user_policy:
             policy_block += "\n\n### Policy/hướng dẫn do người dùng dán\n" + user_policy[:20000]
@@ -161,7 +164,9 @@ class BriefGenerator:
             if not program_path.exists():
                 self.write(program_path, self.program_text(slug, program, scope))
             self.write(target / "CLAUDE.md", (Path(__file__).parent / "templates/CLAUDE.md").read_text(encoding="utf-8"))
-            sections = [f"# AGENT BRIEF — {clean(slug)}\nScan {scan['id']} · {scan['depth']} · {scan['status']}\n",
+            from backend.trust import scope_trust
+            trust = scope_trust(program["source"], program["handle"], json.loads(program["policy_json"] or "{}"))
+            sections = [f"# AGENT BRIEF — {clean(slug)}\nScan {scan['id']} · {scan['depth']} · {scan['status']}\nNguồn scope: {trust['label']}" + ("" if trust["verified"] or trust["level"] == "manual" else " — đọc policy chính thức trước khi hunt") + "\n",
                         "## SCOPE\n" + scope_text,
                         "## SỐ LIỆU\n" + f"Assets: {len([a for a in assets if a.get('category') != 'cidr'])}" + (f" (+{len([a for a in assets if a.get('category') == 'cidr'])} dải)" if any(a.get('category') == 'cidr' for a in assets) else "") + f" · Live: {stats.get('live', 0)} · URLs: {stats.get('urls', 0)} · Findings: {len(findings)}\n"]
             if scan["depth"] == "passive":

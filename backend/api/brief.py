@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, Field
@@ -52,7 +54,9 @@ def edit_program(slug: str, body: ProgramEdit, request: Request):
 
 
 @router.get("/export")
-def export(slug: str, request: Request, include_recon: bool = True):
-    path, filename = build_export(generator(request), slug, include_recon)
+def export(slug: str, request: Request, include_recon: bool | None = None, mode: Literal["brief", "filtered", "full"] | None = None):
+    # Default is the safe one: recon with out-of-scope lines removed. Raw must be asked for.
+    chosen = mode or (None if include_recon is None else ("full" if include_recon else "brief")) or "filtered"
+    path, filename = build_export(generator(request), slug, True, chosen)
     return FileResponse(path, media_type="application/zip", filename=filename,
                         background=BackgroundTask(path.unlink, missing_ok=True))
