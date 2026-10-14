@@ -31,6 +31,8 @@ PAGE_QUERY = """query BbasmPolicyScope($handle: String!, $cursor: String) {
     }
   }
 }"""
+# The public GraphQL endpoint answers browser-like clients; a bare library user agent may be refused.
+PAGE_USER_AGENT = "Mozilla/5.0 (compatible; BBASM-metadata-reader; read-only)"
 AUTO_CATEGORIES = {"web", "wildcard", "ip", "cidr"}  # what recon can actually target
 
 
@@ -61,7 +63,7 @@ class HackerOneScopeProvider:
         for _ in range(MAX_PAGE_REQUESTS):
             data = self._get(client, gate, PAGE_GRAPHQL_URL, method="POST", limit=MAX_PAGE_BYTES,
                              json={"query": PAGE_QUERY, "variables": {"handle": handle, "cursor": cursor}},
-                             headers={"Accept": "application/json"})
+                             headers={"Accept": "application/json", "Content-Type": "application/json", "User-Agent": PAGE_USER_AGENT})
             team = ((data or {}).get("data") or {}).get("team") if isinstance(data, dict) else None
             if (not isinstance(data, dict) or data.get("errors") or not isinstance(team, dict)
                     or str(team.get("handle", "")).lower() != handle):

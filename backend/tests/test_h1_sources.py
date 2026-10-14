@@ -100,6 +100,7 @@ def test_without_a_token_the_public_page_is_read_before_the_dump(cfg, tmp_path):
     assert [(a["source"], a["ok"]) for a in policy["attempts"]] == [("api", False), ("public_page", True)]
     assert [c.url.host for c in calls] == ["hackerone.com"]                       # the dump is not needed
     assert all("authorization" not in c.headers and "cookie" not in c.headers for c in calls)
+    assert calls[0].method == "POST" and calls[0].headers["user-agent"].startswith("Mozilla/5.0")
     assert [e.pattern for e in entries if e.kind == "in"] == ["*.acme.com", "api.acme.com"]
     assert [e.pattern for e in entries if e.kind == "out"] == ["legacy.acme.com"]   # eligibility, not the pool, decides IN/OUT
     assert any("trang công khai" in w for w in warnings)
