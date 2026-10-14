@@ -39,6 +39,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY --from=tools /out/ /usr/local/bin/
 COPY --from=subjack /out/subjack /usr/local/bin/subjack
 COPY vendor/claude-bug-bounty/ /opt/claude-bug-bounty/
+COPY scripts/normalize_vendor_lf.py /tmp/normalize_vendor_lf.py
+RUN python /tmp/normalize_vendor_lf.py /opt/claude-bug-bounty
 RUN test -f /opt/claude-bug-bounty/tools/recon_engine.sh
 COPY backend/ ./backend/
 COPY --from=frontend /src/dist/ ./backend/static/

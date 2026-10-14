@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import time
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 from uuid import uuid4
 
 import pytest
@@ -38,6 +38,18 @@ def test_docker_build_health_and_static_dashboard(record_property):
         assert health["ok"]
         assert all(health["tools"][name] for name in ("bash", "subfinder", "httpx", "nuclei", "gau", "nmap",
                                                      "dnsx", "katana", "amass", "ffuf", "trufflehog"))
+        subprocess.run(["docker", "exec", container, "python", "-c",
+            "from backend.config import Settings; import subprocess; s=Settings(); "
+            "[subprocess.run(['bash','-n',str(s.tool_path(name))],check=True) "
+            "for name in ('recon_engine.sh','scope_aggregator.sh')]"], check=True, timeout=30)
+        # Unlike TestClient, this reaches uvicorn's actual WebSocket protocol.
+        # Resolve only a local raw draft: no target traffic or recon launch.
+        with urlopen(Request(base + "/api/scope/resolve", data=json.dumps({"input": "raw", "scope": ["127.0.0.1"]}).encode(),
+                             headers={"Content-Type": "application/json"}), timeout=10) as response:
+            draft = json.load(response)
+        from websockets.sync.client import connect
+        with connect(f"ws://127.0.0.1:{port}/ws/scan/{draft['scan_id']}", open_timeout=5) as websocket:
+            assert websocket.response.status_code == 101
         with urlopen(base, timeout=3) as response:
             assert b'root' in response.read()
     finally:

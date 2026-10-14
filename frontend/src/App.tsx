@@ -1,21 +1,39 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { api, go, type Config } from "./api";
 
-function useData(path: string, revision = 0) {
+const terminalStatuses = new Set(["done", "done_partial", "failed", "cancelled"]);
+
+function useData(path: string, revision = 0, pollMs = 0) {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState("");
   useEffect(() => {
     let live = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const controller = new AbortController();
     setData(null);
     setError("");
-    api(path)
-      .then((d) => live && setData(d))
-      .catch((e) => live && setError(e.message));
+    async function refresh() {
+      let finished = false;
+      try {
+        const result = await api(path, { signal: controller.signal });
+        if (!live) return;
+        setData(result);
+        setError("");
+        finished = terminalStatuses.has(result?.status);
+      } catch (e: any) {
+        if (live) setError(e.message);
+      } finally {
+        if (live && pollMs && !finished) timer = setTimeout(refresh, pollMs);
+      }
+    }
+    void refresh();
     return () => {
       live = false;
+      clearTimeout(timer);
+      controller.abort();
     };
-  }, [path, revision]);
+  }, [path, revision, pollMs]);
   return { data, error };
 }
 const ErrorBox = ({ text }: { text: string }) =>
@@ -264,6 +282,7 @@ function Review({ id }: { id: string }) {
             <label>
               Depth
               <select
+                aria-label="Depth"
                 value={config.depth}
                 onChange={(e) => {
                   const d = e.target.value as Config["depth"];
@@ -410,7 +429,9 @@ function Review({ id }: { id: string }) {
   );
 }
 
-export function ScanLog({ id, onDone }: { id: string; onDone?: () => void }) {
+export function ScanLog({ id, onDone, finished = false }: { id: string; onDone?: () => void; finished?: boolean }) {
+  const finishedRef = useRef(finished);
+  finishedRef.current = finished;
   const [events, setEvents] = useState<any[]>([]),
     [connection, setConnection] = useState("Đang kết nối");
   useEffect(() => {
@@ -420,6 +441,7 @@ export function ScanLog({ id, onDone }: { id: string; onDone?: () => void }) {
       ws: WebSocket;
     let timer: ReturnType<typeof setTimeout>;
     function connect() {
+      if (stopped) return;
       ws = new WebSocket(
         `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/scan/${id}?after=${after}`,
       );
@@ -435,9 +457,9 @@ export function ScanLog({ id, onDone }: { id: string; onDone?: () => void }) {
         }
       };
       ws.onclose = () => {
-        if (!stopped && !done) {
+        if (!stopped && !done && !finishedRef.current) {
           setConnection("Mất kết nối — đang thử lại");
-          timer = setTimeout(connect, 1500);
+          timer = setTimeout(() => { if (!finishedRef.current) connect(); }, 1500);
         }
       };
       ws.onerror = () => ws.close();
@@ -470,16 +492,17 @@ export function ScanLog({ id, onDone }: { id: string; onDone?: () => void }) {
 }
 function ScanPage({ id }: { id: string }) {
   const [revision, setRevision] = useState(0);
-  const state = useData("/api/scans/" + id, revision);
+  const state = useData("/api/scans/" + id, revision, 3000);
   const [error, setError] = useState("");
   return (
     <>
       <h1>Scan #{id}</h1>
       <ErrorBox text={error || state.error} />
       <p>
-        <Badge>{state.data?.status || "loading"}</Badge>{" "}
+        <span role="status" aria-label="Scan status"><Badge>{state.data?.status || "loading"}</Badge></span>{" "}
         <button
           className="secondary"
+          disabled={terminalStatuses.has(state.data?.status)}
           onClick={() =>
             api("/api/scans/" + id + "/cancel", { method: "POST" })
               .then(() => setRevision((v) => v + 1))
@@ -490,7 +513,7 @@ function ScanPage({ id }: { id: string }) {
         </button>{" "}
         <a href="#/">Portfolio →</a>
       </p>
-      <ScanLog id={id} onDone={() => setRevision((v) => v + 1)} />
+      <ScanLog id={id} finished={terminalStatuses.has(state.data?.status)} onDone={() => setRevision((v) => v + 1)} />
     </>
   );
 }

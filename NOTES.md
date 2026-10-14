@@ -2,6 +2,17 @@
 
 ## Current phase
 
+### Windows/browser fixes and verification (2026-10-14)
+
+- See P8_WINDOWS_BROWSER_RESULT.md: B1 WebSocket dependency + REST fallback,
+  B2 accessible Depth/status selectors, and Windows submodule CRLF image fix.
+- 197 backend unit tests, 11 frontend tests, production build, real uvicorn WS,
+  Docker integration, and official localhost browser E2E passed.
+- Windows Docker Desktop/WSL2 DB/schedule/target persistence verified.
+- Live Nation resolved 25 public assets; no recon launch. Official policy
+  prohibits automated/LLM discovery and public fallback lacks full policy.
+  H1 light-scan acceptance remains open; see report for precise limitations.
+
 ### Docker persistence closure (report d011a0c)
 
 - P8_DOCKER_PERSIST_RESULT.md confirms all three tasks at 262b254 on Kali:

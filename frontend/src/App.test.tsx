@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { vi, expect, test, beforeEach } from "vitest";
 import { App, AssetTable, ScanNew, ScanLog } from "./App";
 beforeEach(() => {
@@ -43,6 +43,7 @@ test("review excludes hosts and launches only on explicit click", async () => {
   vi.stubGlobal("fetch", request);
   render(<App />);
   fireEvent.click(await screen.findByLabelText("Include example.com"));
+  expect(screen.getByRole("combobox", { name: /^Depth$/ })).toBeInTheDocument();
   expect(request.mock.calls.some((c) => c[0].endsWith("/launch"))).toBe(false);
   fireEvent.click(screen.getByText("Launch scan"));
   await waitFor(() =>
@@ -142,4 +143,65 @@ test("log reconnects with replay cursor", () => {
   expect(sockets[1].url).toContain("after=12");
   view.unmount();
   vi.useRealTimers();
+});
+
+test.each(["done", "done_partial", "failed", "cancelled"])(
+  "REST reaches %s when WebSocket fails, then stops polling",
+  async (status) => {
+    vi.useFakeTimers();
+    const sockets: any[] = [];
+    class BrokenSocket {
+      onclose: any;
+      onerror: any;
+      constructor() { sockets.push(this); }
+      close() { this.onclose?.(); }
+    }
+    vi.stubGlobal("WebSocket", BrokenSocket);
+    let calls = 0;
+    const request = vi.fn().mockImplementation(() => Promise.resolve({
+      ok: true,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({ id: 9, status: ++calls === 1 ? "queued" : status }),
+    }));
+    vi.stubGlobal("fetch", request);
+    location.hash = "/scan/9";
+    const view = render(<App />);
+    try {
+      await act(async () => { await Promise.resolve(); });
+      expect(screen.getByText("queued")).toBeInTheDocument();
+      act(() => sockets[0].onerror());
+      await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+      expect(screen.getByText(status)).toBeInTheDocument();
+      expect(screen.getByText("Cancel scan")).toBeDisabled();
+      const requestsAtEnd = request.mock.calls.length;
+      await act(async () => { await vi.advanceTimersByTimeAsync(10000); });
+      expect(request).toHaveBeenCalledTimes(requestsAtEnd);
+      view.unmount();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
+    }
+  },
+);
+
+test("status polling retries transient REST failure and cleans up on unmount", async () => {
+  vi.useFakeTimers();
+  const request = vi.fn().mockRejectedValueOnce(new Error("temporary outage"))
+    .mockResolvedValue({ ok: true, headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({ id: 9, status: "running" }) });
+  vi.stubGlobal("fetch", request);
+  location.hash = "/scan/9";
+  const view = render(<App />);
+  try {
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByRole("alert")).toHaveTextContent("temporary outage");
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(screen.getByText("running")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    view.unmount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(10000); });
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls[1][1].signal.aborted).toBe(true);
+  } finally { view.unmount(); vi.useRealTimers(); }
 });

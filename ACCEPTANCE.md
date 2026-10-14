@@ -77,18 +77,25 @@ Chạy một trong hai lệnh phù hợp với quyền Docker trên host. Ghi co
 build time, kiến trúc, cold/warm cache, kết quả health/static vào báo cáo. Test vẫn
 giới hạn 3600s. Kết quả 960.66s là tổng test, không tách riêng thời gian compile/download.
 
-### Ba mục môi trường chính còn mở
+### Cập nhật Windows/browser ngày 2026-10-14
 
-1. Browser E2E resolve → review → launch → Brief, reconnect và narrow viewport.
-2. Windows/WSL2: Docker Desktop build/run, mount/persistence và dashboard.
-3. H1 program thật được phép: scope/policy/category, light scan và handoff.
+Xem P8_WINDOWS_BROWSER_RESULT.md (B1/B2 và lỗi CRLF trong image đã sửa).
+
+1. Browser resolve → review → launch passive localhost → Brief: official pytest
+   PASS (7.35s). WS thật trả 101; fallback khi WS lỗi có regression tests.
+   Reconnect/narrow viewport thực tế vẫn cần đối chiếu checklist chi tiết.
+2. Windows/WSL2: Docker Desktop build/run/health/dashboard và DB/schedule/target
+   persistence PASS trên máy Windows của người dùng.
+3. H1 Live Nation: resolve metadata 22 web + 3 mobile PASS; full policy không có
+   trong public fallback. Policy chính thức cấm scanner/LLM discovery nên không
+   launch. H1 light scan/handoff cần program khác cho phép automation.
 
 ### Đối chiếu chi tiết trước khi đóng P8
 
 Các mục có bằng chứng đã đạt không cần chạy lại; chỉ bổ sung phần chưa có bằng
 chứng thực tế trong các báo cáo được liên kết.
 
-1. Docker Linux + persistence đã đạt; Windows/WSL2 vẫn mở.
+1. Docker Linux và Windows/WSL2 build/runtime/persistence đã đạt; xem báo cáo tương ứng.
 2. H1 light: review IN/OUT/category/policy đúng, chỉ launch sau review; raw domain,
    wildcard, IP/CIDR và mobile/source scope đúng luồng. Lưu scan ID và audit.
 3. Hai scan cùng program: portfolio NEW, surface/rank/reasons, diff NEW/GONE/CHANGED;
