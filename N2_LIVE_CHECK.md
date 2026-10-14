@@ -14,6 +14,7 @@ Ngày 2026-10-15, Windows + Docker Linux, nguồn `claude/upbeat-thompson-b7bb23
 | N2-5 | Kiểm schema `PAGE_QUERY` trên H1 thật | PASS | Hai Resolve trên đã gọi POST `https://hackerone.com/graphql` bằng `PAGE_QUERY` và nhận dữ liệu policy + structured scope hợp lệ. Không có HTTP 403/CSRF/Cloudflare; không cần cookie phiên hay token. Response được provider chấp nhận ở `data.team.handle/name/policy/structured_scopes.edges/pageInfo`. |
 | N2-6 | Đối chiếu `structured_scope_stats` qua `opportunities_search` | FAIL | Chưa có số liệu đáng tin để so. Hai POST cuối với truy vấn đếm scope trả HTTP 200 nhưng GraphQL syntax error `Expected VAR_SIGN, actual: BANG` do PowerShell mở rộng mất `$handle` trong lệnh test. Đã chạm ngân sách 30 request H1, không thử tiếp. Đây là lỗi harness, không phải lỗi BBASM/H1. |
 | N2-7 | Playwright desktop 1366px mở Review hai draft, không Launch | PASS | [Verisk](review_evidence/n2_live/verisk_vdp_review_1366.png), [GitLab](review_evidence/n2_live/gitlab_review_1366.png). `document.scrollWidth=innerWidth=1366`. Verisk: radio Light/Strong `disabled=false`; GitLab: cả hai `disabled=true`, Passive được chọn. Nội dung policy trong ảnh đã che. |
+| N2-8 | Kiểm chéo từ kết quả Burp MCP do người dùng cung cấp sau lượt QA | PASS | Query ẩn danh `PolicySearchStructuredScopesQuery`/`structured_scopes_search`: Verisk `total_count=2`, đọc 2, IN 2/OUT 0; GitLab `total_count=44`, đọc 44, IN 19/OUT 25. Khớp BBASM khi cộng classified + unclassified: IN `10+9=19`, OUT `22+3=25`. Bằng chứng này do người dùng cung cấp, tôi chưa lặp lại độc lập. |
 
 ## Schema quan sát được
 
@@ -25,6 +26,13 @@ Ngày 2026-10-15, Windows + Docker Linux, nguồn `claude/upbeat-thompson-b7bb23
 
 **PAGE_QUERY đề xuất:** giữ query hiện tại; không có bằng chứng cần đổi field/header. Có thể bổ sung phép kiểm tổng `structured_scopes_search.total_count` cho IN/OUT để phát hiện thiếu trang/phân loại, nhưng cần thử lại trong ngân sách request riêng. `User-Agent` hiện tại và `Accept: application/json`, `Content-Type: application/json` đủ cho hai handle. Không cần CSRF từ HTML trong thử nghiệm này.
 
+### Bổ sung từ Burp MCP do người dùng cung cấp
+
+- Query UI trả asset là `PolicySearchStructuredScopesQuery`, dùng `team.structured_scopes_search` với `from`, `size`, `sort`, `total_count`, `nodes` và `eligible_for_submission`. `team.policy` có thể đọc ẩn danh trong cùng POST, là Markdown; `policy_html` không tồn tại theo phép thử được báo cáo. Request thử không có Cookie hay `X-CSRF-Token`, trả HTTP 200 và `User-Authenticated: false`. Có 9 request metadata mới trong lượt Burp riêng; tôi không tự lặp lại chúng.
+- GitLab: 44 node gốc = 19 IN + 25 OUT. BBASM có 32 asset được `classify()` nhận diện (10 IN + 22 OUT) và 12 asset giữ ở danh sách “chưa phân loại” (9 IN + 3 OUT). **“Chưa phân loại” là trạng thái parser BBASM không nhận diện loại/định dạng để đưa vào scope gate, không phải thiếu node hay thiếu cờ IN/OUT trong GraphQL.** Verisk: 2 node wildcard IN, khớp BBASM.
+- Người dùng báo cáo `structured_scopes_search.pageInfo.hasNextPage=false` ngay cả khi `size=1`, `total_count=2`; khi dùng offset nên kết thúc theo `total_count`, giữ `sort` cố định và khử trùng theo `id`. Điều này chưa chứng minh `pageInfo` của connection `structured_scopes` trong `PAGE_QUERY` hiện tại cũng sai. Không nên đổi query chỉ vì hai connection có hành vi khác nhau.
+- Policy GitLab được phía Burp ước lượng khoảng 17–18 nghìn ký tự, trong khi Review BBASM trả 26.067 ký tự. Số Burp là **ước lượng**, chưa có phép đo cùng thời điểm trên cùng response để kết luận dữ liệu sai/lệch.
+
 ## Finding mới
 
 - **P2 — Trạng thái “mở khóa Light/Strong” dễ bị hiểu là policy đã cho phép active scan.** Tái hiện: Resolve Verisk không token, Review #21 có policy không rỗng và 2 IN rõ ràng, radio Light/Strong mở; `launch_gate` chỉ kiểm policy hiện diện, không diễn giải điều khoản automation/rate limit. Hướng sửa: phân biệt “đủ dữ liệu để cấu hình” và “đã xác nhận policy cho phép”; đặt nhãn ngay cạnh Light/Strong, giữ bước xác nhận của người dùng và tránh diễn đạt như hệ thống đã cấp quyền. Không Launch trong vòng test này.
@@ -32,5 +40,5 @@ Ngày 2026-10-15, Windows + Docker Linux, nguồn `claude/upbeat-thompson-b7bb23
 ## Giới hạn và vệ sinh
 
 - Tổng H1 request outbound ước tính **30**: 24 request được Playwright cho phép (GET trang/asset và 3 POST GraphQL Verisk), 2 POST provider khi Resolve, 2 GET JS chunk công khai, 2 POST đếm scope lỗi cú pháp. Request bị `route.abort()` không tính là outbound. Không truy cập host target, không dùng token/cookie phiên, không đổi UA/IP để vượt chặn.
-- Không quan sát được POST policy/scope mà chính UI GitLab phát, cũng chưa bắt được POST policy/scope của UI Verisk: trang tải nhiều asset trước khi hết trần 24. Khẳng định về `PAGE_QUERY` dựa trên hai lời gọi provider thật thành công, không phải bản capture request UI. `opportunities_search`/`structured_scope_stats` chưa kiểm chéo; con số raw asset ở trên là từ dữ liệu provider, chưa phải phép xác nhận độc lập.
+- Trong lượt QA trực tiếp, không quan sát được POST policy/scope mà chính UI GitLab phát, cũng chưa bắt được POST policy/scope của UI Verisk: trang tải nhiều asset trước khi hết trần 24. Khẳng định về `PAGE_QUERY` dựa trên hai lời gọi provider thật thành công, không phải bản capture request UI. Bổ sung Burp MCP do người dùng cung cấp đã kiểm chéo tổng asset và IN/OUT bằng `structured_scopes_search`, nhưng chưa phải phép lặp độc lập của tôi; `opportunities_search`/`structured_scope_stats` vẫn chưa được kiểm.
 - Ảnh chỉ từ localhost. Không có policy đầy đủ trong repo; vùng policy được mask. Hai draft #21/#22 chưa chạy scan; stack `bbasm-v12` được giữ để người dùng xem.
