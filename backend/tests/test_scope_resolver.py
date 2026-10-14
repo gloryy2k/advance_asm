@@ -94,7 +94,7 @@ def test_tc_cat_1_raw_and_h1_categories(resolver):
     assert result.config.categories_enabled == ["source_code"]
 
 
-@pytest.mark.parametrize("value", ["h1:--help", "h1:../acme", "https://hackerone.com.evil/acme", "https://evil@hackerone.com/acme", "https://hackerone.com/acme/other", "https://hackerone.com/acme?x=y"])
+@pytest.mark.parametrize("value", ["h1:--help", "h1:../acme", "https://hackerone.com.evil/acme", "https://evil@hackerone.com/acme", "https://hackerone.com/acme/other"])
 def test_bad_h1_input_rejected(value):
     with pytest.raises(ScopeError):
         h1_handle(value)

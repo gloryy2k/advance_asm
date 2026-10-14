@@ -8,6 +8,7 @@ import tempfile
 
 import httpx
 
+from backend.db import utc_now
 from backend.jobs.scope_resolver import ScopeError, classify
 from backend.scope_gate import ScopeGate, audit
 
@@ -96,10 +97,11 @@ class HackerOneScopeProvider:
         warnings = []
         try:
             with httpx.Client(transport=self.transport, timeout=20, follow_redirects=False, trust_env=False) as client:
-                program = None
+                program, source = None, "public_dump"
                 if self.settings.H1_TOKEN.get_secret_value() and self.settings.H1_USER.get_secret_value():
                     try:
                         program = self._api_program(client, gate, handle)
+                        source = "api"
                     except (httpx.HTTPError, ScopeError, ValueError, KeyError, TypeError):
                         warnings.append("HackerOne API unavailable; using public metadata")
                 if program is None:
@@ -138,4 +140,14 @@ class HackerOneScopeProvider:
             # Never treat flattened output as an allowlist: it lost eligibility/type data.
             if completed.returncode == 1:
                 warnings.append("Aggregator produced no web host list; structured metadata retained")
-        return entries, {"program": program, "assets": [entry.model_dump() for entry in entries]}, warnings
+        policy_text = program.get("policy") if isinstance(program.get("policy"), str) else ""
+        policy_text = policy_text.strip()
+        if source == "public_dump":
+            warnings.append("Dữ liệu từ nguồn công khai (bounty-targets-data): có thể đã cũ và không có policy đầy đủ. "
+                            "Đọc policy chính thức trên HackerOne trước khi chạy.")
+        if not policy_text:
+            warnings.append("Chưa có nội dung policy; dán policy/hướng dẫn của program hoặc bổ sung ở PROGRAM.md.")
+        # Stable top-level keys: consumers must not dig into the raw provider payload.
+        return entries, {"program": program, "assets": [entry.model_dump() for entry in entries],
+                         "policy_text": policy_text, "policy_source": source,
+                         "fetched_at": utc_now()}, warnings

@@ -14,11 +14,27 @@ def test_tc_hlt_1_mixed_availability(monkeypatch, settings):
     with TestClient(create_app(settings)) as client:
         response = client.get("/api/health")
     assert response.status_code == 200
-    assert response.json() == {
-        "ok": True,
-        "tools": {**{name: name in {"bash", "nuclei"} for name in EXECUTABLES},
-                  **{name: name == "recon_engine.sh" for name in FRAMEWORK_FILES}},
-    }
+    body = response.json()
+    assert body["ok"] is True
+    assert body["tools"] == {**{name: name in {"bash", "nuclei"} for name in EXECUTABLES},
+                             **{name: name == "recon_engine.sh" for name in FRAMEWORK_FILES}}
+    assert "nuclei" not in body["missing_by_depth"]["light"] and "httpx" in body["missing_by_depth"]["light"]
+    assert body["missing_by_depth"]["passive"] == ["subfinder", "gau"]
+
+
+def test_tc_hlt_2_python_httpx_cli_is_not_projectdiscovery(monkeypatch, settings, tmp_path):
+    # The unrelated Python `httpx` CLI is a script; the Go tool is a binary. Never executed.
+    script = tmp_path / "httpx"
+    script.write_text("#!/usr/bin/python3\n", encoding="utf-8")
+    binary = tmp_path / "httpx-go"
+    binary.write_bytes(b"\x7fELF\x02\x01")
+    from backend.api.health import tool_ready
+    monkeypatch.setattr("backend.api.health.shutil.which", lambda name, **kw: str(script))
+    assert tool_ready("httpx", "") is False
+    monkeypatch.setattr("backend.api.health.shutil.which", lambda name, **kw: str(binary))
+    assert tool_ready("httpx", "") is True
+    monkeypatch.setattr("backend.api.health.shutil.which", lambda name, **kw: str(script))
+    assert tool_ready("nuclei", "") is True  # only httpx has the known name collision
 
 
 def test_missing_path_and_framework_fail_soft(monkeypatch, settings):

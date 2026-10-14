@@ -86,6 +86,7 @@ def test_api_pagination_never_follows_untrusted_next(provider_settings, tmp_path
     assert len(requests) == 3
     assert [e.kind for e in entries] == ["in", "out"]
     assert policy["program"]["policy"] == "Program policy"
+    assert policy["policy_text"] == "Program policy" and policy["policy_source"] == "api"
     assert warnings == []
 
 
@@ -104,7 +105,8 @@ def test_missing_token_and_failed_api_fall_back_without_leaking_auth(provider_se
     entries, _, warnings = provider.resolve("acme", tmp_path / "audit.jsonl")
     assert len(requests) == 2
     assert entries
-    assert warnings == ["HackerOne API unavailable; using public metadata"]
+    assert warnings[0] == "HackerOne API unavailable; using public metadata"
+    assert any("nguồn công khai" in w for w in warnings)  # public dump is flagged as possibly stale
     assert "secret" not in (tmp_path / "audit.jsonl").read_text()
 
 

@@ -40,6 +40,33 @@ class BriefGenerator:
         stats = json.loads(scan["stats_json"] or "{}")
         return program, scan, stats, assets, findings
 
+    @staticmethod
+    def program_text(slug, program, scope):
+        """Durable program instructions; built once, then owned by the user."""
+        policy = json.loads(program["policy_json"] or "{}")
+        text = (policy.get("policy_text") or (policy.get("program") or {}).get("policy")
+                or policy.get("policy") or policy.get("description") or "")
+        text = text.strip() if isinstance(text, str) else ""
+        # Untrusted policy text must not inject or break the user-editable region markers.
+        text, user_policy = (re.sub(r"<!--\s*/?user-editable\s*-->", "", t) for t in (text, (policy.get("user_policy_text") or "")))
+        source = {"api": "API HackerOne", "public_dump": "nguồn công khai (có thể đã cũ, không đầy đủ)"}.get(
+            policy.get("policy_source"), "không rõ")
+        if text:
+            if len(text) > 20000:
+                text = text[:20000] + "\n\n[… policy bị cắt ở 20000 ký tự; xem bản đầy đủ trên HackerOne]"
+            header = f"Nguồn: {source}" + (f" · lấy lúc {policy['fetched_at']}" if policy.get("fetched_at") else "")
+            policy_block = f"_{header}_\n\n{text}"
+        else:
+            policy_block = ("Không có policy trong dữ liệu đã resolve; đọc policy chính thức của program "
+                            "và bổ sung ở mục ghi chú bên dưới trước khi hunt.")
+        user_policy = user_policy.strip()
+        if user_policy:
+            policy_block += "\n\n### Policy/hướng dẫn do người dùng dán\n" + user_policy[:20000]
+        body = f"# {slug}\n\n## Policy\n{policy_block}\n\n## Scope theo category\n"
+        body += "\n".join(f"- {e['kind']} [{e['category']}] {e['pattern']}: {e.get('instruction', '')}" for e in scope)
+        body += f"\n\n## Ghi chú của người dùng\n{USER_START}\nQuy định đặc biệt, auth, OOS và severity guideline: chưa bổ sung.\n{USER_END}\n"
+        return body
+
     def target(self, slug):
         root = self.settings.BBASM_TARGETS.resolve()
         path = root / slug
@@ -78,12 +105,7 @@ class BriefGenerator:
             if program_path.is_symlink():
                 raise ScopeError("Refusing program symlink")
             if not program_path.exists():
-                policy = json.loads(program["policy_json"] or "{}")
-                policy_text = policy.get("policy") or policy.get("description") or "Không có policy công khai; bổ sung quy định trước khi hunt."
-                body = f"# {slug}\n\n## Policy\n{policy_text}\n\n## Scope theo category\n"
-                body += "\n".join(f"- {e['kind']} [{e['category']}] {e['pattern']}: {e.get('instruction', '')}" for e in scope)
-                body += f"\n\n## Ghi chú của người dùng\n{USER_START}\nQuy định đặc biệt, auth, OOS và severity guideline: chưa bổ sung.\n{USER_END}\n"
-                self.write(program_path, body)
+                self.write(program_path, self.program_text(slug, program, scope))
             self.write(target / "CLAUDE.md", (Path(__file__).parent / "templates/CLAUDE.md").read_text(encoding="utf-8"))
             sections = [f"# AGENT BRIEF — {clean(slug)}\nScan {scan['id']} · {scan['depth']} · {scan['status']}\n",
                         "## SCOPE\n" + scope_text,

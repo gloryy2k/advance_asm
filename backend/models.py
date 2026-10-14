@@ -21,6 +21,8 @@ class ResolveRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     input: str = Field(min_length=1, max_length=2048)
     scope: list[str] = Field(default_factory=list, max_length=10000)
+    scope_out: list[str] = Field(default_factory=list, max_length=10000)
+    policy_text: str = Field(default="", max_length=100000)  # user-pasted policy/instructions
 
 
 class ScanConfig(BaseModel):

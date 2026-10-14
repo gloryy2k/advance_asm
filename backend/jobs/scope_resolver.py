@@ -19,24 +19,40 @@ class ScopeError(ValueError):
         self.code = code
 
 
+_H1_SUFFIXES = {"policy", "policy_scopes", "thanks", "hacktivity", "reports", "scope"}
+_H1_RESERVED = {"reports", "users", "directory", "hacktivity", "leaderboard", "settings", "sign_in",
+                "bugs", "opportunities", "teams", "organizations", "security", "about", "raw",
+                "bug-bounty-programs", "hackers", "customers", "resources", "contact", "login"}
+_H1_BAD = "Nhập h1:<handle>, URL chương trình hackerone.com/<handle> hoặc handle trần"
+
+
 def h1_handle(value: str) -> str:
-    value = value.strip()
+    """Normalise any reasonable way of naming a HackerOne program to its handle.
+
+    The value is only used to look up metadata, never fetched, so query strings,
+    fragments, `www.`, a missing scheme and known page suffixes are safe to drop.
+    Foreign hosts, userinfo and unknown path shapes are still rejected.
+    """
+    value = value.strip().strip("\"'`<>").strip()
     if value.lower().startswith("h1:"):
-        handle = value[3:]
+        handle = value[3:].strip()
+    elif "/" not in value and "." not in value and ":" not in value and value.lower() != "raw":
+        handle = value.lstrip("@")
     else:
+        if "://" not in value:
+            value = "https://" + value
         try:
             url = urlsplit(value)
-            if (url.scheme != "https" or url.netloc.lower() != "hackerone.com"
-                    or url.query or url.fragment):
+            if url.scheme not in {"http", "https"} or url.netloc.lower() not in {"hackerone.com", "www.hackerone.com"}:
                 raise ValueError
-            parts = url.path.strip("/").split("/")
-            if len(parts) not in (1, 2) or len(parts) == 2 and parts[1] != "policy_scopes":
+            parts = [p for p in url.path.split("/") if p]
+            if not parts or len(parts) > 2 or len(parts) == 2 and parts[1].lower() not in _H1_SUFFIXES:
                 raise ValueError
             handle = parts[0]
         except ValueError:
-            raise ScopeError("Expected h1:<handle>, HackerOne program URL, or raw") from None
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,99}", handle):
-        raise ScopeError("Invalid HackerOne handle")
+            raise ScopeError(_H1_BAD, "invalid_h1_input") from None
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,99}", handle) or handle.lower() in _H1_RESERVED:
+        raise ScopeError("Handle HackerOne không hợp lệ. " + _H1_BAD, "invalid_h1_input")
     return handle.lower()
 
 
@@ -83,16 +99,13 @@ def classify(value: str, kind="in", asset_type: str | None = None, instruction="
                       category=category, instruction=instruction)
 
 
-def raw_entries(lines: list[str]) -> list[ScopeEntry]:
-    entries = []
-    kind = "in"
-    for value in lines:
-        value = value.strip()
-        if value.upper() in {"# IN", "# OUT"}:
-            kind = value[2:].lower()
-        elif value and not value.startswith("#"):
-            entries.append(classify(value, kind))
-    return deduplicate(entries)
+def raw_parse(lines: list[str], out_lines: list[str] = ()) -> tuple[list[ScopeEntry], list[str]]:
+    from backend.jobs.scope_parse import entries_or_raise, parse_scope  # avoids a module cycle
+    return entries_or_raise(parse_scope(lines, out_lines))
+
+
+def raw_entries(lines: list[str], out_lines: list[str] = ()) -> list[ScopeEntry]:
+    return raw_parse(lines, out_lines)[0]
 
 
 def deduplicate(entries: list[ScopeEntry]) -> list[ScopeEntry]:
@@ -129,9 +142,12 @@ class ScopeResolver:
     def resolve(self, request: ResolveRequest) -> ResolveResponse:
         source = "raw" if request.input == "raw" else "h1"
         handle = h1_handle(request.input) if source == "h1" else None
-        if source == "h1" and request.scope:
+        if source == "h1" and (request.scope or request.scope_out):
             raise ScopeError("scope[] is only accepted with input=raw")
-        entries = raw_entries(request.scope) if source == "raw" else []
+        parse_warnings = []
+        entries = []
+        if source == "raw":
+            entries, parse_warnings = raw_parse(request.scope, request.scope_out)
         identity = handle or hashlib.sha256(json.dumps(sorted(
             (e.pattern, e.kind) for e in entries
         )).encode()).hexdigest()
@@ -168,6 +184,9 @@ class ScopeResolver:
                     entries = deduplicate(entries)
                 else:
                     policy = {"scope_identity": identity, "assets": [e.model_dump() for e in entries]}
+                    warnings = parse_warnings
+                if request.policy_text.strip():
+                    policy["user_policy_text"] = request.policy_text.strip()
                 if not any(entry.kind == "in" for entry in entries):
                     raise ScopeError("scope empty", "scope_empty")
                 now = utc_now()
