@@ -17,10 +17,10 @@ from backend.scope_gate import audit, normalize_pattern
 
 
 def store_config(conn, scan_id, config):
-    conn.execute("UPDATE scan_config SET depth=?,threads=?,rate_limit=?,scan_timeout=?,nuclei_severity=?,skip_nmap=?,skip_nuclei=?,skip_active_crawl=?,categories_enabled_json=?,excluded_hosts_json=? WHERE scan_run_id=?", (
+    conn.execute("UPDATE scan_config SET depth=?,threads=?,rate_limit=?,scan_timeout=?,nuclei_severity=?,skip_nmap=?,skip_nuclei=?,skip_active_crawl=?,categories_enabled_json=?,excluded_hosts_json=?,options_json=? WHERE scan_run_id=?", (
         config.depth, config.threads, config.rate_limit, config.scan_timeout, config.nuclei_severity,
         config.skip_nmap, config.skip_nuclei, config.skip_active_crawl,
-        json.dumps(config.categories_enabled), json.dumps(config.excluded_hosts), scan_id))
+        json.dumps(config.categories_enabled), json.dumps(config.excluded_hosts), json.dumps(config.options()), scan_id))
     conn.execute("UPDATE scan_run SET depth=? WHERE id=?", (config.depth, scan_id))
 
 

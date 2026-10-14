@@ -62,7 +62,8 @@ def read_config(row):
         "depth", "threads", "rate_limit", "scan_timeout", "nuclei_severity",
         "skip_nmap", "skip_nuclei", "skip_active_crawl")},
         categories_enabled=json.loads(row["categories_enabled_json"]),
-        excluded_hosts=json.loads(row["excluded_hosts_json"]))
+        excluded_hosts=json.loads(row["excluded_hosts_json"]),
+        **json.loads(row["options_json"] or "{}"))
 
 
 def recon_env(settings, config, output, *, discovery=False, skip_historical=False):
@@ -72,7 +73,7 @@ def recon_env(settings, config, output, *, discovery=False, skip_historical=Fals
     env.update({
         "PATH": settings.tool_search_path(),
         "HOME": os.environ.get("HOME") or str(Path.home()),
-        "BBASM_SKIP_HISTORICAL": str(int(settings.BBASM_SKIP_HISTORICAL or skip_historical)),
+        "BBASM_SKIP_HISTORICAL": str(int(settings.BBASM_SKIP_HISTORICAL or skip_historical or config.skip_historical)),
         "BBASM_HISTORICAL_TIMEOUT": str(settings.BBASM_HISTORICAL_TIMEOUT),
         "BBASM_BBROOT": str(settings.BBASM_BBROOT), "BBASM_TOOLS_SUBDIR": settings.BBASM_TOOLS_SUBDIR,
         "RECON_OUT_DIR": str(output), "SECRETS_OUT_DIR": str(output),
@@ -84,7 +85,7 @@ def recon_env(settings, config, output, *, discovery=False, skip_historical=Fals
         "BBASM_SKIP_ACTIVE_CRAWL": str(int(passive or config.skip_active_crawl)),
         "BBASM_SKIP_NUCLEI": str(int(passive or config.skip_nuclei)),
         "BBASM_NUC_SEV": config.nuclei_severity,
-        "BBASM_SKIP_FFUF": str(int(config.depth != "strong")),
+        "BBASM_SKIP_FFUF": str(int(config.depth != "strong" or config.skip_ffuf)),
         "BBASM_SKIP_CICD": "1",  # No automatic org expansion from discovered links.
         "BBASM_NMAP_CONNECT": "1",  # Portable -sT, including WSL2/no raw capabilities.
     })

@@ -146,6 +146,10 @@ class BriefGenerator:
             audit_path.touch(exist_ok=True)
             scope = stats.get("resolved_scope", [])
             with self.database.connect() as conn:
+                options = conn.execute("SELECT options_json FROM scan_config WHERE scan_run_id=?", (scan["id"],)).fetchone()
+                choice = json.loads((options[0] if options else None) or "{}")  # the user's brief preferences for this scan
+                limit = int(choice.get("brief_budget_kb", 12)) * 1000
+                top_assets, top_urls = int(choice.get("brief_top_assets", 25)), int(choice.get("brief_top_urls", 12))
                 urls_ranked = [dict(r) for r in conn.execute(
                     "SELECT url,score,tags_json,verification,shape FROM url WHERE program_id=? AND last_seen_scan=? AND COALESCE(score,0)>=1 ORDER BY score DESC,url LIMIT 400",
                     (program["id"], scan["id"]))]
@@ -172,10 +176,10 @@ class BriefGenerator:
                              "## CÁCH LÀM VIỆC\nĐọc PROGRAM.md để biết policy; dữ liệu recon ở recon/scans/" + str(scan["id"]) + "/. Ghi chú vào notes/, findings/ và reports/. Không tự submit.\n"])
             # Preserve all section headings and full scope. Overflow fails explicitly
             # instead of silently omitting scope rules from an apparently complete brief.
-            if len("\n".join(sections).encode()) >= 12000:
-                raise ScopeError("Scope exceeds 12KB brief budget; narrow the program scope")
+            if len("\n".join(sections).encode()) >= limit:
+                raise ScopeError(f"Scope exceeds the {limit // 1000}KB brief budget; narrow the program scope or raise the budget")
             def append(index, line):
-                if len(("\n".join(sections) + line).encode()) < 12000:
+                if len(("\n".join(sections) + line).encode()) < limit:
                     sections[index] += line
                     return True
                 return False
@@ -192,7 +196,7 @@ class BriefGenerator:
                     append(signals, f"- Manual [{entry['category']}]: {clean(entry['pattern'])}; mobile: mobile-pentest.\n")
             for finding in findings[:20]:
                 append(signals, f"- {finding['severity']} {finding['type']}: {clean(finding['name'], 120)}\n")
-            for a in hosts[:25]:
+            for a in hosts[:top_assets]:
                 status = a['status_code'] or '-' if scan['depth'] != 'passive' else '-'
                 tech = tech_chips(a['tech_json']) if scan['depth'] != 'passive' else '-'
                 reasons = clean(", ".join(json.loads(a["rank_reasons_json"] or "[]")), 60) or "-"
@@ -204,13 +208,13 @@ class BriefGenerator:
                 append(endpoints, f"URL: {funnel.get('raw', 0)} từ tool → {funnel.get('in_scope', 0)} trong scope"
                                   f" ({funnel.get('out_of_scope', 0)} ngoài scope bị loại). Dữ liệu từ archive là LỊCH SỬ, chưa kiểm chứng.\n")
             seen_shapes = set()
-            for u in urls_ranked:
+            for u in (urls_ranked if top_urls else []):
                 if u["shape"] in seen_shapes:
                     continue  # one example per URL shape, so 4,000 near-identical pages cost one line
                 seen_shapes.add(u["shape"])
                 kind = "đã crawl" if u["verification"] == "observed" else "lịch sử"
                 append(endpoints, f"- [{u['score']:g}] {clean(u['url'], 160)} — {', '.join(json.loads(u['tags_json'] or '[]')) or 'trang'} · {kind}\n")
-                if len(seen_shapes) >= 12:
+                if len(seen_shapes) >= top_urls:
                     break
             if sections[endpoints].strip().count("\n") == 0:
                 append(endpoints, "Không có URL nổi bật; xem dashboard › Dữ liệu › URL.\n")

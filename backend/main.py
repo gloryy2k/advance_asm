@@ -14,6 +14,7 @@ from backend.api.scope import router as scope_router
 from backend.api.scans import router as scan_router
 from backend.api.brief import router as brief_router
 from backend.api.programs import router as program_router
+from backend.api.profiles import router as profile_router
 from backend.config import Settings
 from backend.db import Database
 from backend.jobs.scope_resolver import ScopeError, ScopeResolver
@@ -50,6 +51,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(scan_router)
     app.include_router(brief_router)
     app.include_router(program_router)
+    app.include_router(profile_router)
     if settings.BBASM_STATIC.is_dir():
         app.mount("/", StaticFiles(directory=settings.BBASM_STATIC, html=True), name="dashboard")
 

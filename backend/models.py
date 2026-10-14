@@ -1,5 +1,6 @@
 """API and scope types shared by resolve, review and later launch."""
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -38,6 +39,27 @@ class ScanConfig(BaseModel):
     skip_active_crawl: bool
     categories_enabled: list[Category]
     excluded_hosts: list[str] = Field(default_factory=list)
+    # ── v1.2 user options (all optional: a config saved by an older client stays valid) ──
+    skip_ffuf: bool = False            # strong only; ffuf never runs below strong
+    skip_historical: bool = False      # no gau/wayback/crt.sh queries at all
+    skip_takeover: bool = False
+    skip_secrets: bool = False         # do not download/scan JS bundles
+    max_js_files: int = Field(default=100, ge=0, le=100)
+    url_exclude_patterns: list[str] = Field(default_factory=list, max_length=100)
+    brief_budget_kb: int = Field(default=12, ge=4, le=12)
+    brief_top_assets: int = Field(default=25, ge=5, le=50)
+    brief_top_urls: int = Field(default=12, ge=0, le=30)
+
+    def options(self) -> dict:
+        return {name: getattr(self, name) for name in OPTION_FIELDS}
+
+    @field_validator("url_exclude_patterns")
+    @classmethod
+    def safe_patterns(cls, value):
+        for pattern in value:
+            if not pattern.startswith("/") or len(pattern) > 200 or not re.fullmatch(r"[A-Za-z0-9_\-./*?\[\]%~]+", pattern):
+                raise ValueError(f"Mẫu đường dẫn không hợp lệ: {pattern[:40]!r} (bắt đầu bằng /, chỉ gồm chữ, số, - _ . / * ?)")
+        return value
 
     @field_validator("nuclei_severity")
     @classmethod
@@ -45,6 +67,13 @@ class ScanConfig(BaseModel):
         if value and any(part not in {"info", "low", "medium", "high", "critical"} for part in value.split(",")):
             raise ValueError("Unknown nuclei severity")
         return value
+
+
+OPTION_FIELDS = ("skip_ffuf", "skip_historical", "skip_takeover", "skip_secrets", "max_js_files",
+                 "url_exclude_patterns", "brief_budget_kb", "brief_top_assets", "brief_top_urls")
+# What a profile (a saved preset) may contain: how to scan, never *what* (scope stays per scan).
+RECIPE_FIELDS = ("depth", "threads", "rate_limit", "scan_timeout", "nuclei_severity", "skip_nmap", "skip_nuclei",
+                 "skip_active_crawl", *OPTION_FIELDS)
 
 
 class LaunchRequest(BaseModel):

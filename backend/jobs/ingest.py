@@ -1,6 +1,7 @@
 """Idempotent ingestion of scoped framework output, including partial scans."""
 
 from collections import Counter
+import fnmatch
 import ipaddress
 import json
 import re
@@ -90,7 +91,8 @@ class Ingester:
     def ingest(self, plan):
         module = load_module(self.settings, "recon_adapter.py")
         assets, urls, findings = {}, {}, []
-        funnel = {"raw": 0, "in_scope": 0, "out_of_scope": 0, "invalid": 0}
+        funnel = {"raw": 0, "in_scope": 0, "out_of_scope": 0, "invalid": 0, "excluded_by_rule": 0}
+        patterns = [p.lower() for p in plan.config.url_exclude_patterns]
         outside = Counter()
         observed_urls, source_of = set(), {}
 
@@ -166,6 +168,9 @@ class Ingester:
                         source_of.setdefault(line, label)
             for url in set(canonical.urls + nested.get_urls()):
                 funnel["raw"] += 1
+                if patterns and any(fnmatch.fnmatch(urlsplit(url).path.lower() or "/", p) for p in patterns):
+                    funnel["excluded_by_rule"] += 1  # the user's own "do not test /internal"-style rule
+                    continue
                 if host := asset(url):
                     funnel["in_scope"] += 1
                     urls[url] = (host, source_of.get(url, "recon"))

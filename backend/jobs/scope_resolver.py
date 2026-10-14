@@ -207,14 +207,19 @@ class ScopeResolver:
                         (program_id, e.pattern, e.kind, e.asset_type) for e in entries
                     ])
                 config = default_config(self.settings, entries)
+                if existing is not None and existing["default_profile_id"]:
+                    saved = conn.execute("SELECT config_json FROM profile WHERE id=?", (existing["default_profile_id"],)).fetchone()
+                    if saved:
+                        from backend.profiles import apply_recipe
+                        config = apply_recipe(config, json.loads(saved[0]))  # scope selections stay the draft's own
                 scan_id = conn.execute("INSERT INTO scan_run(program_id,depth,status,trigger,stats_json) VALUES(?,?,'draft','manual',?)", (
                     program_id, config.depth, json.dumps({"resolved_scope": [e.model_dump() for e in entries], "warnings": warnings}),
                 )).lastrowid
                 conn.execute(
-                    "INSERT INTO scan_config(scan_run_id,depth,threads,rate_limit,scan_timeout,nuclei_severity,skip_nmap,skip_nuclei,skip_active_crawl,categories_enabled_json,excluded_hosts_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO scan_config(scan_run_id,depth,threads,rate_limit,scan_timeout,nuclei_severity,skip_nmap,skip_nuclei,skip_active_crawl,categories_enabled_json,excluded_hosts_json,options_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (scan_id, config.depth, config.threads, config.rate_limit, config.scan_timeout,
                      config.nuclei_severity, config.skip_nmap, config.skip_nuclei, config.skip_active_crawl,
-                     json.dumps(config.categories_enabled), json.dumps(config.excluded_hosts), now),
+                     json.dumps(config.categories_enabled), json.dumps(config.excluded_hosts), json.dumps(config.options()), now),
                 )
                 target_dir.mkdir(parents=True, exist_ok=True)
                 if existing is None:

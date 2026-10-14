@@ -31,12 +31,16 @@ class Monitors:
                            if urlsplit(u).scheme in {"http", "https"} and plan.gate.in_scope(u))
         root = plan.root / "monitors"
         commands = []
+        # User choices: skip a monitor entirely, or cap how many JS bundles get downloaded.
+        bundles = set(sorted(bundles)[:plan.config.max_js_files])
         for kind, filename, values, relative, flag, tools in (
             ("takeover", "takeover_scanner.sh", hosts, "subdomains/all.txt", "--recon", ("dnsreaper", "subjack")),
             ("secret", "secrets_hunter.sh", bundles, "urls/js_files.txt", "--js-bundle", ("trufflehog", "noseyparker")),
         ):
             script = self.settings.tool_path(filename)
             if not values or not script.is_file() or not self.available(*tools):
+                continue
+            if (kind == "takeover" and plan.config.skip_takeover) or (kind == "secret" and plan.config.skip_secrets):
                 continue
             inputs, output = root / "input", root / kind
             path = inputs / relative
