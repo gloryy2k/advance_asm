@@ -23,9 +23,12 @@ NODES = [
 ]
 
 
-def page_response(nodes=NODES, policy=POLICY, handle="acme", has_next=False, cursor=None):
-    return {"data": {"team": {"handle": handle, "name": "Acme", "policy": policy, "structured_scopes": {
-        "pageInfo": {"hasNextPage": has_next, "endCursor": cursor}, "edges": [{"node": n} for n in nodes]}}}}
+def page_response(nodes=NODES, policy=POLICY, handle="acme", has_next=False, cursor=None, totals=None):
+    team = {"handle": handle, "name": "Acme", "policy": policy, "structured_scopes": {
+        "pageInfo": {"hasNextPage": has_next, "endCursor": cursor}, "edges": [{"node": n} for n in nodes]}}
+    if totals is not None:  # the page's own "assets in scope" counters
+        team["assets_in"], team["assets_out"] = {"total_count": totals[0]}, {"total_count": totals[1]}
+    return {"data": {"team": team}}
 
 
 def dump(nodes=None):
@@ -120,7 +123,8 @@ def test_a_page_that_cannot_be_trusted_falls_back_to_the_dump(cfg, tmp_path, pag
     calls = []
     entries, policy, _ = resolve(cfg, make_handler(page=page, calls=calls), tmp_path)
     assert policy["policy_source"] == "public_dump" and policy["policy_text"] == ""
-    assert [c.url.host for c in calls] == ["hackerone.com", "raw.githubusercontent.com"]   # a redirect target is never contacted
+    expected = ["hackerone.com", "hackerone.com", "raw.githubusercontent.com"] if page == "changed" else ["hackerone.com", "raw.githubusercontent.com"]
+    assert [c.url.host for c in calls] == expected   # a redirect target is never contacted; GraphQL errors get one plain retry
     assert launch_gate("h1", policy)["allowed_depths"] == ["passive"]
 
 
@@ -261,3 +265,37 @@ def test_api_token_never_reaches_responses_logs_or_audit(cfg, caplog):
     assert "tok-SECRET-123" not in text and "tok-SECRET-123" not in caplog.text
     for audit in cfg.BBASM_TARGETS.rglob("audit.jsonl"):
         assert "tok-SECRET-123" not in audit.read_text()
+
+
+# ── completeness: the page's own totals prove we read everything ────────────────
+
+def test_counts_that_match_are_recorded_and_the_totals_are_asked_for(cfg, tmp_path):
+    asked = []
+
+    def handler(request):
+        asked.append(json.loads(request.content)["query"])
+        return httpx.Response(200, json=page_response(totals=(2, 1)))
+    _, policy, _ = resolve(cfg, handler, tmp_path)
+    assert "structured_scopes_search" in asked[0] and len(asked) == 1
+    assert policy["completeness"] == {"in": {"fetched": 2, "total": 2}, "out": {"fetched": 1, "total": 1}}
+    assert launch_gate("h1", policy)["allowed_depths"] == ["passive", "light", "strong"]
+
+
+def test_a_short_read_blocks_active_depths_and_says_how_short(cfg, tmp_path):
+    _, policy, _ = resolve(cfg, lambda r: httpx.Response(200, json=page_response(totals=(5, 1))), tmp_path)
+    gate = launch_gate("h1", policy)
+    assert gate["allowed_depths"] == ["passive"] and "asset chưa đọc đủ" in gate["missing"] and "IN 2/5" in gate["reasons"][0]
+
+
+def test_when_the_page_refuses_the_totals_fields_the_plain_query_is_used_and_nothing_is_claimed(cfg, tmp_path):
+    seen = []
+
+    def handler(request):
+        query = json.loads(request.content)["query"]
+        seen.append("assets_in" in query)
+        if "assets_in" in query:
+            return httpx.Response(200, json={"data": None, "errors": [{"message": "Field 'assets_in' doesn't exist"}]})
+        return httpx.Response(200, json=page_response())
+    _, policy, _ = resolve(cfg, handler, tmp_path)
+    assert seen == [True, False] and policy["policy_source"] == "public_page" and policy["completeness"] is None
+    assert launch_gate("h1", policy)["allowed_depths"] == ["passive", "light", "strong"]   # unknown totals do not block, they are just not claimed

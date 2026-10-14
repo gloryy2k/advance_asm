@@ -31,6 +31,11 @@ def launch_gate(source, policy):
     if any(u.get("kind") == "out" for u in classification.get("unclassified", [])):
         missing.append("OUT chưa phân loại")
         reasons.append("Có mục OUT không phân loại được nên không chắc phần nào bị loại trừ.")
+    short = [f"{label} {c['fetched']}/{c['total']}" for key, label in (("in", "IN"), ("out", "OUT"))
+             for c in [(policy.get("completeness") or {}).get(key)] if c and c["fetched"] < c["total"]]
+    if short:
+        missing.append("asset chưa đọc đủ")
+        reasons.append("Trang cho biết nhiều asset hơn số đã đọc (" + ", ".join(short) + "): có thể thiếu mục IN/OUT.")
     if not any(a.get("kind") == "in" and a.get("category") in AUTO_CATEGORIES for a in policy.get("assets", [])):
         missing.append("IN phân loại rõ")
         reasons.append("Không có asset IN nào được phân loại rõ (domain/wildcard/IP/CIDR) để quét tự động.")
@@ -56,10 +61,15 @@ def scope_trust(source, handle, policy):
     classification = policy.get("classification") or {}
     unclassified = classification.get("unclassified_count") or 0
     if origin == "public_page":
-        missing = ([] if has_text or user_text else ["policy"]) + ([f"{unclassified} asset chưa phân loại"] if unclassified else [])
+        counts = policy.get("completeness")
+        short = bool(counts) and any(counts[k]["fetched"] < counts[k]["total"] for k in ("in", "out"))
+        missing = ([] if has_text or user_text else ["policy"]) + ([f"{unclassified} asset chưa phân loại"] if unclassified else []) \
+            + (["asset chưa đọc đủ"] if short else [])
+        count_text = (f" Đối chiếu số lượng: IN {counts['in']['fetched']}/{counts['in']['total']}, OUT {counts['out']['fetched']}/{counts['out']['total']}."
+                      if counts else " Chưa đối chiếu được số lượng asset với trang.")
         return {"level": "public_page", "verified": False, "label": "Trang công khai HackerOne — chưa xác minh bằng API",
                 "detail": "Policy và scope có cấu trúc đọc (chỉ đọc, không cần token) từ trang program công khai"
-                          + (f" lúc {fetched}." if fetched else ".") + " Chưa đối chiếu bằng API nên vẫn cần bạn đọc trang chính thức.",
+                          + (f" lúc {fetched}." if fetched else ".") + count_text + " Chưa đối chiếu bằng API nên vẫn cần bạn đọc trang chính thức.",
                 "missing": missing, "source": origin, "fetched_at": fetched,
                 "checklist": ["Mở trang program chính thức và đọc policy (mục automation/scanner, rate limit).",
                               "So IN/OUT với danh sách bên dưới; asset 'Open Scope' không được tự hiểu là được quét mọi host."],

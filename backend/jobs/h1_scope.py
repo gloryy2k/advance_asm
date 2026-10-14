@@ -31,6 +31,11 @@ PAGE_QUERY = """query BbasmPolicyScope($handle: String!, $cursor: String) {
     }
   }
 }"""
+# Same query plus the page's own totals (the profile page shows them as "assets in scope"); used to prove we read everything.
+PAGE_QUERY_COUNTS = PAGE_QUERY.replace("    handle name policy\n", """    handle name policy
+    assets_in: structured_scopes_search(eligible_for_submission: true) { total_count }
+    assets_out: structured_scopes_search(eligible_for_submission: false) { total_count }
+""")
 # The public GraphQL endpoint answers browser-like clients; a bare library user agent may be refused.
 PAGE_USER_AGENT = "Mozilla/5.0 (compatible; BBASM-metadata-reader; read-only)"
 AUTO_CATEGORIES = {"web", "wildcard", "ip", "cidr"}  # what recon can actually target
@@ -56,20 +61,28 @@ class HackerOneScopeProvider:
                 chunks.append(chunk)
         return json.loads(b"".join(chunks))
 
-    def _public_page(self, client, gate, handle):
-        """Policy + structured scope of one public program, read without any credential."""
+    def _public_page(self, client, gate, handle, counts=True):
+        """Policy + structured scope of one public program, read without any credential.
+
+        With counts=True the page's own totals are requested too, so a short read is detected instead of trusted."""
         targets = {"in_scope": [], "out_of_scope": []}
-        name, policy, cursor = "", "", None
+        name, policy, cursor, totals = "", "", None, {}
         for _ in range(MAX_PAGE_REQUESTS):
             data = self._get(client, gate, PAGE_GRAPHQL_URL, method="POST", limit=MAX_PAGE_BYTES,
-                             json={"query": PAGE_QUERY, "variables": {"handle": handle, "cursor": cursor}},
+                             json={"query": PAGE_QUERY_COUNTS if counts else PAGE_QUERY, "variables": {"handle": handle, "cursor": cursor}},
                              headers={"Accept": "application/json", "Content-Type": "application/json", "User-Agent": PAGE_USER_AGENT})
+            if counts and isinstance(data, dict) and data.get("errors"):
+                raise ScopeError("Public page refused the totals fields", "public_page_fields")
             team = ((data or {}).get("data") or {}).get("team") if isinstance(data, dict) else None
             if (not isinstance(data, dict) or data.get("errors") or not isinstance(team, dict)
                     or str(team.get("handle", "")).lower() != handle):
                 raise ScopeError("Public page structure unexpected", "public_page_unexpected")
             name = team.get("name") if isinstance(team.get("name"), str) else name
             policy = team.get("policy") if isinstance(team.get("policy"), str) else policy
+            for key, alias in (("in", "assets_in"), ("out", "assets_out")):
+                total = (team.get(alias) or {}).get("total_count") if isinstance(team.get(alias), dict) else None
+                if isinstance(total, int) and not isinstance(total, bool) and total >= 0:
+                    totals[key] = total
             scopes = team.get("structured_scopes")
             if not isinstance(scopes, dict) or not isinstance(scopes.get("edges"), list):
                 raise ScopeError("Public page structure unexpected", "public_page_unexpected")
@@ -83,7 +96,10 @@ class HackerOneScopeProvider:
             if not info.get("hasNextPage"):
                 if not policy.strip() and not targets["in_scope"] and not targets["out_of_scope"]:
                     raise ScopeError("Public page returned neither policy nor scope", "public_page_unexpected")
-                return {"handle": handle, "name": name, "policy": policy, "targets": targets}
+                fetched = {"in": len(targets["in_scope"]), "out": len(targets["out_of_scope"])}
+                counts_info = ({k: {"fetched": fetched[k], "total": totals[k]} for k in ("in", "out")}
+                               if set(totals) == {"in", "out"} else None)
+                return {"handle": handle, "name": name, "policy": policy, "targets": targets, "_counts": counts_info}
             cursor = info.get("endCursor")
             if not isinstance(cursor, str):
                 raise ScopeError("Public page pagination malformed", "public_page_unexpected")
@@ -192,7 +208,13 @@ class HackerOneScopeProvider:
                     attempts.append({"source": "api", "ok": False, "reason": "Chưa cấu hình H1_USER/H1_TOKEN"})
                 if program is None:
                     try:
-                        program = self._public_page(client, gate, handle)
+                        try:
+                            program = self._public_page(client, gate, handle)
+                        except ScopeError as refused:
+                            if getattr(refused, "code", "") != "public_page_fields":
+                                raise
+                            # The totals fields were refused (schema drift): retry the plain query once.
+                            program = self._public_page(client, gate, handle, counts=False)
                         source = "public_page"
                         attempts.append({"source": "public_page", "ok": True})
                     except (httpx.HTTPError, ScopeError, ValueError, KeyError, TypeError) as exc:
@@ -206,6 +228,7 @@ class HackerOneScopeProvider:
                 raise
             # Do not expose tokens or remote response bodies in API errors.
             raise ScopeError("Scope metadata unavailable", "metadata_unavailable") from None
+        completeness = program.pop("_counts", None)
         entries, unclassified = self._entries(program)
         self.settings.BBASM_DATA.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="scope-", dir=self.settings.BBASM_DATA) as directory:
@@ -251,7 +274,7 @@ class HackerOneScopeProvider:
         # Stable top-level keys: consumers must not dig into the raw provider payload.
         return entries, {"program": program, "assets": [entry.model_dump() for entry in entries],
                          "policy_text": policy_text, "policy_source": source,
-                         "attempts": attempts,
+                         "attempts": attempts, "completeness": completeness,
                          "classification": {"classified": len(entries), "unclassified_count": len(unclassified),
                                             "unclassified": unclassified[:100]},
                          "fetched_at": utc_now()}, warnings

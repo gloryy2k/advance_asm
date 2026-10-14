@@ -210,6 +210,12 @@ export function Review({ id }: { id: string }) {
 
       <Panel id="preset-h" title="Mức quét" hint="Chọn một preset, một profile của bạn, hoặc chỉnh từng phần ở dưới. Preset chỉ là điểm xuất phát — mọi giá trị đều sửa được.">
         <PresetPicker value={config.depth} missing={missing} blocked={blockedDepths} onChange={choosePreset} />
+        {review.source === "h1" && !gateReason && (
+          <p className="muted" data-testid="gate-note">
+            Light/Strong mở khoá nghĩa là <strong>đủ dữ liệu để cấu hình</strong>, không phải policy đã cho phép quét tự động.
+            Việc đó do bạn quyết định sau khi đọc policy và tick xác nhận ở dưới.
+          </p>
+        )}
         <div className="profilebar">
           <label>Profile của tôi
             <select value={profiles?.custom.some((p) => String(p.id) === baseId) ? baseId : ""} onChange={(e) => { const p = profiles?.custom.find((x) => String(x.id) === e.target.value); if (p) chooseBase(p); }}>

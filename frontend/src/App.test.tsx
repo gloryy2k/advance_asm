@@ -175,13 +175,16 @@ describe("Review", () => {
     const page = baseReview({
       trust: { level: "public_page", verified: false, label: "Trang công khai HackerOne — chưa xác minh bằng API", detail: "Đọc chỉ-đọc.", missing: [], checklist: [], official_url: "https://hackerone.com/acme" },
       policy: { text: "Automated scanning allowed, 5 req/s.", source: "public_page", fetched_at: "2026-10-14T01:00:00Z", user_text: "",
-        attempts: [{ source: "api", ok: false, reason: "Chưa cấu hình H1_USER/H1_TOKEN" }, { source: "public_page", ok: true }] },
+        attempts: [{ source: "api", ok: false, reason: "Chưa cấu hình H1_USER/H1_TOKEN" }, { source: "public_page", ok: true }],
+        completeness: { in: { fetched: 19, total: 19 }, out: { fetched: 25, total: 25 } } },
       launch_gate: { allowed_depths: ["passive", "light", "strong"], missing: [], reasons: [] },
     });
     setup(page);
     expect(await screen.findByText(/Trang công khai HackerOne — chưa xác minh bằng API/, { selector: "strong" })).toBeInTheDocument();
     expect(screen.getByText(/Đã thử:/)).toHaveTextContent("Trang công khai ✓");
     expect(screen.queryByText(/Chưa đủ dữ liệu để chạy/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Đối chiếu số lượng asset")).toHaveTextContent("IN 19/19 · OUT 25/25 ✓");
+    expect(screen.getByTestId("gate-note")).toHaveTextContent("không phải policy đã cho phép quét tự động");
     expect(screen.getByRole("radio", { name: /Light/ })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Launch scan" })).toBeDisabled();  // still needs the ack
   });

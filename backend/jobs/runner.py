@@ -197,7 +197,7 @@ class JobRunner:
             "automation_ack": stats.get("automation_ack"),
             "policy": {"text": text if isinstance(text, str) else "", "source": policy.get("policy_source"),
                        "fetched_at": policy.get("fetched_at"), "user_text": policy.get("user_policy_text", ""),
-                       "attempts": policy.get("attempts", []), "classification": policy.get("classification") or {}},
+                       "attempts": policy.get("attempts", []), "completeness": policy.get("completeness"), "classification": policy.get("classification") or {}},
             "stats": {k: stats[k] for k in ("subs", "live", "urls", "findings", "observed", "diff") if k in stats},
         }
 

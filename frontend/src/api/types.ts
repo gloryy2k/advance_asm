@@ -183,6 +183,7 @@ export type ReviewData = {
     fetched_at: string | null;
     user_text: string;
     attempts?: SourceAttempt[];
+    completeness?: { in: { fetched: number; total: number }; out: { fetched: number; total: number } } | null;
     classification?: { classified?: number; unclassified_count?: number; unclassified?: Unclassified[] };
   };
   launch_gate?: LaunchGate;

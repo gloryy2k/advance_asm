@@ -54,6 +54,12 @@ export function PolicyPanel({ review }: { review: ReviewData }) {
           ))}
         </p>
       )}
+      {policy.completeness && (
+        <p className="muted" aria-label="Đối chiếu số lượng asset">
+          Đối chiếu số lượng với trang: IN {policy.completeness.in.fetched}/{policy.completeness.in.total} · OUT {policy.completeness.out.fetched}/{policy.completeness.out.total}
+          {policy.completeness.in.fetched >= policy.completeness.in.total && policy.completeness.out.fetched >= policy.completeness.out.total ? " ✓" : " ⚠ chưa đọc đủ"}
+        </p>
+      )}
       {gate && gate.allowed_depths.length < 3 && (
         <div className="warnbox" role="alert">
           <strong>Chưa đủ dữ liệu để chạy Light/Strong{gate.missing.length ? ` — thiếu: ${gate.missing.join(", ")}` : ""}.</strong>
