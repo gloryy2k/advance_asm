@@ -64,8 +64,17 @@ async def delete_draft(scan_id: int, request: Request):
 
 @router.post("/api/scans/{scan_id}/launch")
 async def launch(scan_id: int, body: LaunchRequest, request: Request):
-    await request.app.state.runner.submit(scan_id, body.config)
+    runner = request.app.state.runner
+    await runner.submit(scan_id, body.config)
+    if body.automation_ack:
+        await asyncio.to_thread(runner.record_ack, scan_id)
     return {"scan_id": scan_id, "status": "queued"}
+
+
+@router.get("/api/scans/{scan_id}/review")
+async def review(scan_id: int, request: Request):
+    """Everything the Review/Run pages need in one call: scope, policy, warnings, target path."""
+    return await asyncio.to_thread(request.app.state.runner.review, scan_id)
 
 
 @router.post("/api/scans/{scan_id}/cancel")

@@ -175,3 +175,38 @@ def test_pagination_totals_filters_and_summary(settings):
         assert len(summary["top_surface"]) == 5 and all(a["category"] != "cidr" for a in summary["top_surface"])
         portfolio = client.get("/api/programs").json()[0]
         assert portfolio["latest_scan"]["status"] == "done" and portfolio["finding_count"] == 4
+
+
+def test_review_payload_rescan_ack_and_program_name(settings):
+    with TestClient(create_app(settings)) as client:
+        made = client.post("/api/scope/resolve", json={
+            "input": "raw", "name": "My Target!", "scope": ["*.example.com", "app.example.com:8443"],
+            "scope_out": ["admin.example.com"], "policy_text": "Chỉ giờ hành chính"}).json()
+        assert made["slug"] == "my-target"  # human name wins over raw-<hash>; unsafe chars are slugged
+        review = client.get(f"/api/scans/{made['scan_id']}/review").json()
+        assert review["slug"] == made["slug"] and review["scan"]["status"] == "draft"
+        assert review["policy"]["user_text"] == "Chỉ giờ hành chính" and review["policy"]["text"] == ""
+        assert any("port" in w for w in review["warnings"])  # parse warnings survive navigation to Review
+        assert [e["pattern"] for e in review["scope"] if e["kind"] == "out"] == ["admin.example.com"]
+        assert review["target_path"].endswith(made["slug"])
+        config = client.get(f"/api/scans/{made['scan_id']}/config").json()
+        assert client.post(f"/api/scans/{made['scan_id']}/launch", json={"config": config, "automation_ack": True}).status_code == 200
+        after = client.get(f"/api/scans/{made['scan_id']}/review").json()
+        assert after["automation_ack"]  # recorded for audit
+        audit = (settings.BBASM_TARGETS / made["slug"] / "audit.jsonl").read_text()
+        assert "automation_ack_by_user" in audit
+        client.post(f"/api/scans/{made['scan_id']}/cancel")
+        again = client.post(f"/api/programs/{made['slug']}/rescan").json()
+        assert again["slug"] == made["slug"] and again["scan_id"] != made["scan_id"]
+        rescoped = client.get(f"/api/scans/{again['scan_id']}/review").json()["scope"]
+        assert {(e["pattern"], e["kind"]) for e in rescoped} == {
+            ("*.example.com", "in"), ("app.example.com", "in"), ("admin.example.com", "out")}
+
+
+def test_health_reports_h1_api_without_secret(settings):
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/api/health").json()["h1_api"] is False
+    configured = type(settings)(**{**settings.model_dump(), "H1_USER": "u", "H1_TOKEN": "tok-secret"}, _env_file=None)
+    with TestClient(create_app(configured)) as client:
+        response = client.get("/api/health")
+    assert response.json()["h1_api"] is True and "tok-secret" not in response.text

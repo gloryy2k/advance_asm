@@ -23,6 +23,7 @@ class ResolveRequest(BaseModel):
     scope: list[str] = Field(default_factory=list, max_length=10000)
     scope_out: list[str] = Field(default_factory=list, max_length=10000)
     policy_text: str = Field(default="", max_length=100000)  # user-pasted policy/instructions
+    name: str = Field(default="", max_length=100)  # optional human program name for raw scope (slug base)
 
 
 class ScanConfig(BaseModel):
@@ -49,6 +50,9 @@ class ScanConfig(BaseModel):
 class LaunchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     config: ScanConfig | None = None
+    # The user confirmed in Review that the program permits automated scanning. Recorded in the
+    # scan and the audit trail; the UI requires it for any depth above passive.
+    automation_ack: bool = False
 
 
 class ResolveResponse(BaseModel):

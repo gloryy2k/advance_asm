@@ -105,11 +105,13 @@ def findings(slug: str, request: Request, response: Response, type: Literal["nuc
              limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0)):
     database = request.app.state.database
     program = program_row(database, slug)
-    where, args = "program_id=? AND (? IS NULL OR type=?) AND (? IS NULL OR severity=?)", (program["id"], type, type, severity, severity)
-    order = "CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END,last_seen_scan DESC,id DESC"
+    where = "f.program_id=? AND (? IS NULL OR f.type=?) AND (? IS NULL OR f.severity=?)"
+    args = (program["id"], type, type, severity, severity)
+    order = "CASE f.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END,f.last_seen_scan DESC,f.id DESC"
+    source = "FROM finding f LEFT JOIN asset a ON a.id=f.asset_id WHERE " + where
     with database.connect() as conn:
-        response.headers["X-Total-Count"] = str(conn.execute("SELECT count(*) FROM finding WHERE " + where, args).fetchone()[0])
-        return [decoded(r) for r in conn.execute("SELECT * FROM finding WHERE " + where + " ORDER BY " + order + " LIMIT ? OFFSET ?", (*args, limit, offset))]
+        response.headers["X-Total-Count"] = str(conn.execute("SELECT count(*) " + source, args).fetchone()[0])
+        return [decoded(r) for r in conn.execute("SELECT f.*,a.host AS host " + source + " ORDER BY " + order + " LIMIT ? OFFSET ?", (*args, limit, offset))]
 
 
 @router.get("/{slug}/summary")
@@ -127,6 +129,7 @@ def summary(slug: str, request: Request):
         schedule = conn.execute("SELECT * FROM schedule WHERE program_id=?", (program["id"],)).fetchone()
         drafts = conn.execute("SELECT count(*) FROM scan_run WHERE program_id=? AND status='draft'", (program["id"],)).fetchone()[0]
     return {"slug": slug, "source": program["source"], "handle": program["handle"],
+            "target_path": str((request.app.state.settings.BBASM_TARGETS / slug).resolve()),
             "latest_scan": decoded(latest) if latest else None,
             "last_completed_scan": decoded(scan) if scan else None,
             "changes": {k: counts.get(k, 0) for k in ("new", "changed", "gone")},
@@ -152,3 +155,22 @@ async def schedule(slug: str, body: ScheduleRequest, request: Request):
     if config.depth != body.depth:
         raise ScopeError("depth must match config.depth")
     return state.scheduler.configure(program["id"], body.interval, config, body.enabled)
+
+
+@router.post("/{slug}/rescan")
+def rescan(slug: str, request: Request):
+    """New draft from the program's stored scope (H1: re-fetched), so Review can adjust it again."""
+    from backend.brief.generator import BriefGenerator
+    from backend.models import ResolveRequest
+    state = request.app.state
+    program = program_row(state.database, slug)
+    if program["source"] == "h1":
+        body = ResolveRequest(input="h1:" + program["handle"])
+    else:
+        with state.database.connect() as conn:
+            rules = [dict(r) for r in conn.execute("SELECT pattern,kind FROM scope_rule WHERE program_id=? ORDER BY id", (program["id"],))]
+        body = ResolveRequest(input="raw", name=slug, scope=[r["pattern"] for r in rules if r["kind"] == "in"],
+                              scope_out=[r["pattern"] for r in rules if r["kind"] == "out"])
+    result = state.scope_resolver.resolve(body)
+    BriefGenerator(state.settings, state.database).ensure_program(result.slug)
+    return {"scan_id": result.scan_id, "slug": result.slug}

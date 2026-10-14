@@ -28,6 +28,7 @@ class HealthResponse(BaseModel):
     ok: bool
     tools: dict[str, bool]
     missing_by_depth: dict[str, list[str]] = {}
+    h1_api: bool = False  # H1_USER/H1_TOKEN configured (never expose the values)
 
 
 def is_projectdiscovery_httpx(path: str) -> bool:
@@ -55,4 +56,5 @@ def health(request: Request) -> HealthResponse:
     tools = {name: tool_ready(name, settings.tool_search_path()) for name in EXECUTABLES}
     tools.update({name: settings.tool_path(name).is_file() for name in FRAMEWORK_FILES})
     missing = {depth: [t for t in needed if not tools.get(t)] for depth, needed in DEPTH_TOOLS.items()}
-    return HealthResponse(ok=True, tools=tools, missing_by_depth=missing)
+    h1 = bool(settings.H1_USER.get_secret_value() and settings.H1_TOKEN.get_secret_value())
+    return HealthResponse(ok=True, tools=tools, missing_by_depth=missing, h1_api=h1)

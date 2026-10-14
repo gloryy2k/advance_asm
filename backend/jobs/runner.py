@@ -160,6 +160,36 @@ class JobRunner:
         conn.executemany("INSERT INTO scope_rule(program_id,pattern,kind,asset_type) VALUES(?,?,?,?)",
                          [(row["program_id"], e["pattern"], e["kind"], e["asset_type"]) for e in entries])
 
+    def record_ack(self, scan_id):
+        with self.database.connect() as conn, conn:
+            row = conn.execute("SELECT s.stats_json,p.slug FROM scan_run s JOIN program p ON p.id=s.program_id WHERE s.id=?", (scan_id,)).fetchone()
+            stats = json.loads(row["stats_json"] or "{}")
+            stats["automation_ack"] = utc_now()
+            conn.execute("UPDATE scan_run SET stats_json=? WHERE id=?", (json.dumps(stats), scan_id))
+        audit(self.settings.BBASM_TARGETS / row["slug"] / "audit.jsonl", row["slug"], "ack", "automation_ack_by_user", scan_id=scan_id)
+
+    def review(self, scan_id):
+        if not self.database.path.exists():
+            raise ScopeError("Scan not found", "scan_not_found")
+        with self.database.connect() as conn:
+            scan = conn.execute("SELECT * FROM scan_run WHERE id=?", (scan_id,)).fetchone()
+            if scan is None:
+                raise ScopeError("Scan not found", "scan_not_found")
+            program = conn.execute("SELECT * FROM program WHERE id=?", (scan["program_id"],)).fetchone()
+        stats = json.loads(scan["stats_json"] or "{}")
+        policy = json.loads(program["policy_json"] or "{}")
+        text = policy.get("policy_text") or (policy.get("program") or {}).get("policy") or policy.get("policy") or ""
+        return {
+            "scan": {key: scan[key] for key in ("id", "depth", "status", "trigger", "started_at", "finished_at", "error")},
+            "slug": program["slug"], "source": program["source"], "handle": program["handle"],
+            "target_path": str((self.settings.BBASM_TARGETS / program["slug"]).resolve()),
+            "scope": stats.get("resolved_scope", []), "warnings": stats.get("warnings", []),
+            "automation_ack": stats.get("automation_ack"),
+            "policy": {"text": text if isinstance(text, str) else "", "source": policy.get("policy_source"),
+                       "fetched_at": policy.get("fetched_at"), "user_text": policy.get("user_policy_text", "")},
+            "stats": {k: stats[k] for k in ("subs", "live", "urls", "findings", "observed", "diff") if k in stats},
+        }
+
     def drafts(self):
         if not self.database.path.exists():
             return []
