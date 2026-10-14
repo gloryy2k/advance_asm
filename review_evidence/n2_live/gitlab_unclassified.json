@@ -1,0 +1,648 @@
+{
+  "source_commit": "aae0cbe",
+  "note": "Only public asset metadata from local Review. Policy body excluded. Recognized patterns are normalized by BBASM; unclassified identifiers are verbatim (all < 200 chars).",
+  "h1_request_budget": {
+    "limit": 4,
+    "used": 4,
+    "breakdown": [
+      "gitlab resolve",
+      "gitlab response-length probe",
+      "shopify resolve",
+      "uber resolve"
+    ]
+  },
+  "gitlab_graphql_measurement": {
+    "http_status": 200,
+    "graphql_errors": 0,
+    "response_characters": 35876,
+    "response_bytes": 35883,
+    "policy_characters_raw": 26068,
+    "policy_characters_stripped": 26066,
+    "scope_edges": 44,
+    "in_total": 19,
+    "out_total": 25
+  },
+  "programs": {
+    "gitlab": {
+      "scan_id": 23,
+      "policy_source": "public_page",
+      "completeness": {
+        "in": {
+          "fetched": 19,
+          "total": 19
+        },
+        "out": {
+          "fetched": 25,
+          "total": 25
+        }
+      },
+      "classified_count": 32,
+      "unclassified_count": 12,
+      "unclassified": [
+        {
+          "identifier": "https://gitlab.com/gitlab-org/gitlab",
+          "kind": "in",
+          "asset_type": "SOURCE_CODE",
+          "reason": "Định dạng không nhận diện được"
+        },
+        {
+          "identifier": "https://gitlab.com/gitlab-org/gitlab-runner",
+          "kind": "in",
+          "asset_type": "SOURCE_CODE",
+          "reason": "Định dạng không nhận diện được"
+        },
+        {
+          "identifier": "https://gitlab.com/gitlab-org/gitaly",
+          "kind": "in",
+          "asset_type": "SOURCE_CODE",
+          "reason": "Định dạng không nhận diện được"
+        },
+        {
+          "identifier": "https://gitlab.com/gitlab-org/gitlab-pages",
+          "kind": "in",
+          "asset_type": "SOURCE_CODE",
+          "reason": "Định dạng không nhận diện được"
+        },
+        {
+          "identifier": "https://gitlab.com/gitlab-org/gitlab-shell",
+          "kind": "in",
+          "asset_type": "SOURCE_CODE",
+          "reason": "Định dạng không nhận diện được"
+        },
+        {
+          "identifier": "https://gitlab.com/gitlab-org/gitlab-vscode-extension",
+          "kind": "in",
+          "asset_type": "SOURCE_CODE",
+          "reason": "Định dạng không nhận diện được"
+        },
+        {
+          "identifier": "Your Own GitLab Instance",
+          "kind": "in",
+          "asset_type": "OTHER",
+          "reason": "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+        },
+        {
+          "identifier": "Other non-production infrastructure",
+          "kind": "in",
+          "asset_type": "OTHER",
+          "reason": "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+        },
+        {
+          "identifier": "GitLab for Jira Cloud",
+          "kind": "in",
+          "asset_type": "OTHER",
+          "reason": "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+        },
+        {
+          "identifier": "https://gitlab.com/gitlab-org/cli/",
+          "kind": "out",
+          "asset_type": "SOURCE_CODE",
+          "reason": "Định dạng không nhận diện được"
+        },
+        {
+          "identifier": "https://gitlab.com/gitlab-org/opstrace/opstrace-ui",
+          "kind": "out",
+          "asset_type": "SOURCE_CODE",
+          "reason": "Định dạng không nhận diện được"
+        },
+        {
+          "identifier": "https://gitlab.com/gitlab-org/opstrace/opstrace",
+          "kind": "out",
+          "asset_type": "SOURCE_CODE",
+          "reason": "Định dạng không nhận diện được"
+        }
+      ],
+      "recognized_patterns_by_asset_type": {
+        "URL": [
+          {
+            "identifier": "customers.gitlab.com",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "registry.gitlab.com",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "gitlab.com",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "about.gitlab.com",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "docs.gitlab.com",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "design.gitlab.com",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "advisories.gitlab.com",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "dashboards.gitlab.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "alerts.gitlab.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "support.gitlab.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "shop.gitlab.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "forum.gitlab.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "status.gitlab.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "partners.gitlab.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "aptly.gitlab.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "translate.gitlab.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "federal-support.gitlab.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "us-federal-gitlab.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "ir.gitlab.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "levelup.gitlab.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "gitlab.biterg.io",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "gitlabsandbox.net",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "gitlabdemo.cloud",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "gitlabtraining.cloud",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "packages.gitlab.com",
+            "kind": "out",
+            "category": "web"
+          }
+        ],
+        "WILDCARD": [
+          {
+            "identifier": "*.gitlab.net",
+            "kind": "in",
+            "category": "wildcard"
+          },
+          {
+            "identifier": "*.gitlab.org",
+            "kind": "in",
+            "category": "wildcard"
+          },
+          {
+            "identifier": "*.gitlap.com",
+            "kind": "in",
+            "category": "wildcard"
+          },
+          {
+            "identifier": "*.gitlab.cn",
+            "kind": "out",
+            "category": "wildcard"
+          },
+          {
+            "identifier": "*.runway.gitlab.net",
+            "kind": "out",
+            "category": "wildcard"
+          },
+          {
+            "identifier": "*.gitlab-private.org",
+            "kind": "out",
+            "category": "wildcard"
+          },
+          {
+            "identifier": "*.service-now.com",
+            "kind": "out",
+            "category": "wildcard"
+          }
+        ]
+      },
+      "launch_gate": {
+        "allowed_depths": [
+          "passive"
+        ],
+        "reasons": [
+          "Có mục OUT không phân loại được nên không chắc phần nào bị loại trừ."
+        ],
+        "missing": [
+          "OUT chưa phân loại"
+        ]
+      },
+      "policy_characters_provider": 26066
+    },
+    "shopify": {
+      "scan_id": 24,
+      "policy_source": "public_page",
+      "completeness": {
+        "in": {
+          "fetched": 21,
+          "total": 21
+        },
+        "out": {
+          "fetched": 9,
+          "total": 9
+        }
+      },
+      "classified_count": 22,
+      "unclassified_count": 8,
+      "unclassified": [
+        {
+          "identifier": "https://github.com/Shopify/*",
+          "kind": "in",
+          "asset_type": "SOURCE_CODE",
+          "reason": "Định dạng không nhận diện được"
+        },
+        {
+          "identifier": "Shopify Mobile Applications",
+          "kind": "in",
+          "asset_type": "OTHER",
+          "reason": "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+        },
+        {
+          "identifier": "Authentication & ATO",
+          "kind": "in",
+          "asset_type": "OTHER",
+          "reason": "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+        },
+        {
+          "identifier": "Shopify Developed Apps",
+          "kind": "in",
+          "asset_type": "OTHER",
+          "reason": "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+        },
+        {
+          "identifier": "Shopify Third Party Apps",
+          "kind": "in",
+          "asset_type": "OTHER",
+          "reason": "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+        },
+        {
+          "identifier": "Shopify Third Party Store",
+          "kind": "in",
+          "asset_type": "OTHER",
+          "reason": "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+        },
+        {
+          "identifier": "Other",
+          "kind": "out",
+          "asset_type": "OTHER",
+          "reason": "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+        },
+        {
+          "identifier": "supplier-portal.shopifycloud.com",
+          "kind": "out",
+          "asset_type": "OTHER",
+          "reason": "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+        }
+      ],
+      "recognized_patterns_by_asset_type": {
+        "URL": [
+          {
+            "identifier": "your-store.myshopify.com",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "partners.shopify.com",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "accounts.shopify.com",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "shop.app",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "shopify.plus",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "arrive-server.shopifycloud.com",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "admin.shopify.com",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "linkpop.com",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "shopifyinbox.com",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "cdn.shopify.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "livechat.shopify.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "community.shopify.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "community.shopify.dev",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "investors.shopify.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "academy.shopify.com",
+            "kind": "out",
+            "category": "web"
+          }
+        ],
+        "WILDCARD": [
+          {
+            "identifier": "*.shopifycs.com",
+            "kind": "in",
+            "category": "wildcard"
+          },
+          {
+            "identifier": "*.pci.shopifyinc.com",
+            "kind": "in",
+            "category": "wildcard"
+          },
+          {
+            "identifier": "*.shopify.io",
+            "kind": "in",
+            "category": "wildcard"
+          },
+          {
+            "identifier": "*.shopify.com",
+            "kind": "in",
+            "category": "wildcard"
+          },
+          {
+            "identifier": "*.shopifykloud.com",
+            "kind": "in",
+            "category": "wildcard"
+          },
+          {
+            "identifier": "*.shopifycloud.com",
+            "kind": "in",
+            "category": "wildcard"
+          },
+          {
+            "identifier": "*.email.shopify.com",
+            "kind": "out",
+            "category": "wildcard"
+          }
+        ]
+      },
+      "launch_gate": {
+        "allowed_depths": [
+          "passive"
+        ],
+        "reasons": [
+          "Có mục OUT không phân loại được nên không chắc phần nào bị loại trừ."
+        ],
+        "missing": [
+          "OUT chưa phân loại"
+        ]
+      }
+    },
+    "uber": {
+      "scan_id": 25,
+      "policy_source": "public_page",
+      "completeness": {
+        "in": {
+          "fetched": 4,
+          "total": 4
+        },
+        "out": {
+          "fetched": 20,
+          "total": 20
+        }
+      },
+      "classified_count": 17,
+      "unclassified_count": 7,
+      "unclassified": [
+        {
+          "identifier": "Recon Data",
+          "kind": "in",
+          "asset_type": "OTHER",
+          "reason": "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+        },
+        {
+          "identifier": "*.uberinternal.com",
+          "kind": "in",
+          "asset_type": "OTHER",
+          "reason": "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+        },
+        {
+          "identifier": "*ubereats.com",
+          "kind": "in",
+          "asset_type": "OTHER",
+          "reason": "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+        },
+        {
+          "identifier": "*scaledsolutions.uber.com",
+          "kind": "out",
+          "asset_type": "WILDCARD",
+          "reason": "Định dạng không nhận diện được"
+        },
+        {
+          "identifier": "scaledsolutions*.uber.com",
+          "kind": "out",
+          "asset_type": "WILDCARD",
+          "reason": "Định dạng không nhận diện được"
+        },
+        {
+          "identifier": "Fraud Reports",
+          "kind": "out",
+          "asset_type": "OTHER",
+          "reason": "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+        },
+        {
+          "identifier": "*.ubercarshare.com",
+          "kind": "out",
+          "asset_type": "OTHER",
+          "reason": "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+        }
+      ],
+      "recognized_patterns_by_asset_type": {
+        "URL": [
+          {
+            "identifier": "uber.com",
+            "kind": "in",
+            "category": "web"
+          },
+          {
+            "identifier": "*.uberscoot.us",
+            "kind": "out",
+            "category": "wildcard"
+          },
+          {
+            "identifier": "*.ubertransit.io",
+            "kind": "out",
+            "category": "wildcard"
+          },
+          {
+            "identifier": "merchants.ubereats.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "bizblog.uber.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "et.uber.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "newsroom.uber.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "eng.uber.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "people.uber.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "love.uber.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "drive.uber.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "uber.onelogin.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "uber.com.cn",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "https://assets.uber.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "https://brand.uber.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "central-beta.uber.com",
+            "kind": "out",
+            "category": "web"
+          },
+          {
+            "identifier": "adsacademy.uber.com",
+            "kind": "out",
+            "category": "web"
+          }
+        ]
+      },
+      "launch_gate": {
+        "allowed_depths": [
+          "passive"
+        ],
+        "reasons": [
+          "Có mục OUT không phân loại được nên không chắc phần nào bị loại trừ."
+        ],
+        "missing": [
+          "OUT chưa phân loại"
+        ]
+      }
+    }
+  }
+}
