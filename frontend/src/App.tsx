@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { NewScan } from "./pages/NewScan";
 import { Portfolio } from "./pages/Portfolio";
 import { Program } from "./pages/Program";
+import { Help } from "./pages/Help";
+import { Profiles } from "./pages/Profiles";
 import { Review } from "./pages/Review";
 import { Run } from "./pages/Run";
 import { parseRoute, useHashPath } from "./lib/router";
 
-export { NewScan, Portfolio, Program, Review, Run };
+export { Help, NewScan, Portfolio, Profiles, Program, Review, Run };
 
 export function App() {
   const path = useHashPath();
@@ -34,8 +36,10 @@ export function App() {
           ◈ BBASM<span>Attack surface workspace</span>
         </a>
         <nav aria-label="Chính">
-          <a href="#/" aria-current={route.page === "portfolio" ? "page" : undefined}>▦ Portfolio</a>
+          <a href="#/" aria-current={route.page === "portfolio" ? "page" : undefined}>▦ Danh mục</a>
           <a href="#/new" aria-current={route.page === "new" ? "page" : undefined}>＋ Thêm program</a>
+          <a href="#/profiles" aria-current={route.page === "profiles" ? "page" : undefined}>⚙ Profile quét</a>
+          <a href="#/help" aria-current={route.page === "help" ? "page" : undefined}>? Chức năng &amp; kết quả</a>
         </nav>
         <div className="sidebar-bottom">
           <p>
@@ -55,8 +59,12 @@ export function App() {
           <Review key={path} id={route.id} />
         ) : route.page === "run" ? (
           <Run key={path} id={route.id} />
+        ) : route.page === "help" ? (
+          <Help />
+        ) : route.page === "profiles" ? (
+          <Profiles />
         ) : route.page === "program" ? (
-          <Program key={route.slug} slug={route.slug} tab={route.tab} />
+          <Program key={route.slug} slug={route.slug} tab={route.tab} view={route.view} />
         ) : (
           <Portfolio />
         )}

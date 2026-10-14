@@ -28,5 +28,8 @@ def handler(req):
         return httpx.Response(200, json={"data":[{"attributes":{"asset_identifier":a,"asset_type":t,"eligible_for_submission":e,"instruction":i}} for a,t,e,i in scopes],"links":{}})
     return httpx.Response(200, json={"data":{"attributes":{"handle":"acme","name":"Acme","policy":"## Acme policy\nNo DoS. No social engineering. Automated scanning limited to 5 req/s. Report via HackerOne only."}}})
 app = create_app(settings)
+if os.environ.get("SEED_DEMO", "1") == "1" and not os.path.exists(f"{S}/h1run/data/bbasm.db"):
+    from review_tools.seed_demo import seed
+    seed(settings, app.state.database)
 app.state.scope_resolver = ScopeResolver(settings, app.state.database, HackerOneScopeProvider(settings, transport=httpx.MockTransport(handler)))
 uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("MOCK_PORT", "18766")), access_log=False, log_level="warning")

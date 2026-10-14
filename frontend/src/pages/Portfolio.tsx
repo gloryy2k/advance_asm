@@ -41,12 +41,13 @@ export function Portfolio() {
       <div className="pagehead">
         <div>
           <p className="eyebrow">ATTACK SURFACE MANAGEMENT</p>
-          <h1>Portfolio</h1>
+          <h1>Danh mục</h1>
           <p>Theo dõi thay đổi của các program. Bắt đầu từ đúng scope.</p>
         </div>
         <a className="button" href="#/new">+ Thêm program</a>
       </div>
       <ErrorBox text={error} />
+      {health.data?.runtime && !health.data.runtime.recon_supported && <p className="warnbox">⚠ {health.data.runtime.reason}</p>}
       {(drafts.data?.length || 0) > 0 && (
         <section className="card" aria-labelledby="drafts-h">
           <h2 id="drafts-h">Bản nháp chờ review ({drafts.data!.length})</h2>

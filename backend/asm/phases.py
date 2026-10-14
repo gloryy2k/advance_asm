@@ -79,9 +79,14 @@ def disabled_reason(config, key, *, historical_off=False):
     return None
 
 
+SKIP_FLAGS = ("skip_nmap", "skip_nuclei", "skip_active_crawl", "skip_ffuf", "skip_historical", "skip_takeover", "skip_secrets")
+
+
 def plan_for(config, settings, missing_tools):
     """What a scan with this config WILL do, step by step — shown in Review before anything runs."""
     missing = set(missing_tools)
+    # "forced" = off because of the depth itself; flipping the user's switch could not turn it on.
+    neutral = config.model_copy(update={flag: False for flag in SKIP_FLAGS})
     out = []
     for phase in PHASES:
         reason = disabled_reason(config, phase["key"], historical_off=settings.BBASM_SKIP_HISTORICAL)
@@ -93,7 +98,8 @@ def plan_for(config, settings, missing_tools):
         else:
             status = "on"
         out.append({"key": phase["key"], "title": phase["title"], "what": phase["what"], "touches": phase["touches"],
-                    "status": status, "reason": reason, "view": phase["view"]})
+                    "status": status, "reason": reason, "view": phase["view"],
+                    "forced": disabled_reason(neutral, phase["key"], historical_off=settings.BBASM_SKIP_HISTORICAL) is not None})
     return out
 
 
@@ -162,7 +168,7 @@ def build_report(settings, database, scan_id, tools_missing=None):
         if reason and not any((f["lines"] or 0) for f in mine):
             status, label = "skipped", "Bỏ qua"
         elif mine and any((f["lines"] or 0) for f in mine):
-            status, label = "ran", "Đã chạy"
+            status, label, reason = "ran", "Đã chạy", None
         elif mine:
             status, label, reason = "empty", "Chạy — 0 kết quả", "Có chạy nhưng không tìm thấy gì (không có nghĩa là an toàn)."
         elif phase["tools"] and len(tools_out) == len(phase["tools"]):

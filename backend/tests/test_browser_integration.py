@@ -26,7 +26,7 @@ def test_browser_resolve_review_launch_to_brief():
             sync_api.expect(page.get_by_role("status", name="Scan status")).to_have_text("hoàn tất", timeout=360000)
             page.goto(base + "/#/")
             page.get_by_role("heading", name=target, exact=True).click()
-            page.get_by_role("tab", name="Brief", exact=True).click()
+            page.get_by_role("tab", name="Hướng dẫn & scope", exact=True).click()
             sync_api.expect(page.get_by_label("AGENT_BRIEF.md")).to_contain_text("# AGENT BRIEF")
         finally:
             browser.close()

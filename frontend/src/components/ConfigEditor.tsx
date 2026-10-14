@@ -50,6 +50,7 @@ export function ConfigEditor({
   const diff = changedFields(config, base);
   const severities = new Set(config.nuclei_severity.split(",").filter(Boolean));
   const [patterns, setPatterns] = useState(config.url_exclude_patterns.join("\n"));
+  const forcedOff = new Set((plan || []).filter((p) => p.forced).map((p) => p.key));
   const rows: StepRow[] = (plan || []).map((p) => ({
     key: p.key, title: p.title, what: p.what, touches: p.touches, status: p.status,
     statusLabel: STATUS_LABEL[p.status], reason: p.reason, outputLabel: p.view.label,
@@ -72,7 +73,7 @@ export function ConfigEditor({
             toggle={(r) => {
               const field = CONTROL[r.key];
               if (!field) return <span className="step-fixed" aria-hidden="true">●</span>;
-              const forced = r.status === "off" && !config[field];  // off because of the depth, not the user
+              const forced = forcedOff.has(r.key);  // off because of the depth itself, not the user's switch
               return (
                 <input
                   type="checkbox"

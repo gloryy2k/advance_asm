@@ -53,6 +53,7 @@ export type PlanPhase = {
   touches: boolean;
   status: "on" | "off" | "missing_tool";
   reason: string | null;
+  forced?: boolean;
   view: { kind: string; label: string; filter?: Record<string, string> };
 };
 
@@ -227,6 +228,8 @@ export type Summary = {
   target_path: string;
   hunt_command: string;
   hunt_note: string;
+  trust?: Trust;
+  default_profile_id?: number | null;
   latest_scan: ScanRow | null;
   last_completed_scan: ScanRow | null;
   changes: { new: number; changed: number; gone: number };

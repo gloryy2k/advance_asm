@@ -13,7 +13,7 @@ import { explain } from "../lib/errors";
 import { TERMINAL, durationLabel } from "../lib/format";
 import { dataLink, go, programPath } from "../lib/router";
 
-function Elapsed({ since, running }: { since?: string | null; running: boolean }) {
+function Elapsed({ since, until, running }: { since?: string | null; until?: string | null; running: boolean }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     if (!running) return;
@@ -21,7 +21,8 @@ function Elapsed({ since, running }: { since?: string | null; running: boolean }
     return () => clearInterval(timer);
   }, [running]);
   if (!since) return null;
-  return <span className="muted">Đã chạy {durationLabel(Math.max(0, (now - new Date(since).getTime()) / 1000))}</span>;
+  const end = until ? new Date(until).getTime() : now;  // a finished scan shows how long it took, not time since
+  return <span className="muted">{until ? "Mất" : "Đã chạy"} {durationLabel(Math.max(0, (end - new Date(since).getTime()) / 1000))}</span>;
 }
 
 export function Run({ id }: { id: string }) {
@@ -69,7 +70,7 @@ export function Run({ id }: { id: string }) {
       <div className="statusrow">
         <span role="status" aria-label="Scan status"><StatusBadge status={status} /></span>
         {status === "draft" && <a href={"#/scan/" + id + "/review"}>Quay lại Xem lại →</a>}
-        <Elapsed since={state.data?.started_at} running={status === "running"} />
+        <Elapsed since={state.data?.started_at} until={finished ? state.data?.finished_at : null} running={status === "running"} />
         {running && (confirming ? (
           <>
             <button className="danger" onClick={cancel}>Xác nhận huỷ scan</button>
@@ -109,7 +110,7 @@ export function Run({ id }: { id: string }) {
                 const hasFiles = phase.files.some((f) => (f.lines ?? 1) > 0);
                 return (
                   <span className="step-actions">
-                    {phase.view.kind !== "file" && r.status !== "skipped" && r.status !== "missing_tool" && (
+                    {phase.view.kind !== "file" && (r.status === "ran" || r.status === "empty") && (
                       <a className="button small" href={dataLink(slug, phase.view)}>{phase.view.label} →</a>
                     )}
                     {hasFiles && (

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
 import { RECIPE_FIELDS, type Config, type Depth, type Health, type PlanPhase, type Profile, type Recipe, type ReviewData, type ScopeEntry } from "../api/types";
 import { ConfigEditor } from "../components/ConfigEditor";
-import { PageHead, Panel, TrustBadge } from "../components/layout";
+import { PageHead, Panel } from "../components/layout";
 import { PolicyPanel } from "../components/PolicyPanel";
 import { PresetPicker } from "../components/PresetPicker";
 import { Badge, ErrorBox, Loading } from "../components/ui";
@@ -48,7 +48,7 @@ export function Review({ id }: { id: string }) {
   useEffect(() => {
     let live = true;
     api<Config>("/api/scans/" + id + "/config").then((c) => live && setConfig(c)).catch((e) => live && setError(explain(e)));
-    api<{ builtin: Profile[]; custom: Profile[] }>("/api/profiles").then((p) => live && setProfiles(p)).catch(() => undefined);
+    api<{ builtin?: Profile[]; custom?: Profile[] }>("/api/profiles").then((p) => live && setProfiles({ builtin: p.builtin || [], custom: p.custom || [] })).catch(() => undefined);
     return () => { live = false; };
   }, [id]);
   useEffect(() => {
@@ -62,7 +62,7 @@ export function Review({ id }: { id: string }) {
     let live = true;
     const t = setTimeout(() => {
       api<{ phases: PlanPhase[] }>("/api/meta/plan", { method: "POST", body: planKey })
-        .then((r) => live && setPlan(r.phases))
+        .then((r) => live && setPlan(r.phases || null))
         .catch(() => undefined);
     }, 200);
     return () => { live = false; clearTimeout(t); };
@@ -111,7 +111,7 @@ export function Review({ id }: { id: string }) {
     try {
       const made = await api<Profile>("/api/profiles", { method: "POST", body: JSON.stringify({ name: newName.trim(), based_on: config!.depth, config: recipeOf(config!) }) });
       if (asDefault) await api("/api/programs/" + encodeURIComponent(review.slug) + "/default-profile", { method: "PUT", body: JSON.stringify({ profile_id: made.id }) });
-      setProfiles(await api("/api/profiles"));
+      { const p = await api<{ builtin?: Profile[]; custom?: Profile[] }>("/api/profiles"); setProfiles({ builtin: p.builtin || [], custom: p.custom || [] }); }
       setBaseId(String(made.id));
       setSaving(false);
       setNewName("");
@@ -144,7 +144,6 @@ export function Review({ id }: { id: string }) {
         sub="Chưa có gì được quét. Kiểm tra độ tin cậy của scope và policy, chọn mức quét, rồi mới bắt đầu."
       />
       <ErrorBox text={error} />
-      <TrustBadge trust={review.trust} />
       {review.warnings.map((w) => <p className="warnbox" key={w}>⚠ {w}</p>)}
 
       <PolicyPanel review={review} />

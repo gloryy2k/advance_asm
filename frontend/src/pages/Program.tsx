@@ -1,34 +1,30 @@
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { api, apiPage } from "../api/client";
-import type { Asset, Depth, Summary } from "../api/types";
+import type { Asset, Depth, Profile, Summary, Trust, UrlSummary } from "../api/types";
 import { HuntCard } from "../components/HuntCard";
+import { Chip, PageHead, Panel, Segmented, TrustBadge } from "../components/layout";
+import { UrlExplorer } from "../components/UrlExplorer";
 import { Badge, CopyButton, EmptyState, ErrorBox, Loading, Pager, SeverityBadge, State, StatusBadge } from "../components/ui";
 import { useData } from "../hooks/useData";
 import { explain } from "../lib/errors";
-import { go, programPath, TABS } from "../lib/router";
-import { PRESETS } from "../lib/presets";
 import { when } from "../lib/format";
+import { PRESETS } from "../lib/presets";
+import { TABS, go, programPath, routeParams } from "../lib/router";
 
 const TAB_LABEL: Record<string, string> = {
-  overview: "Overview",
-  surface: "Surface",
-  assets: "Assets",
-  diff: "Diff",
-  findings: "Findings",
-  brief: "Brief",
-  program: "Program",
+  overview: "Tổng quan", data: "Dữ liệu", findings: "Phát hiện", history: "Lịch sử", guide: "Hướng dẫn & scope",
+};
+const TAB_HINT: Record<string, string> = {
+  overview: "Kết quả chính và việc nên làm tiếp.",
+  data: "Host, URL và xếp hạng bề mặt tấn công thu được từ các scan.",
+  findings: "Lỗi/dấu hiệu do nuclei, takeover và quét bí mật tìm thấy.",
+  history: "Các lần scan và thay đổi giữa hai lần scan hoàn tất.",
+  guide: "Brief cho agent, hướng dẫn riêng, scope/policy và xuất file.",
 };
 const REASON_LABEL: Record<string, string> = {
-  api: "API",
-  auth: "đăng nhập/auth",
-  fresh: "mới",
-  tech_risk: "tech rủi ro",
-  nuclei_medium_plus: "nuclei medium+",
-  nuclei_low: "nuclei low",
-  status_200: "HTTP 200",
-  status_restricted: "401/403",
-  nonproduction: "dev/staging",
+  api: "API", auth: "đăng nhập/auth", fresh: "mới", tech_risk: "tech rủi ro", nuclei_medium_plus: "nuclei medium+", nuclei_low: "nuclei low",
+  status_200: "HTTP 200", status_restricted: "401/403", nonproduction: "dev/staging",
 };
 const reasonText = (r: string) => REASON_LABEL[r] || r;
 
@@ -38,12 +34,8 @@ export function useAssets(path: string, revision = 0) {
   useEffect(() => {
     let live = true;
     setError("");
-    apiPage<Asset>(path)
-      .then((r) => live && setState(r))
-      .catch((e) => live && setError(explain(e)));
-    return () => {
-      live = false;
-    };
+    apiPage<Asset>(path).then((r) => live && setState(r)).catch((e) => live && setError(explain(e)));
+    return () => { live = false; };
   }, [path, revision]);
   return { state, error };
 }
@@ -52,23 +44,11 @@ export function AssetTable({ rows }: { rows: Asset[] }) {
   return rows.length ? (
     <div className="table-wrap">
       <table>
-        <thead>
-          <tr>
-            <th>Host</th>
-            <th>Rank</th>
-            <th>Status</th>
-            <th>Tech</th>
-            <th>Lý do</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Host</th><th>Rank</th><th>Status</th><th>Tech</th><th>Lý do</th></tr></thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r.id}>
-              <td>
-                <strong>{r.host}</strong>
-                {r.category && r.category !== "web" && <Badge>{r.category}</Badge>}
-                {r.title && <small>{r.title}</small>}
-              </td>
+              <td><strong>{r.host}</strong>{r.category && r.category !== "web" && <Badge>{r.category}</Badge>}{r.title && <small>{r.title}</small>}</td>
               <td><Badge tone="rank">{r.rank_score ?? 0}</Badge></td>
               <td>{r.status_code || "—"}</td>
               <td>{(r.tech || []).map((t) => <Badge key={t}>{t}</Badge>)}</td>
@@ -78,9 +58,7 @@ export function AssetTable({ rows }: { rows: Asset[] }) {
         </tbody>
       </table>
     </div>
-  ) : (
-    <p className="empty">Chưa có asset phù hợp.</p>
-  );
+  ) : <p className="empty">Chưa có asset phù hợp.</p>;
 }
 
 function changeText(row: any): string {
@@ -90,19 +68,29 @@ function changeText(row: any): string {
     return [a.status_code ? `HTTP ${a.status_code}` : "", (a.tech || []).join(", ")].filter(Boolean).join(" · ") || "xuất hiện lần đầu";
   }
   if (row.change === "gone") return "không còn xuất hiện trong scan hoàn tất";
-  return Object.entries(d)
-    .map(([k, v]: [string, any]) => {
-      if (k === "tech") {
-        const before = new Set<string>(v.before || []), after = new Set<string>(v.after || []);
-        const plus = [...after].filter((x) => !before.has(x)), minus = [...before].filter((x) => !after.has(x));
-        return "tech " + [plus.length ? "+" + plus.join(",") : "", minus.length ? "−" + minus.join(",") : ""].filter(Boolean).join(" ");
-      }
-      return `${k}: ${v?.before ?? "—"} → ${v?.after ?? "—"}`;
-    })
-    .join("; ");
+  return Object.entries(d).map(([k, v]: [string, any]) => {
+    if (k === "tech") {
+      const before = new Set<string>(v.before || []), after = new Set<string>(v.after || []);
+      const plus = [...after].filter((x) => !before.has(x)), minus = [...before].filter((x) => !after.has(x));
+      return "tech " + [plus.length ? "+" + plus.join(",") : "", minus.length ? "−" + minus.join(",") : ""].filter(Boolean).join(" ");
+    }
+    return `${k}: ${v?.before ?? "—"} → ${v?.after ?? "—"}`;
+  }).join("; ");
 }
 
-function Overview({ slug, summary, detail, reload }: { slug: string; summary: Summary; detail: any; reload: () => void }) {
+/* ───────────── Tổng quan ───────────── */
+function Tile({ label, value, sub, href, tone }: { label: string; value: number | string; sub?: string; href: string; tone?: string }) {
+  return (
+    <a className={"tile " + (tone || "")} href={href}>
+      <span className="tile-label">{label}</span>
+      <strong>{value}</strong>
+      {sub && <small>{sub}</small>}
+      <span className="tile-go">Xem →</span>
+    </a>
+  );
+}
+
+function Overview({ slug, summary, detail, urls, reload }: { slug: string; summary: Summary & { trust?: Trust }; detail: any; urls: UrlSummary | null; reload: () => void }) {
   const [interval, setInterval] = useState(summary.schedule?.interval || "daily");
   const [depth, setDepth] = useState<Depth>(summary.schedule?.depth || summary.last_completed_scan?.depth || "light");
   const [ack, setAck] = useState(false);
@@ -115,96 +103,73 @@ function Overview({ slug, summary, detail, reload }: { slug: string; summary: Su
       await api(base + "/schedule", { method: "POST", body: JSON.stringify({ interval, depth, enabled: on }) });
       setAck(false);
       reload();
-    } catch (e) {
-      setError(explain(e));
-    }
+    } catch (e) { setError(explain(e)); }
   }
-  const scans: any[] = detail?.scans || [];
   const c = summary.changes;
   const total = Object.values(summary.findings_by_severity).reduce((a, b) => a + b, 0);
+  const hotTags = [["api", "API"], ["admin", "quản trị"], ["sensitive", "nhạy cảm"], ["auth", "đăng nhập"]] as const;
+  const tags = urls?.by_tag || {};
+  const hot = hotTags.filter(([t]) => (tags[t] || 0) > 0).map(([t, label]) => `${label} ${tags[t].toLocaleString("vi-VN")}`);
+  const todo: { text: string; href?: string }[] = [];
+  if (!summary.last_completed_scan) todo.push({ text: "Chạy scan đầu tiên để có dữ liệu." });
+  if (summary.trust && !summary.trust.verified && summary.trust.level === "public") todo.push({ text: "Đối chiếu scope và policy với trang chính thức (nguồn đang CHƯA XÁC MINH).", href: "#" + programPath(slug, "guide", "scope") });
+  if (hot.length > 0) todo.push({ text: `Xem URL đáng chú ý: ${hot.join(" · ")}.`, href: `#/program/${encodeURIComponent(slug)}/data?v=urls&min_score=3` });
+  if (total > 0) todo.push({ text: `Xem ${total} finding.`, href: "#" + programPath(slug, "findings") });
+  if (c.new + c.changed + c.gone > 0) todo.push({ text: `Xem ${c.new + c.changed + c.gone} thay đổi so với scan trước.`, href: "#" + programPath(slug, "history", "diff") });
+  if (summary.last_completed_scan && !enabled) todo.push({ text: "Bật giám sát nếu program cho phép quét tự động, để biết khi có asset mới." });
   return (
     <>
-      <div className="metrics four">
-        <div><strong>{summary.assets_active}</strong>Asset hoạt động</div>
-        <div><strong>{c.new}</strong>Mới</div>
-        <div><strong>{c.changed}</strong>Thay đổi</div>
-        <div><strong>{c.gone}</strong>Biến mất</div>
+      <div className="tiles">
+        <Tile label="Host" value={summary.assets_active} sub="đang hoạt động" href={`#/program/${encodeURIComponent(slug)}/data?v=hosts`} />
+        <Tile label="URL" value={(urls?.total ?? 0).toLocaleString("vi-VN")} sub={urls?.funnel ? `${urls.funnel.out_of_scope.toLocaleString("vi-VN")} ngoài scope đã loại` : "trong scope"} href={`#/program/${encodeURIComponent(slug)}/data?v=urls`} />
+        <Tile label="Findings" value={total} sub={total ? Object.entries(summary.findings_by_severity).filter(([, n]) => n).map(([s, n]) => `${n} ${s}`).join(" · ") : "chưa có"} href={"#" + programPath(slug, "findings")} tone={total ? "warn" : ""} />
+        <Tile label="Thay đổi" value={c.new + c.changed + c.gone} sub={`${c.new} mới · ${c.changed} đổi · ${c.gone} mất`} href={"#" + programPath(slug, "history", "diff")} />
       </div>
+      {todo.length > 0 && (
+        <Panel id="todo-h" title="Việc nên làm tiếp">
+          <ul className="todo">{todo.map((t) => <li key={t.text}>{t.href ? <a href={t.href}>{t.text}</a> : t.text}</li>)}</ul>
+        </Panel>
+      )}
+      {summary.last_completed_scan && <HuntCard command={summary.hunt_command} note={summary.hunt_note} />}
       <div className="review-grid">
-        <section className="card">
-          <h2>Top 5 surface</h2>
-          {summary.top_surface.length === 0 ? (
-            <p className="muted">Chưa có dữ liệu — chạy một scan hoàn tất.</p>
-          ) : (
+        <Panel id="top-h" title="Top 5 bề mặt đáng xem" hint="Xếp hạng theo tín hiệu (API, đăng nhập, tech rủi ro, mới…).">
+          {summary.top_surface.length === 0 ? <p className="muted">Chưa có dữ liệu — chạy một scan hoàn tất.</p> : (
             <ol className="toplist">
               {summary.top_surface.map((a) => (
-                <li key={a.id}>
-                  <strong>{a.host}</strong> <Badge tone="rank">{a.rank_score ?? 0}</Badge>
-                  <small>{(a.reasons || []).map(reasonText).join(", ")}</small>
-                </li>
+                <li key={a.id}><strong>{a.host}</strong> <Badge tone="rank">{a.rank_score ?? 0}</Badge><small>{(a.reasons || []).map(reasonText).join(", ")}</small></li>
               ))}
             </ol>
           )}
-          <a href={"#" + programPath(slug, "surface")}>Xem toàn bộ surface →</a>
-        </section>
-        <section className="card">
-          <h2>Findings ({total})</h2>
-          {total === 0 ? <p className="muted">Chưa có finding.</p> : (
-            <p>{(["critical", "high", "medium", "low", "info"] as const).filter((s) => summary.findings_by_severity[s]).map((s) => (
-              <span key={s}><SeverityBadge severity={s} /> {summary.findings_by_severity[s]} </span>
-            ))}</p>
-          )}
-          <a href={"#" + programPath(slug, "findings")}>Xem findings →</a>
-        </section>
-        <section className="card">
-          <h2>Scans</h2>
-          {scans.length === 0 && <p className="muted">Chưa có scan.</p>}
-          {scans.slice(0, 8).map((s) => (
-            <p key={s.id}>
-              <a href={s.status === "draft" ? "#/scan/" + s.id + "/review" : "#/scan/" + s.id}>#{s.id} · {s.depth}</a>{" "}
-              <StatusBadge status={s.status} /> <small className="inline">{when(s.finished_at || s.started_at)}</small>
-            </p>
-          ))}
-        </section>
-        <section className="card form">
-          <h2>Giám sát liên tục</h2>
-          <p className="muted">
-            {enabled
-              ? `Đang bật (${summary.schedule!.interval}, mức ${summary.schedule!.depth}). Lần kế tiếp: ${when(summary.schedule!.next_run_at)}.`
-              : "Tự quét lại theo lịch với scope hiện hành, không qua review từng lần; chỉ bật cho program cho phép automation."}
-          </p>
+          <a href={`#/program/${encodeURIComponent(slug)}/data?v=surface`}>Xem đầy đủ →</a>
+        </Panel>
+        <Panel id="mon-h" title="Giám sát liên tục" hint={enabled ? `Đang bật (${summary.schedule!.interval}, mức ${summary.schedule!.depth}). Lần kế tiếp: ${when(summary.schedule!.next_run_at)}.` : "Tự quét lại theo lịch với scope hiện hành, không qua xem lại từng lần. Chỉ bật cho program cho phép automation."}
+          output="Mỗi lần chạy tạo một scan mới trong Lịch sử và cập nhật Diff.">
           <ErrorBox text={error} />
-          <label>
-            Tần suất
-            <select aria-label="Interval" value={interval} onChange={(e) => setInterval(e.target.value)}>
-              <option value="6h">Mỗi 6 giờ</option>
-              <option value="daily">Hằng ngày</option>
-              <option value="weekly">Hằng tuần</option>
-            </select>
-          </label>
-          <label>
-            Mức quét
-            <select aria-label="Monitoring depth" value={depth} onChange={(e) => { setDepth(e.target.value as Depth); setAck(false); }}>
-              {PRESETS.map((p) => <option key={p.depth} value={p.depth}>{p.title} — {p.eta}</option>)}
-            </select>
-          </label>
-          {depth !== "passive" && (
-            <label className="check">
-              <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />
-              Program cho phép scan tự động theo lịch ở mức này.
+          <div className="form">
+            <label>Tần suất
+              <select aria-label="Interval" value={interval} onChange={(e) => setInterval(e.target.value)}>
+                <option value="6h">Mỗi 6 giờ</option><option value="daily">Hằng ngày</option><option value="weekly">Hằng tuần</option>
+              </select>
             </label>
-          )}
-          <div className="actions">
-            <button disabled={depth !== "passive" && !ack} onClick={() => schedule(true)}>{enabled ? "Cập nhật lịch" : "Bật giám sát"}</button>
-            {enabled && <button className="secondary" onClick={() => schedule(false)}>Tắt giám sát</button>}
+            <label>Mức quét
+              <select aria-label="Monitoring depth" value={depth} onChange={(e) => { setDepth(e.target.value as Depth); setAck(false); }}>
+                {PRESETS.map((p) => <option key={p.depth} value={p.depth}>{p.title} — {p.eta}</option>)}
+              </select>
+            </label>
+            {depth !== "passive" && <label className="check"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />Program cho phép scan tự động theo lịch ở mức này.</label>}
+            <div className="actions">
+              <button disabled={depth !== "passive" && !ack} onClick={() => schedule(true)}>{enabled ? "Cập nhật lịch" : "Bật giám sát"}</button>
+              {enabled && <button className="secondary" onClick={() => schedule(false)}>Tắt giám sát</button>}
+            </div>
           </div>
-        </section>
+        </Panel>
       </div>
     </>
   );
 }
 
-function AssetsTab({ base, kind }: { base: string; kind: "surface" | "assets" }) {
+/* ───────────── Dữ liệu ───────────── */
+function HostsView({ base, kind }: { base: string; kind: "surface" | "assets" }) {
   const [q, setQ] = useState("");
   const [term, setTerm] = useState("");
   const [category, setCategory] = useState("");
@@ -216,8 +181,7 @@ function AssetsTab({ base, kind }: { base: string; kind: "surface" | "assets" })
   }, [q]);
   const limit = kind === "surface" ? 25 : 50;
   const params = new URLSearchParams({ limit: String(limit), offset: String(kind === "surface" ? 0 : offset) });
-  const path = kind === "surface"
-    ? base + "/surface?" + params
+  const path = kind === "surface" ? base + "/surface?" + params
     : base + "/assets?" + new URLSearchParams([...params, ["state", state], ...(term ? [["q", term]] : []), ...(category ? [["category", category]] : [])] as [string, string][]);
   const result = useAssets(path);
   return (
@@ -230,8 +194,7 @@ function AssetsTab({ base, kind }: { base: string; kind: "surface" | "assets" })
             {["web", "wildcard", "ip", "cidr", "source_code"].map((c) => <option key={c}>{c}</option>)}
           </select>
           <select aria-label="Trạng thái" value={state} onChange={(e) => { setState(e.target.value); setOffset(0); }}>
-            <option value="active">Đang hoạt động</option>
-            <option value="gone">Đã biến mất</option>
+            <option value="active">Đang hoạt động</option><option value="gone">Đã biến mất</option>
           </select>
         </div>
       )}
@@ -243,58 +206,49 @@ function AssetsTab({ base, kind }: { base: string; kind: "surface" | "assets" })
   );
 }
 
-function DiffTab({ base }: { base: string }) {
-  const [change, setChange] = useState("");
-  const [offset, setOffset] = useState(0);
-  const path = base + "/diff?" + new URLSearchParams({ limit: "50", offset: String(offset), ...(change ? { change } : {}) });
-  const result = useAssets(path);
+function DataArea({ slug, view }: { slug: string; view: string }) {
+  const base = "/api/programs/" + encodeURIComponent(slug);
+  const current = ["hosts", "urls", "surface"].includes(view) ? view : "urls";
+  const params = routeParams();
+  const initial: Record<string, string> = {};
+  for (const k of ["tag", "verification", "shape", "min_score"]) if (params.get(k)) initial[k] = params.get(k)!;
+  const info = {
+    hosts: ["Danh sách host", "Mọi host/IP thuộc scope mà các bước tìm subdomain và probe HTTP thu được: trạng thái, tiêu đề, công nghệ.", "Từ bước “Tìm subdomain” và “Probe HTTP”."],
+    urls: ["URL & endpoint", "URL đã qua scope gate, xếp theo điểm đáng xem. Biết rõ URL lấy từ đâu và đã kiểm chứng chưa.", "Từ bước “URL lịch sử”, “Crawl chủ động” và “Phân tích JavaScript”."],
+    surface: ["Xếp hạng bề mặt", "Host được chấm điểm theo tín hiệu (API, đăng nhập, tech rủi ro, mới, nuclei…).", "Tính tự động sau mỗi scan."],
+  }[current]!;
   return (
     <>
-      <div className="filters" role="group" aria-label="Lọc thay đổi">
-        {[["", "Tất cả"], ["new", "Mới"], ["changed", "Thay đổi"], ["gone", "Biến mất"]].map(([v, label]) => (
-          <button key={v} className={change === v ? "active small" : "secondary small"} onClick={() => { setChange(v); setOffset(0); }}>{label}</button>
-        ))}
-      </div>
-      <State data={result.state} error={result.error}>
-        {(result.state?.items.length || 0) === 0 ? (
-          <EmptyState title="Không có thay đổi">Diff xuất hiện sau khi program có từ hai scan hoàn tất.</EmptyState>
-        ) : (
-          <section className="card">
-            {(result.state!.items as any[]).map((r) => (
-              <div className="finding" key={r.id}>
-                <Badge tone={r.change}>{{ new: "MỚI", changed: "THAY ĐỔI", gone: "BIẾN MẤT" }[r.change as string] || r.change}</Badge>
-                <strong>{r.entity_ref}</strong>
-                <small>{changeText(r)}</small>
-              </div>
-            ))}
-            <Pager total={result.state!.total} limit={50} offset={offset} onChange={setOffset} />
-          </section>
-        )}
-      </State>
+      <Segmented label="Loại dữ liệu" value={current as any} onChange={(v) => go(programPath(slug, "data", v))}
+        options={[{ value: "urls", label: "URL & endpoint" }, { value: "hosts", label: "Host" }, { value: "surface", label: "Xếp hạng" }]} />
+      <p className="viewintro"><strong>{info[0]}.</strong> {info[1]} <span className="muted">{info[2]}</span></p>
+      {current === "urls" ? <UrlExplorer key={JSON.stringify(initial)} slug={slug} initial={initial} />
+        : <HostsView key={current} base={base} kind={current === "surface" ? "surface" : "assets"} />}
     </>
   );
 }
 
+/* ───────────── Phát hiện ───────────── */
 function FindingsTab({ base }: { base: string }) {
+  const params = routeParams();
   const [severity, setSeverity] = useState("");
-  const [type, setType] = useState("");
+  const [type, setType] = useState(params.get("type") || "");
   const [offset, setOffset] = useState(0);
   const result = useAssets(base + "/findings?" + new URLSearchParams({ limit: "50", offset: String(offset), ...(severity ? { severity } : {}), ...(type ? { type } : {}) }));
   return (
     <>
+      <p className="viewintro"><strong>Findings.</strong> Dấu hiệu lỗi hoặc rò rỉ do nuclei, takeover và quét bí mật tìm thấy. <span className="muted">0 finding không có nghĩa target an toàn — chỉ là công cụ đã chạy không thấy gì.</span></p>
       <div className="filters">
         <select aria-label="Mức nghiêm trọng" value={severity} onChange={(e) => { setSeverity(e.target.value); setOffset(0); }}>
-          <option value="">Mọi mức</option>
-          {["critical", "high", "medium", "low", "info"].map((s) => <option key={s}>{s}</option>)}
+          <option value="">Mọi mức</option>{["critical", "high", "medium", "low", "info"].map((s) => <option key={s}>{s}</option>)}
         </select>
         <select aria-label="Loại" value={type} onChange={(e) => { setType(e.target.value); setOffset(0); }}>
-          <option value="">Mọi loại</option>
-          {["nuclei", "takeover", "secret", "js-endpoint"].map((s) => <option key={s}>{s}</option>)}
+          <option value="">Mọi loại</option>{["nuclei", "takeover", "secret", "js-endpoint"].map((s) => <option key={s}>{s}</option>)}
         </select>
       </div>
       <State data={result.state} error={result.error}>
         {(result.state?.items.length || 0) === 0 ? (
-          <EmptyState title="Chưa có finding">Finding xuất hiện khi nuclei/takeover/secrets tìm thấy kết quả.</EmptyState>
+          <EmptyState title="Chưa có finding">Finding xuất hiện khi nuclei/takeover/secrets tìm thấy kết quả. Kiểm tra tab Lịch sử → scan → “Kết quả theo bước” để biết các bước đó đã chạy chưa.</EmptyState>
         ) : (
           <div className="table-wrap">
             <table>
@@ -302,10 +256,7 @@ function FindingsTab({ base }: { base: string }) {
               <tbody>
                 {(result.state!.items as any[]).map((f) => (
                   <tr key={f.id}>
-                    <td><SeverityBadge severity={f.severity} /></td>
-                    <td><strong>{f.name}</strong></td>
-                    <td>{f.type}</td>
-                    <td>{f.host || "—"}</td>
+                    <td><SeverityBadge severity={f.severity} /></td><td><strong>{f.name}</strong></td><td>{f.type}</td><td>{f.host || "—"}</td>
                     <td>{f.detail?.matched_at || (f.detail?.verified ? "đã xác minh" : "") || ""}</td>
                   </tr>
                 ))}
@@ -319,50 +270,103 @@ function FindingsTab({ base }: { base: string }) {
   );
 }
 
-function BriefTab({ base, slug, summary }: { base: string; slug: string; summary: Summary }) {
+/* ───────────── Lịch sử ───────────── */
+function HistoryArea({ slug, view, summary, detail }: { slug: string; view: string; summary: Summary; detail: any }) {
+  const current = view === "diff" ? "diff" : "scans";
+  const base = "/api/programs/" + encodeURIComponent(slug);
+  return (
+    <>
+      <Segmented label="Lịch sử" value={current as any} onChange={(v) => go(programPath(slug, "history", v))}
+        options={[{ value: "scans", label: "Các lần scan" }, { value: "diff", label: "So sánh thay đổi" }]} />
+      {current === "scans" ? (
+        <>
+          <p className="viewintro"><strong>Các lần scan.</strong> Bấm vào một scan để xem từng bước đã chạy gì, tìm được bao nhiêu và đọc file kết quả.</p>
+          {(detail?.scans || []).length === 0 ? <EmptyState title="Chưa có scan">Hãy bấm “Scan lại” để tạo bản nháp đầu tiên.</EmptyState> : (
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Scan</th><th>Mức</th><th>Trạng thái</th><th>Kết quả</th><th>Lúc</th></tr></thead>
+                <tbody>
+                  {(detail.scans as any[]).map((s) => (
+                    <tr key={s.id}>
+                      <td><a href={s.status === "draft" ? "#/scan/" + s.id + "/review" : "#/scan/" + s.id}>#{s.id}</a> {s.trigger === "scheduled" && <Chip>theo lịch</Chip>}</td>
+                      <td>{s.depth}</td><td><StatusBadge status={s.status} /></td>
+                      <td>{s.stats?.observed !== undefined ? `${s.stats.subs ?? 0} host · ${(s.stats.urls ?? 0).toLocaleString("vi-VN")} URL · ${s.stats.findings ?? 0} finding` : "—"}</td>
+                      <td>{when(s.finished_at || s.started_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      ) : <DiffView base={base} summary={summary} />}
+    </>
+  );
+}
+
+function DiffView({ base, summary }: { base: string; summary: Summary }) {
+  const [change, setChange] = useState("");
+  const [offset, setOffset] = useState(0);
+  const result = useAssets(base + "/diff?" + new URLSearchParams({ limit: "50", offset: String(offset), ...(change ? { change } : {}) }));
+  const baseline = (summary.last_completed_scan as any)?.baseline_scan_id;
+  const latest = summary.last_completed_scan?.id;
+  return (
+    <>
+      <p className="viewintro"><strong>So sánh thay đổi.</strong> {latest ? <>Scan #{latest} so với {baseline ? <>scan hoàn tất gần nhất trước đó (#{baseline})</> : "— chưa có scan hoàn tất trước đó để so"}.</> : "Cần ít nhất hai scan hoàn tất."} <span className="muted">Scan bị huỷ hoặc lỗi không dùng làm mốc.</span></p>
+      <div className="filters" role="group" aria-label="Lọc thay đổi">
+        {[["", "Tất cả"], ["new", "Mới"], ["changed", "Thay đổi"], ["gone", "Biến mất"]].map(([v, label]) => (
+          <button key={v} className={change === v ? "active small" : "secondary small"} onClick={() => { setChange(v); setOffset(0); }}>{label}</button>
+        ))}
+      </div>
+      <State data={result.state} error={result.error}>
+        {(result.state?.items.length || 0) === 0 ? <EmptyState title="Không có thay đổi">Diff xuất hiện sau khi program có từ hai scan hoàn tất.</EmptyState> : (
+          <section className="card">
+            {(result.state!.items as any[]).map((r) => (
+              <div className="finding" key={r.id}>
+                <Badge tone={r.change}>{{ new: "MỚI", changed: "THAY ĐỔI", gone: "BIẾN MẤT" }[r.change as string] || r.change}</Badge>
+                <strong>{r.entity_ref}</strong><small>{changeText(r)}</small>
+              </div>
+            ))}
+            <Pager total={result.state!.total} limit={50} offset={offset} onChange={setOffset} />
+          </section>
+        )}
+      </State>
+    </>
+  );
+}
+
+/* ───────────── Hướng dẫn & scope ───────────── */
+function BriefView({ base, summary }: { base: string; summary: Summary }) {
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState("");
   const brief = useData<string>(base + "/brief", revision);
   async function regenerate() {
     setError("");
-    try {
-      await api(base + "/brief", { method: "POST" });
-      setRevision((v) => v + 1);
-    } catch (e) {
-      setError(explain(e));
-    }
+    try { await api(base + "/brief", { method: "POST" }); setRevision((v) => v + 1); } catch (e) { setError(explain(e)); }
   }
   if (brief.code === "no_completed_scan")
-    return (
-      <EmptyState title="Chưa có brief" action={<a className="button" href="#/new">Tạo scan</a>}>
-        Brief được sinh sau scan hoàn tất đầu tiên. Bạn vẫn có thể sửa PROGRAM.md ở tab Program ngay bây giờ.
-      </EmptyState>
-    );
+    return <EmptyState title="Chưa có brief" action={<a className="button" href="#/new">Tạo scan</a>}>Brief được sinh sau scan hoàn tất đầu tiên. Bạn vẫn có thể sửa hướng dẫn cho agent ở mục bên cạnh ngay bây giờ.</EmptyState>;
   const text = typeof brief.data === "string" ? brief.data : "";
   return (
     <section className="card markdown">
+      <p className="viewintro"><strong>AGENT_BRIEF.md.</strong> Tệp duy nhất agent cần đọc để bắt đầu: scope, số liệu, host/URL đáng xem, gợi ý test. Bên dưới là đúng nội dung agent đọc.</p>
       <div className="actions">
         <button onClick={regenerate}>Tạo lại brief</button>
         <CopyButton text={summary.hunt_command} label="Sao chép lệnh hunt" />
         {text && <span className="muted">{new Blob([text]).size.toLocaleString("vi-VN")} / 12.000 byte</span>}
       </div>
       <ErrorBox text={error} />
-      <State data={brief.data} error={brief.error}>
-        {/* Raw on purpose: this is exactly what the agent reads (tables/lists use single newlines). */}
-        <pre className="rawdoc" aria-label="AGENT_BRIEF.md">{text}</pre>
-      </State>
+      <State data={brief.data} error={brief.error}><pre className="rawdoc" aria-label="AGENT_BRIEF.md">{text}</pre></State>
     </section>
   );
 }
 
-function ProgramTab({ base }: { base: string }) {
+function InstructionsView({ base }: { base: string }) {
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const doc = useData<string>(base + "/program", revision);
-  const original = typeof doc.data === "string"
-    ? doc.data.split("<!-- user-editable -->")[1]?.split("<!-- /user-editable -->")[0]?.trim() || ""
-    : "";
+  const original = typeof doc.data === "string" ? doc.data.split("<!-- user-editable -->")[1]?.split("<!-- /user-editable -->")[0]?.trim() || "" : "";
   const [edit, setEdit] = useState("");
   useEffect(() => setEdit(original), [original]);
   const dirty = edit !== original;
@@ -370,97 +374,136 @@ function ProgramTab({ base }: { base: string }) {
     setError("");
     try {
       await api(base + "/program", { method: "PUT", body: JSON.stringify({ content: edit }) });
-      setSaved(true);
-      setRevision((v) => v + 1);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (e) {
-      setError(explain(e));
-    }
+      setSaved(true); setRevision((v) => v + 1); setTimeout(() => setSaved(false), 2000);
+    } catch (e) { setError(explain(e)); }
   }
   return (
     <section className="card markdown">
-      <label>
-        Ghi chú của bạn (auth, OOS, severity guideline…) — phần duy nhất được sửa
+      <p className="viewintro"><strong>PROGRAM.md.</strong> Luật chơi bền của program (policy, scope, ghi chú của bạn). Agent đọc tệp này trước. Chỉ phần ghi chú của bạn sửa được; phần còn lại do hệ thống sinh.</p>
+      <label>Ghi chú của bạn (auth, OOS, severity guideline…) — phần duy nhất được sửa
         <textarea rows={6} value={edit} onChange={(e) => setEdit(e.target.value)} />
       </label>
       <div className="actions">
         <button onClick={save} disabled={!dirty}>Save instructions</button>
-        {dirty && <span className="muted">Chưa lưu</span>}
-        {saved && <span className="okline">Đã lưu ✓</span>}
+        {dirty && <span className="muted">Chưa lưu</span>}{saved && <span className="okline">Đã lưu ✓</span>}
       </div>
       <ErrorBox text={error} />
-      <State data={doc.data} error={doc.error}>
-        <ReactMarkdown>{typeof doc.data === "string" ? doc.data : ""}</ReactMarkdown>
-      </State>
+      <State data={doc.data} error={doc.error}><ReactMarkdown>{typeof doc.data === "string" ? doc.data : ""}</ReactMarkdown></State>
     </section>
   );
 }
 
-export function Program({ slug, tab }: { slug: string; tab: string }) {
+function ScopeView({ slug, summary, detail, reload }: { slug: string; summary: Summary & { trust?: Trust }; detail: any; reload: () => void }) {
+  const profiles = useData<{ builtin: Profile[]; custom: Profile[] }>("/api/profiles");
+  const [error, setError] = useState("");
+  const rules: any[] = detail?.scope || [];
+  const policy = detail?.policy || {};
+  const text = policy.policy_text || policy.program?.policy || "";
+  async function setDefault(value: string) {
+    try {
+      await api("/api/programs/" + encodeURIComponent(slug) + "/default-profile", { method: "PUT", body: JSON.stringify({ profile_id: value ? Number(value) : null }) });
+      reload();
+    } catch (e) { setError(explain(e)); }
+  }
+  return (
+    <>
+      <p className="viewintro"><strong>Scope & policy.</strong> Scope hiện hành của program (đã xác nhận ở lần launch gần nhất) và policy lấy được.</p>
+      <TrustBadge trust={summary.trust} full />
+      <div className="review-grid">
+        <Panel id="in-h" title={`IN scope (${rules.filter((r) => r.kind === "in").length})`}>
+          <ul className="plain">{rules.filter((r) => r.kind === "in").map((r) => <li key={r.id}><code>{r.pattern}</code> <Chip>{r.asset_type}</Chip></li>)}</ul>
+        </Panel>
+        <Panel id="out-h" title={`OUT scope (${rules.filter((r) => r.kind === "out").length})`} hint="Luôn bị chặn.">
+          <ul className="plain">{rules.filter((r) => r.kind === "out").map((r) => <li key={r.id}><code>{r.pattern}</code></li>)}</ul>
+        </Panel>
+      </div>
+      <Panel id="pol-h" title="Policy">
+        {text ? <div className="policy-text open"><ReactMarkdown>{text}</ReactMarkdown></div> : <p className="muted">Chưa có nội dung policy. Dán policy của program ở mục “Hướng dẫn cho agent”.</p>}
+      </Panel>
+      <Panel id="prof-h" title="Profile mặc định" hint="Scan mới của program này sẽ bắt đầu từ profile này thay vì Light. Tạo profile ở trang Profile quét.">
+        <ErrorBox text={error} />
+        <select aria-label="Profile mặc định" value={summary.default_profile_id ? String(summary.default_profile_id) : ""} onChange={(e) => setDefault(e.target.value)}>
+          <option value="">Light (mặc định hệ thống)</option>
+          {profiles.data?.custom.map((p) => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+        </select>
+      </Panel>
+    </>
+  );
+}
+
+function ExportView({ base, slug }: { base: string; slug: string }) {
+  const modes = [
+    ["filtered", "Đã lọc scope (khuyến nghị)", "Brief, scope, PROGRAM.md và recon — các dòng recon ngoài scope đã bị loại. An toàn để chuyển cho người/agent khác."],
+    ["brief", "Chỉ brief", "Gọn nhất: AGENT_BRIEF.md, PROGRAM.md, CLAUDE.md, .scope, findings/, notes/, reports/. Không có recon."],
+    ["full", "Recon thô", "Mọi file recon nguyên bản. CÓ THỂ chứa URL/host ngoài scope. Chỉ dùng cho mình."],
+  ] as const;
+  return (
+    <>
+      <p className="viewintro"><strong>Xuất ZIP.</strong> Đóng gói thư mục <code>{slug}/</code> để mang sang máy khác hoặc đưa cho agent. Giải nén ra đúng cấu trúc để <code>cd</code> và chạy <code>claude</code>.</p>
+      <div className="cards3">
+        {modes.map(([mode, title, text]) => (
+          <section className={"panel " + (mode === "full" ? "warn" : mode === "filtered" ? "accent" : "")} key={mode}>
+            <h2>{title}</h2><p className="hint">{text}</p>
+            <a className="button" href={base + "/export?mode=" + mode}>Tải ZIP ↓</a>
+          </section>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function GuideArea({ slug, view, summary, detail, reload }: { slug: string; view: string; summary: Summary; detail: any; reload: () => void }) {
+  const base = "/api/programs/" + encodeURIComponent(slug);
+  const current = ["brief", "instructions", "scope", "export"].includes(view) ? view : "brief";
+  return (
+    <>
+      <Segmented label="Hướng dẫn & scope" value={current as any} onChange={(v) => go(programPath(slug, "guide", v))}
+        options={[{ value: "brief", label: "Brief" }, { value: "instructions", label: "Hướng dẫn cho agent" }, { value: "scope", label: "Scope & policy" }, { value: "export", label: "Xuất ZIP" }]} />
+      {current === "brief" ? (summary ? <BriefView base={base} summary={summary} /> : <Loading />)
+        : current === "instructions" ? <InstructionsView base={base} />
+        : current === "scope" ? <ScopeView slug={slug} summary={summary} detail={detail} reload={reload} />
+        : <ExportView base={base} slug={slug} />}
+    </>
+  );
+}
+
+/* ───────────── Trang Program ───────────── */
+export function Program({ slug, tab, view }: { slug: string; tab: string; view: string }) {
   const [revision, setRevision] = useState(0);
-  const [include, setInclude] = useState(true);
   const [error, setError] = useState("");
   const base = "/api/programs/" + encodeURIComponent(slug);
-  const summary = useData<Summary>(base + "/summary", revision);
+  const summary = useData<Summary & { trust?: Trust }>(base + "/summary", revision);
   const detail = useData<any>(base, revision);
+  const urls = useData<UrlSummary>(tab === "overview" ? base + "/urls/summary" : null, revision);
 
   async function rescan() {
     try {
       const made = await api(base + "/rescan", { method: "POST" });
       go("/scan/" + made.scan_id + "/review");
-    } catch (e) {
-      setError(explain(e));
-    }
+    } catch (e) { setError(explain(e)); }
   }
+  const s = summary.data;
   return (
     <>
-      <div className="pagehead">
-        <div>
-          <p className="eyebrow">PROGRAM</p>
-          <h1>{slug}</h1>
-          <p>
-            {summary.data?.source} · <StatusBadge status={summary.data?.latest_scan?.status} />
-            {summary.data?.latest_scan && <> scan #{summary.data.latest_scan.id} · {summary.data.latest_scan.depth}</>}
-          </p>
-        </div>
-        <div className="head-actions">
-          <button onClick={rescan}>Scan lại</button>
-          <details className="menu">
-            <summary className="button secondary">Export ▾</summary>
-            <div className="card">
-              <label className="check">
-                <input type="checkbox" checked={include} onChange={(e) => setInclude(e.target.checked)} />
-                Kèm raw recon (lớn hơn)
-              </label>
-              <a className="button" href={base + "/export?include_recon=" + include}>Tải ZIP ↓</a>
-            </div>
-          </details>
-        </div>
-      </div>
+      <PageHead eyebrow="PROGRAM" title={slug}
+        sub={<>{s?.source} · <StatusBadge status={s?.latest_scan?.status} />{s?.latest_scan && <> scan #{s.latest_scan.id} · {s.latest_scan.depth}</>}</>}
+        actions={<button onClick={rescan}>Scan lại</button>} />
+      {s?.trust && s.trust.level !== "manual" && <TrustBadge trust={s.trust} />}
       <ErrorBox text={error} />
-      {summary.data?.last_completed_scan && <HuntCard command={summary.data.hunt_command} note={summary.data.hunt_note} />}
       <nav className="tabs" role="tablist" aria-label="Program">
         {TABS.map((t) => (
-          <a key={t} role="tab" aria-selected={t === tab} className={t === tab ? "tab active" : "tab"} href={"#" + programPath(slug, t)}>
+          <a key={t} role="tab" aria-selected={t === tab} className={t === tab ? "tab active" : "tab"} href={"#" + programPath(slug, t)} title={TAB_HINT[t]}>
             {TAB_LABEL[t]}
           </a>
         ))}
       </nav>
-      {tab === "overview" ? (
-        <State data={summary.data} error={summary.error} retry={() => setRevision((v) => v + 1)}>
-          {summary.data && <Overview slug={slug} summary={summary.data} detail={detail.data} reload={() => setRevision((v) => v + 1)} />}
-        </State>
-      ) : tab === "surface" || tab === "assets" ? (
-        <AssetsTab key={tab} base={base} kind={tab} />
-      ) : tab === "diff" ? (
-        <DiffTab base={base} />
-      ) : tab === "findings" ? (
-        <FindingsTab base={base} />
-      ) : tab === "brief" ? (
-        summary.data ? <BriefTab base={base} slug={slug} summary={summary.data} /> : <Loading />
-      ) : (
-        <ProgramTab base={base} />
-      )}
+      <State data={s} error={summary.error} retry={() => setRevision((v) => v + 1)}>
+        {s && (tab === "overview" ? <Overview slug={slug} summary={s} detail={detail.data} urls={urls.data} reload={() => setRevision((v) => v + 1)} />
+          : tab === "data" ? <DataArea slug={slug} view={view} />
+          : tab === "findings" ? <FindingsTab base={base} />
+          : tab === "history" ? <HistoryArea slug={slug} view={view} summary={s} detail={detail.data} />
+          : <GuideArea slug={slug} view={view} summary={s} detail={detail.data} reload={() => setRevision((v) => v + 1)} />)}
+      </State>
     </>
   );
 }

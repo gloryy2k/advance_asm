@@ -128,3 +128,8 @@ def test_tc_ph_3_plan_preview_follows_the_config_before_anything_runs(settings, 
         strong = plan(depth="strong", scan_timeout=2700, skip_nmap=False)
         assert strong["port_scan"]["status"] in {"on", "missing_tool"} and strong["dir_fuzz"]["status"] in {"on", "missing_tool"}
         assert client.post("/api/meta/plan", json={**base, "threads": 999}).status_code == 422
+        # "forced" tells the UI which switches are pointless: off because of the depth, not because the user said so.
+        assert light["port_scan"]["forced"] is True and light["dir_fuzz"]["forced"] is True
+        assert light["nuclei"]["forced"] is False and plan(skip_nuclei=True)["nuclei"]["forced"] is False
+        assert plan(depth="passive", scan_timeout=300)["url_crawl"]["forced"] is True
+        assert strong["port_scan"]["forced"] is False and strong["dir_fuzz"]["forced"] is False

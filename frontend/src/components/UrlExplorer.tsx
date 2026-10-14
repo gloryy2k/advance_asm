@@ -22,7 +22,7 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
   const [tag, setTag] = useState(initial?.tag || "");
   const [verification, setVerification] = useState(initial?.verification || "");
   const [shape, setShape] = useState(initial?.shape || "");
-  const [minScore, setMinScore] = useState("0");
+  const [minScore, setMinScore] = useState(initial?.min_score || "1");  // default: hide plain content pages
   const [offset, setOffset] = useState(0);
   const limit = 50;
 
@@ -42,7 +42,7 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
     if (tag) p.set("tag", tag);
     if (verification) p.set("verification", verification);
     if (shape) p.set("shape", shape);
-    if (minScore !== "0") p.set("min_score", minScore);
+    p.set("min_score", minScore);
     return p;
   }, [term, tag, verification, shape, minScore]);
   useEffect(() => {
@@ -59,9 +59,9 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
   }, [base, query, offset]);
 
   const funnel = summary?.funnel;
-  const active = [tag && `nhãn ${TAG_LABEL[tag] || tag}`, verification && VERIFY_LABEL[verification], shape && `nhóm ${shape}`, term && `"${term}"`, minScore !== "0" && `điểm ≥ ${minScore}`].filter(Boolean);
+  const active = [tag && `nhãn ${TAG_LABEL[tag] || tag}`, verification && VERIFY_LABEL[verification], shape && `nhóm ${shape}`, term && `"${term}"`, minScore !== "1" && (minScore === "0" ? "mọi điểm" : `điểm ≥ ${minScore}`)].filter(Boolean);
   const clear = () => {
-    setQ(""); setTag(""); setVerification(""); setShape(""); setMinScore("0"); setOffset(0);
+    setQ(""); setTag(""); setVerification(""); setShape(""); setMinScore("1"); setOffset(0);
   };
   const exportHref = base + "/export?" + query;
   return (
@@ -105,8 +105,8 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
           <option value="historical">Lịch sử (archive)</option>
         </select>
         <select aria-label="Điểm tối thiểu" value={minScore} onChange={(e) => { setMinScore(e.target.value); setOffset(0); }}>
-          <option value="0">Mọi điểm</option>
-          <option value="1">Điểm ≥ 1</option>
+          <option value="1">Đáng xem (điểm ≥ 1) — mặc định</option>
+          <option value="0">Mọi URL (kể cả trang thường)</option>
           <option value="3">Điểm ≥ 3 (đáng xem)</option>
           <option value="5">Điểm ≥ 5 (ưu tiên)</option>
         </select>
@@ -120,6 +120,9 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
             </button>
           ))}
         </div>
+      )}
+      {minScore === "1" && summary && rows && summary.total > rows.total && !term && !tag && !verification && !shape && (
+        <p className="muted">Đang ẩn <strong>{(summary.total - rows.total).toLocaleString("vi-VN")}</strong> URL thông thường (trang nội dung, điểm &lt; 1). <button className="linklike" onClick={() => { setMinScore("0"); setOffset(0); }}>Hiện tất cả</button></p>
       )}
       {active.length > 0 && <p className="muted">Đang lọc: {active.join(" · ")} <button className="linklike" onClick={clear}>✕ Bỏ lọc</button></p>}
       <ErrorBox text={error} />
