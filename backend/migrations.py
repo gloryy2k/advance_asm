@@ -12,7 +12,9 @@ MIGRATIONS: dict[int, list[str]] = {
         "ALTER TABLE url ADD COLUMN score REAL",
         "ALTER TABLE url ADD COLUMN verification TEXT",
         "ALTER TABLE url ADD COLUMN status_code INTEGER",
+        "ALTER TABLE url ADD COLUMN shape TEXT",
         "CREATE INDEX idx_url_prog_score ON url(program_id, score DESC)",
+        "CREATE INDEX idx_url_prog_shape ON url(program_id, shape)",
         # Diff compares against a *named* completed scan, not mutable asset rows.
         "ALTER TABLE scan_run ADD COLUMN baseline_scan_id INTEGER",
         # Per-scan custom options beyond the fixed columns (profiles, per-tool switches).

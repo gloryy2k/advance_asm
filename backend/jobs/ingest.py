@@ -1,9 +1,12 @@
 """Idempotent ingestion of scoped framework output, including partial scans."""
 
+from collections import Counter
 import ipaddress
 import json
 import re
+from urllib.parse import urlsplit
 
+from backend.asm.urlintel import classify_url, url_shape
 from backend.framework import load_module
 from backend.scope_gate import normalize_host
 
@@ -87,6 +90,9 @@ class Ingester:
     def ingest(self, plan):
         module = load_module(self.settings, "recon_adapter.py")
         assets, urls, findings = {}, {}, []
+        funnel = {"raw": 0, "in_scope": 0, "out_of_scope": 0, "invalid": 0}
+        outside = Counter()
+        observed_urls, source_of = set(), {}
 
         def asset(resource, category="web", **details):
             if not isinstance(resource, str) or not plan.gate.in_scope(resource):
@@ -149,9 +155,26 @@ class Ingester:
                     and (root / "live" / "urls.txt").is_file()):
                 for resource in lines(root / "subdomains" / "all.txt"):
                     asset(resource, http_probed=True)
+            # Which tool produced a URL decides how much it proves: crawled by katana = observed on a
+            # live host; archive/history sources only say "this URL existed once".
+            for filename, label in (("gau.txt", "gau"), ("wayback.txt", "wayback"), ("katana.txt", "katana")):
+                for line in lines(root / "urls" / filename):
+                    if label == "katana":
+                        source_of[line] = label  # crawled on a live host: stronger evidence than any archive
+                        observed_urls.add(line)
+                    else:
+                        source_of.setdefault(line, label)
             for url in set(canonical.urls + nested.get_urls()):
+                funnel["raw"] += 1
                 if host := asset(url):
-                    urls[url] = (host, "recon")
+                    funnel["in_scope"] += 1
+                    urls[url] = (host, source_of.get(url, "recon"))
+                    continue
+                try:
+                    outside[normalize_host(url)] += 1
+                    funnel["out_of_scope"] += 1
+                except (ValueError, UnicodeError):
+                    funnel["invalid"] += 1
             # Only main nuclei JSONL; severity bucket copies must not duplicate findings.
             for line in list(lines(root / "nuclei" / "findings.jsonl")) + canonical.nuclei_findings:
                 try:
@@ -167,6 +190,16 @@ class Ingester:
                     findings.append((host, "nuclei", severity, name, {"matched_at": target, "name": info.get("name")}))
                 except (ValueError, TypeError, AttributeError):
                     continue
+        by_tag, by_verification = Counter(), Counter()
+        url_meta = {}
+        for url, (host, source) in urls.items():
+            tags, score = classify_url(url)
+            verification = "observed" if url in observed_urls else "historical"
+            url_meta[url] = (tags, score, verification, url_shape(url))
+            by_tag.update(tags)
+            by_verification[verification] += 1
+        funnel.update(by_tag=dict(by_tag), by_verification=dict(by_verification),
+                      out_of_scope_hosts=[{"host": h, "count": c} for h, c in outside.most_common(10)])
         collapsed = self._collapse_ranges(plan, assets, urls, findings)
         observed = len(assets) + len(urls) + len(findings)
         with self.database.connect() as conn, conn:
@@ -178,11 +211,12 @@ class Ingester:
                     json.dumps(row["tech"]) if "tech" in row else None, row["category"], plan.scan_id, plan.scan_id))
                 ids[host] = conn.execute("SELECT id FROM asset WHERE program_id=? AND host=?", (plan.program_id, host)).fetchone()[0]
             for url, (host, source) in urls.items():
-                conn.execute("INSERT INTO url(program_id,asset_id,url,source,first_seen_scan,last_seen_scan) VALUES(?,?,?,?,?,?) ON CONFLICT(program_id,url) DO UPDATE SET last_seen_scan=excluded.last_seen_scan,asset_id=excluded.asset_id", (
-                    plan.program_id, ids[host], url, source, plan.scan_id, plan.scan_id))
+                tags, score, verification, shape = url_meta[url]
+                conn.execute("INSERT INTO url(program_id,asset_id,url,source,first_seen_scan,last_seen_scan,tags_json,score,verification,shape) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(program_id,url) DO UPDATE SET last_seen_scan=excluded.last_seen_scan,asset_id=excluded.asset_id,source=excluded.source,tags_json=excluded.tags_json,score=excluded.score,verification=excluded.verification,shape=excluded.shape", (
+                    plan.program_id, ids[host], url, source, plan.scan_id, plan.scan_id, json.dumps(tags), score, verification, shape))
             for host, kind, severity, name, details in findings:
                 conn.execute("INSERT INTO finding(program_id,asset_id,type,severity,name,detail_json,first_seen_scan,last_seen_scan) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(program_id,type,name,asset_id) DO UPDATE SET severity=excluded.severity,detail_json=excluded.detail_json,last_seen_scan=excluded.last_seen_scan", (
                     plan.program_id, ids[host], kind, severity, name, json.dumps(details), plan.scan_id, plan.scan_id))
         return {"observed": observed, "collapsed_ips": collapsed, "subs": len(assets), "live": sum("status_code" in row for row in assets.values()),
-                "urls": len(urls), "findings": len({(item[0], item[1], item[3]) for item in findings}),
+                "urls": len(urls), "url_funnel": funnel, "findings": len({(item[0], item[1], item[3]) for item in findings}),
                 "observations": assets}

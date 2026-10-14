@@ -3,6 +3,7 @@ import json
 from typing import Literal
 
 from fastapi import APIRouter, Query, Request, Response
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from backend.jobs.scope_resolver import ScopeError, classify, default_config
@@ -175,3 +176,93 @@ def rescan(slug: str, request: Request):
     result = state.scope_resolver.resolve(body)
     BriefGenerator(state.settings, state.database).ensure_program(result.slug)
     return {"scan_id": result.scan_id, "slug": result.slug}
+
+
+TAGS = ("api", "auth", "admin", "sensitive", "redirect-param", "id-param", "file-param", "upload", "js", "docs", "params", "static")
+
+
+def _latest_completed(conn, program_id):
+    row = conn.execute("SELECT id,stats_json FROM scan_run WHERE program_id=? AND status IN ('done','done_partial') ORDER BY id DESC LIMIT 1", (program_id,)).fetchone()
+    return (row["id"], json.loads(row["stats_json"] or "{}")) if row else (None, {})
+
+
+def _url_filter(program_id, scan, q, host, tag, verification, source, shape, min_score, include_static):
+    clauses, args = ["u.program_id=?"], [program_id]
+    if scan is not None:
+        clauses.append("u.last_seen_scan=?")
+        args.append(scan)
+    if q:
+        clauses.append("u.url LIKE ? ESCAPE '\\'")
+        args.append("%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%")
+    if host:
+        clauses.append("a.host=?")
+        args.append(host)
+    if tag:
+        clauses.append("u.tags_json LIKE ?")
+        args.append('%"' + tag + '"%')
+    elif not include_static:
+        clauses.append("(u.tags_json IS NULL OR u.tags_json NOT LIKE '%\"static\"%')")
+    for column, value in (("u.verification", verification), ("u.source", source), ("u.shape", shape)):
+        if value:
+            clauses.append(column + "=?")
+            args.append(value)
+    if min_score:
+        clauses.append("COALESCE(u.score,0)>=?")
+        args.append(min_score)
+    return " AND ".join(clauses), args
+
+
+@router.get("/{slug}/urls")
+def urls(slug: str, request: Request, response: Response, q: str = Query("", max_length=500), host: str | None = Query(None, max_length=253),
+         tag: str | None = Query(None, max_length=20), verification: Literal["historical", "observed", "live"] | None = None,
+         source: str | None = Query(None, max_length=20), shape: str | None = Query(None, max_length=200),
+         min_score: float = Query(0, ge=0, le=10), include_static: bool = False,
+         scan: Literal["latest", "all"] = "latest",
+         limit: int = Query(50, ge=1, le=500), offset: int = Query(0, ge=0)):
+    """URLs that passed the scope gate, best first. Every row says how it was learned."""
+    database = request.app.state.database
+    program = program_row(database, slug)
+    with database.connect() as conn:
+        latest, _ = _latest_completed(conn, program["id"])
+        where, args = _url_filter(program["id"], latest if scan == "latest" else None, q, host, tag, verification, source, shape, min_score, include_static)
+        source_sql = "FROM url u LEFT JOIN asset a ON a.id=u.asset_id WHERE " + where
+        response.headers["X-Total-Count"] = str(conn.execute("SELECT count(*) " + source_sql, args).fetchone()[0])
+        rows = conn.execute("SELECT u.id,u.url,u.source,u.score,u.verification,u.shape,u.tags_json,u.first_seen_scan,u.last_seen_scan,a.host AS host " + source_sql
+                            + " ORDER BY COALESCE(u.score,0) DESC,u.url LIMIT ? OFFSET ?", (*args, limit, offset)).fetchall()
+    return [{"id": r["id"], "url": r["url"], "host": r["host"], "source": r["source"], "score": r["score"] or 0,
+             "verification": r["verification"] or "historical", "shape": r["shape"],
+             "tags": json.loads(r["tags_json"] or "[]"), "first_seen_scan": r["first_seen_scan"],
+             "is_new": r["first_seen_scan"] == latest} for r in rows]
+
+
+@router.get("/{slug}/urls/summary")
+def urls_summary(slug: str, request: Request, shapes: int = Query(25, ge=1, le=100)):
+    """The funnel (what the tools produced -> what survived the scope gate) and the shape of the site."""
+    database = request.app.state.database
+    program = program_row(database, slug)
+    with database.connect() as conn:
+        latest, stats = _latest_completed(conn, program["id"])
+        base = "program_id=? AND last_seen_scan=?"
+        counts = {tag: conn.execute(f"SELECT count(*) FROM url WHERE {base} AND tags_json LIKE ?", (program["id"], latest, '%"' + tag + '"%')).fetchone()[0] for tag in TAGS}
+        total = conn.execute(f"SELECT count(*) FROM url WHERE {base}", (program["id"], latest)).fetchone()[0]
+        top_shapes = [{"shape": r["shape"], "count": r["n"], "max_score": r["top"], "example": r["example"]}
+                      for r in conn.execute(f"SELECT shape,count(*) n,max(COALESCE(score,0)) top,min(url) example FROM url WHERE {base} AND (tags_json IS NULL OR tags_json NOT LIKE '%\"static\"%') GROUP BY shape ORDER BY top DESC,n DESC LIMIT ?", (program["id"], latest, shapes))]
+        hosts = [{"host": r["host"], "count": r["n"]} for r in conn.execute(
+            "SELECT a.host host,count(*) n FROM url u JOIN asset a ON a.id=u.asset_id WHERE u.program_id=? AND u.last_seen_scan=? GROUP BY a.host ORDER BY n DESC LIMIT 20",
+            (program["id"], latest))]
+    return {"scan_id": latest, "total": total, "funnel": stats.get("url_funnel"), "by_tag": counts, "top_shapes": top_shapes, "hosts": hosts}
+
+
+@router.get("/{slug}/urls/export")
+def urls_export(slug: str, request: Request, q: str = Query("", max_length=500), host: str | None = None, tag: str | None = Query(None, max_length=20),
+                verification: Literal["historical", "observed", "live"] | None = None, shape: str | None = Query(None, max_length=200),
+                min_score: float = Query(0, ge=0, le=10), include_static: bool = False, limit: int = Query(20000, ge=1, le=100000)):
+    """Plain text, one URL per line — feed it to another tool or grep it."""
+    database = request.app.state.database
+    program = program_row(database, slug)
+    with database.connect() as conn:
+        latest, _ = _latest_completed(conn, program["id"])
+        where, args = _url_filter(program["id"], latest, q, host, tag, verification, None, shape, min_score, include_static)
+        rows = conn.execute("SELECT u.url FROM url u LEFT JOIN asset a ON a.id=u.asset_id WHERE " + where + " ORDER BY COALESCE(u.score,0) DESC,u.url LIMIT ?", (*args, limit)).fetchall()
+    name = f"{slug}-urls" + (f"-{tag}" if tag else "") + ".txt"
+    return PlainTextResponse("\n".join(r[0] for r in rows) + "\n", headers={"Content-Disposition": f'attachment; filename="{name}"'})
