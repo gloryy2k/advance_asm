@@ -57,6 +57,9 @@ collection. The temporary daily/passive localhost schedule was disabled after
 verification. Local evidence (ignored by Git): `persistence-before.json`,
 `persistence-after.json`, `files-before.json`, `browser-brief.jpg`, and target
 audit/output files below that directory. User `.env` was not changed.
+After verification, the isolated Compose stack was stopped/removed with `down`
+(no volume deletion); all bind-mounted evidence is retained. Docker Desktop and
+unrelated workloads were not shut down.
 
 Playwright/Chromium were installed for the opt-in test. Chromium download needed
 `NODE_OPTIONS=--use-system-ca` on this host; TLS verification remained enabled.
