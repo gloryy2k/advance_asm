@@ -86,3 +86,21 @@ def test_tc_url_3_api_filters_pagination_summary_and_export(settings):
         assert text.text.strip() == "https://vuihoc.vn/api/v1/users?id=3"
         assert "attachment" in text.headers["content-disposition"]
         assert client.get(base + "/urls?scan=all&shape=/tin/*").headers["x-total-count"] == "2"
+
+
+def test_tc_br_8_brief_lists_one_endpoint_per_shape_with_provenance_and_funnel(settings):
+    from backend.brief.generator import BriefGenerator, tech_chips
+    db, result, stats = ingest_fixture(settings)
+    with db.connect() as conn, conn:
+        old = json.loads(conn.execute("SELECT stats_json FROM scan_run").fetchone()[0])
+        conn.execute("UPDATE scan_run SET status='done',stats_json=?", (json.dumps({**old, **{k: v for k, v in stats.items() if k != "observations"}}),))
+    generator = BriefGenerator(settings, db)
+    out = generator.generate(result.slug)
+    text = (generator.target(result.slug) / "AGENT_BRIEF.md").read_text(encoding="utf-8")
+    section = text.split("## ENDPOINT ĐÁNG XEM")[1].split("## ASSET MỚI")[0]
+    assert "9 từ tool → 6 trong scope (3 ngoài scope bị loại)" in section and "LỊCH SỬ" in section
+    assert "api/v1/users?id=3" in section and "đã crawl" in section  # katana saw it
+    assert "login?next=/home" in section and "lịch sử" in section
+    assert section.count("/tin/") <= 0  # plain news pages score < 1 and never crowd the list
+    assert out["bytes"] < 12000
+    assert tech_chips('["a","b","c","d","e"]') == "a, b, c, +2" and tech_chips("[]") == "-" and tech_chips("not json") == "-"

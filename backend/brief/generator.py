@@ -22,6 +22,18 @@ USER_END = "<!-- /user-editable -->"
 _lock = threading.RLock()
 
 
+def tech_chips(raw, shown=3):
+    """`nginx, PHP, +4` — never a JSON string cut in the middle."""
+    try:
+        names = [str(t) for t in json.loads(raw or "[]")]
+    except ValueError:
+        return "-"
+    if not names:
+        return "-"
+    text = ", ".join(clean(n, 24) for n in names[:shown])
+    return text + (f", +{len(names) - shown}" if len(names) > shown else "")
+
+
 def clean(value, limit=250):
     return re.sub(r"[\r\n|]", " ", str(value or ""))[:limit]
 
@@ -133,6 +145,10 @@ class BriefGenerator:
                 raise ScopeError("Refusing audit symlink")
             audit_path.touch(exist_ok=True)
             scope = stats.get("resolved_scope", [])
+            with self.database.connect() as conn:
+                urls_ranked = [dict(r) for r in conn.execute(
+                    "SELECT url,score,tags_json,verification,shape FROM url WHERE program_id=? AND last_seen_scan=? AND COALESCE(score,0)>=1 ORDER BY score DESC,url LIMIT 400",
+                    (program["id"], scan["id"]))]
             scope_text = "# IN\n" + "\n".join(e["pattern"] for e in scope if e["kind"] == "in") + "\n# OUT\n" + "\n".join(e["pattern"] for e in scope if e["kind"] == "out") + "\n"
             self.write(target / ".scope", scope_text)
             program_path = target / "PROGRAM.md"
@@ -149,6 +165,7 @@ class BriefGenerator:
             if scan["status"] == "done_partial":
                 sections.append("Scan có dữ liệu một phần; không suy ra host vắng là đã biến mất.\n")
             sections.extend(["## TOP SURFACE\n|Host|Rank|Status|Tech|Lý do|\n|---|---:|---|---|---|\n",
+                             "## ENDPOINT ĐÁNG XEM\n",
                              "## ASSET MỚI\n", "## SIGNALS\n",
                              "## HƯỚNG TEST\n",
                              "## GHI CHÚ SCOPE\n",
@@ -163,10 +180,11 @@ class BriefGenerator:
                     return True
                 return False
             top = next(i for i, s in enumerate(sections) if s.startswith("## TOP"))
-            new = top + 1
-            signals = top + 2
-            hints = top + 3
-            notes = top + 4
+            endpoints = top + 1
+            new = top + 2
+            signals = top + 3
+            hints = top + 4
+            notes = top + 5
             hosts = [a for a in assets if a.get("category") != "cidr"]
             ranges = [a for a in assets if a.get("category") == "cidr"]
             for entry in scope:
@@ -176,11 +194,26 @@ class BriefGenerator:
                 append(signals, f"- {finding['severity']} {finding['type']}: {clean(finding['name'], 120)}\n")
             for a in hosts[:25]:
                 status = a['status_code'] or '-' if scan['depth'] != 'passive' else '-'
-                tech = clean(a['tech_json'], 70) if scan['depth'] != 'passive' else '-'
+                tech = tech_chips(a['tech_json']) if scan['depth'] != 'passive' else '-'
                 reasons = clean(", ".join(json.loads(a["rank_reasons_json"] or "[]")), 60) or "-"
                 append(top, f"|{clean(a['host'], 120)}|{a['rank_score'] or 0:g}|{status}|{tech}|{reasons}|\n")
             for a in ranges:
                 append(top, f"|{clean(a['host'], 120)} (dải: {clean(a['title'], 60)})|-|-|-|range|\n")
+            funnel = stats.get("url_funnel") or {}
+            if funnel:
+                append(endpoints, f"URL: {funnel.get('raw', 0)} từ tool → {funnel.get('in_scope', 0)} trong scope"
+                                  f" ({funnel.get('out_of_scope', 0)} ngoài scope bị loại). Dữ liệu từ archive là LỊCH SỬ, chưa kiểm chứng.\n")
+            seen_shapes = set()
+            for u in urls_ranked:
+                if u["shape"] in seen_shapes:
+                    continue  # one example per URL shape, so 4,000 near-identical pages cost one line
+                seen_shapes.add(u["shape"])
+                kind = "đã crawl" if u["verification"] == "observed" else "lịch sử"
+                append(endpoints, f"- [{u['score']:g}] {clean(u['url'], 160)} — {', '.join(json.loads(u['tags_json'] or '[]')) or 'trang'} · {kind}\n")
+                if len(seen_shapes) >= 12:
+                    break
+            if sections[endpoints].strip().count("\n") == 0:
+                append(endpoints, "Không có URL nổi bật; xem dashboard › Dữ liệu › URL.\n")
             fresh = [a for a in hosts if a["first_seen_scan"] == scan["id"]]
             for a in fresh[:30]:
                 append(new, f"- {clean(a['host'], 120)}\n")
