@@ -2,6 +2,7 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { ReviewData } from "../api/types";
 import { when } from "../lib/format";
+import { TrustBadge } from "./layout";
 
 // Advisory only: highlights wording a human should read; never decides for the user.
 const KEYWORDS: [RegExp, string][] = [
@@ -29,7 +30,8 @@ export function PolicyPanel({ review }: { review: ReviewData }) {
   const perAsset = review.scope.filter((e) => e.instruction);
   return (
     <section className="card" aria-labelledby="policy-h">
-      <h2 id="policy-h">Policy &amp; automation</h2>
+      <h2 id="policy-h">Policy &amp; độ tin cậy của scope</h2>
+      <TrustBadge trust={review.trust} full />
       <p className="muted">
         Nguồn: {source}
         {policy.fetched_at ? ` · lấy lúc ${when(policy.fetched_at)}` : ""}

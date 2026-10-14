@@ -129,7 +129,10 @@ def summary(slug: str, request: Request):
         assets_total = conn.execute("SELECT count(*) FROM asset WHERE program_id=? AND state='active'", (program["id"],)).fetchone()[0]
         schedule = conn.execute("SELECT * FROM schedule WHERE program_id=?", (program["id"],)).fetchone()
         drafts = conn.execute("SELECT count(*) FROM scan_run WHERE program_id=? AND status='draft'", (program["id"],)).fetchone()[0]
+    from backend.trust import scope_trust
     return {"slug": slug, "source": program["source"], "handle": program["handle"],
+            "trust": scope_trust(program["source"], program["handle"], json.loads(program.get("policy_json") or "{}")),
+            "default_profile_id": program.get("default_profile_id"),
             "target_path": str((request.app.state.settings.BBASM_TARGETS / slug).resolve()),
             **request.app.state.settings.hunt_target(slug),
             "latest_scan": decoded(latest) if latest else None,

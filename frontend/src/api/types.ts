@@ -19,6 +19,104 @@ export type Config = {
   skip_active_crawl: boolean;
   categories_enabled: string[];
   excluded_hosts: string[];
+  skip_ffuf: boolean;
+  skip_historical: boolean;
+  skip_takeover: boolean;
+  skip_secrets: boolean;
+  max_js_files: number;
+  url_exclude_patterns: string[];
+  brief_budget_kb: number;
+  brief_top_assets: number;
+  brief_top_urls: number;
+};
+
+export const RECIPE_FIELDS = [
+  "depth", "threads", "rate_limit", "scan_timeout", "nuclei_severity", "skip_nmap", "skip_nuclei",
+  "skip_active_crawl", "skip_ffuf", "skip_historical", "skip_takeover", "skip_secrets", "max_js_files",
+  "url_exclude_patterns", "brief_budget_kb", "brief_top_assets", "brief_top_urls",
+] as const;
+export type Recipe = Partial<Pick<Config, (typeof RECIPE_FIELDS)[number]>>;
+
+export type Profile = {
+  id: number | string;
+  name: string;
+  description: string;
+  based_on: string;
+  builtin: boolean;
+  config: Required<Recipe>;
+};
+
+export type PlanPhase = {
+  key: string;
+  title: string;
+  what: string;
+  touches: boolean;
+  status: "on" | "off" | "missing_tool";
+  reason: string | null;
+  view: { kind: string; label: string; filter?: Record<string, string> };
+};
+
+export type PhaseFile = { path: string; name: string; label: string; bytes: number; lines: number | null };
+export type PhaseReport = {
+  key: string;
+  title: string;
+  what: string;
+  touches: boolean;
+  status: "ran" | "empty" | "skipped" | "missing_tool" | "no_output" | "pending";
+  status_label: string;
+  reason: string | null;
+  count: number;
+  count_label: string;
+  files: PhaseFile[];
+  view: { kind: string; label: string; filter?: Record<string, string> };
+};
+export type ScanPhases = {
+  scan_id: number;
+  slug: string;
+  status: string;
+  depth: string;
+  phases: PhaseReport[];
+  funnel: UrlFunnel | null;
+  missing_tools: string[];
+};
+
+export type UrlFunnel = {
+  raw: number;
+  in_scope: number;
+  out_of_scope: number;
+  invalid: number;
+  excluded_by_rule?: number;
+  by_tag?: Record<string, number>;
+  by_verification?: Record<string, number>;
+  out_of_scope_hosts?: { host: string; count: number }[];
+};
+export type UrlRow = {
+  id: number;
+  url: string;
+  host: string | null;
+  source: string;
+  score: number;
+  verification: string;
+  shape: string | null;
+  tags: string[];
+  is_new: boolean;
+};
+export type UrlSummary = {
+  scan_id: number | null;
+  total: number;
+  funnel: UrlFunnel | null;
+  by_tag: Record<string, number>;
+  top_shapes: { shape: string; count: number; max_score: number; example: string }[];
+  hosts: { host: string; count: number }[];
+};
+export type Trust = {
+  level: "manual" | "api" | "public";
+  verified: boolean;
+  label: string;
+  detail: string;
+  missing: string[];
+  checklist: string[];
+  official_url: string | null;
 };
 
 export type ScopeEntry = {
@@ -60,6 +158,7 @@ export type ScanRow = {
 };
 
 export type ReviewData = {
+  trust: Trust;
   scan: ScanRow;
   slug: string;
   source: string;
@@ -84,6 +183,7 @@ export type Health = {
   tools: Record<string, boolean>;
   missing_by_depth: Record<string, string[]>;
   h1_api: boolean;
+  runtime?: { os: string; recon_supported: boolean; reason: string };
 };
 
 export type ProgramCard = {
