@@ -1,4 +1,6 @@
 """U1: range assets, draft lifecycle, PROGRAM.md before first scan, pagination, brief caps."""
+
+import os
 import asyncio
 from datetime import datetime, timedelta, timezone
 import json
@@ -82,6 +84,7 @@ def test_tc_prg_5_program_md_exists_and_is_editable_before_first_scan(settings):
         assert denied.status_code == 422 and denied.json()["error"]["code"] == "no_completed_scan"
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Launches recon: needs Linux/WSL2/Docker (native Windows is refused by design)")
 def test_tc_lc_5_second_resolve_does_not_rewrite_scope_rules_until_launch(settings):
     from unittest.mock import Mock
     from backend.db import Database
@@ -105,6 +108,7 @@ def test_tc_lc_5_second_resolve_does_not_rewrite_scope_rules_until_launch(settin
         assert [r[0] for r in conn.execute("SELECT pattern FROM scope_rule")] == ["b.acme.com"]
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Launches recon: needs Linux/WSL2/Docker (native Windows is refused by design)")
 def test_launch_applies_reviewed_snapshot_to_scope_rules(settings):
     from backend.jobs.runner import JobRunner
     db, resolver, first = environment(settings, ["a.example.com"])
@@ -117,6 +121,7 @@ def test_launch_applies_reviewed_snapshot_to_scope_rules(settings):
         assert [r[0] for r in conn.execute("SELECT pattern FROM scope_rule")] == ["b.example.com"]
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Launches recon: needs Linux/WSL2/Docker (native Windows is refused by design)")
 def test_tc_lc_6_delete_draft_cleans_orphan_program_but_not_launched(settings):
     with TestClient(create_app(settings)) as client:
         one = client.post("/api/scope/resolve", json={"input": "raw", "scope": ["a.example.com"]}).json()
@@ -177,6 +182,7 @@ def test_pagination_totals_filters_and_summary(settings):
         assert portfolio["latest_scan"]["status"] == "done" and portfolio["finding_count"] == 4
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Launches recon: needs Linux/WSL2/Docker (native Windows is refused by design)")
 def test_review_payload_rescan_ack_and_program_name(settings):
     with TestClient(create_app(settings)) as client:
         made = client.post("/api/scope/resolve", json={

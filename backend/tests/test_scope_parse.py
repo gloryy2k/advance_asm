@@ -1,4 +1,6 @@
 """U0: tolerant, fail-closed raw scope parsing, H1 handle normalisation, preview endpoint."""
+
+import os
 import json
 
 from fastapi.testclient import TestClient
@@ -223,6 +225,7 @@ def test_quote_path_keeps_windows_backslashes_and_escapes_posix():
     assert Settings(_env_file=None, BBASM_HOST_TARGETS="/home/me/t/").hunt_target("a")["hunt_command"] == 'cd "/home/me/t/a" && claude'
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Launches recon: needs Linux/WSL2/Docker (native Windows is refused by design)")
 def test_health_reports_recon_support_and_launch_rejects_unsupported_platform(settings, monkeypatch):
     from fastapi.testclient import TestClient
     import backend.jobs.runner as runner_module

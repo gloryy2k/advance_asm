@@ -136,7 +136,7 @@ class JobRunner:
             except ValueError:
                 raise ScopeError("Invalid excluded scope pattern") from None
 
-    def _enqueue(self, scan_id, config):
+    def _enqueue(self, scan_id, config, ack=False):
         if os.name != "posix" and self.process_factory is spawn_process and not self.settings.BBASM_RECON_DISABLED:
             raise ScopeError("Máy chủ chạy trên Windows gốc nên không chạy được recon. Dùng Docker hoặc WSL2.", "platform_unsupported")
         if not self.database.path.exists():
@@ -150,7 +150,13 @@ class JobRunner:
             self._validate(config)
             store_config(conn, scan_id, config)
             self._apply_scope_snapshot(conn, scan_id)
+            if ack:  # same transaction as queueing: a fast worker can never run before the confirmation is stored
+                stats = json.loads(conn.execute("SELECT stats_json FROM scan_run WHERE id=?", (scan_id,)).fetchone()["stats_json"] or "{}")
+                stats["automation_ack"] = utc_now()
+                conn.execute("UPDATE scan_run SET stats_json=? WHERE id=?", (json.dumps(stats), scan_id))
             conn.execute("UPDATE scan_run SET status='queued' WHERE id=?", (scan_id,))
+        if ack:
+            self._audit_ack(scan_id)
 
     @staticmethod
     def _apply_scope_snapshot(conn, scan_id):
@@ -163,12 +169,9 @@ class JobRunner:
         conn.executemany("INSERT INTO scope_rule(program_id,pattern,kind,asset_type) VALUES(?,?,?,?)",
                          [(row["program_id"], e["pattern"], e["kind"], e["asset_type"]) for e in entries])
 
-    def record_ack(self, scan_id):
-        with self.database.connect() as conn, conn:
-            row = conn.execute("SELECT s.stats_json,p.slug FROM scan_run s JOIN program p ON p.id=s.program_id WHERE s.id=?", (scan_id,)).fetchone()
-            stats = json.loads(row["stats_json"] or "{}")
-            stats["automation_ack"] = utc_now()
-            conn.execute("UPDATE scan_run SET stats_json=? WHERE id=?", (json.dumps(stats), scan_id))
+    def _audit_ack(self, scan_id):
+        with self.database.connect() as conn:
+            row = conn.execute("SELECT p.slug FROM scan_run s JOIN program p ON p.id=s.program_id WHERE s.id=?", (scan_id,)).fetchone()
         audit(self.settings.BBASM_TARGETS / row["slug"] / "audit.jsonl", row["slug"], "ack", "automation_ack_by_user", scan_id=scan_id)
 
     def review(self, scan_id):
@@ -245,10 +248,10 @@ class JobRunner:
                 self._drop_draft(conn, row["id"], row["program_id"])
             return len(old)
 
-    async def submit(self, scan_id, config=None):
+    async def submit(self, scan_id, config=None, ack=False):
         if self.closing:
             raise ScopeError("Runner is shutting down")
-        await asyncio.to_thread(self._enqueue, scan_id, config)
+        await asyncio.to_thread(self._enqueue, scan_id, config, ack)
         await self.adopt_queued(scan_id)
 
     async def adopt_queued(self, scan_id):

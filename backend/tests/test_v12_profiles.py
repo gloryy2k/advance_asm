@@ -1,4 +1,6 @@
 """V2: user profiles, per-scan options, and that every option really changes what happens."""
+
+import os
 import json
 
 from fastapi.testclient import TestClient
@@ -118,6 +120,7 @@ def test_tc_pr_profiles_crud_validation_and_builtins(settings):
         assert client.delete(f"/api/profiles/{copy['id']}").json()["error"]["code"] == "profile_not_found"
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Launches recon: needs Linux/WSL2/Docker (native Windows is refused by design)")
 def test_tc_pr_default_profile_seeds_new_drafts_but_keeps_their_scope(settings):
     with TestClient(create_app(settings)) as client:
         first = client.post("/api/scope/resolve", json={"input": "raw", "scope": ["a.example.com", "10.0.0.0/24"]}).json()

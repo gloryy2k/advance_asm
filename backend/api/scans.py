@@ -42,7 +42,7 @@ async def auto_scan(body: AutoScanRequest, request: Request):
     BriefGenerator(state.settings, state.database).ensure_program(result.slug)
     config = body.config or default_config(state.settings.model_copy(update={"BBASM_DEFAULT_DEPTH": body.depth}),
         [entry for group in result.assets_by_category.values() for entry in group])
-    await state.runner.submit(result.scan_id, config)
+    await state.runner.submit(result.scan_id, config, ack=body.automation_ack)
     return {"scan_id": result.scan_id, "slug": result.slug, "status": "queued"}
 
 
@@ -130,9 +130,7 @@ async def launch(scan_id: int, body: LaunchRequest, request: Request):
     runner = request.app.state.runner
     depth = body.config.depth if body.config else (await asyncio.to_thread(runner.config, scan_id)).depth
     require_ack(depth, body.automation_ack)
-    await runner.submit(scan_id, body.config)
-    if body.automation_ack:
-        await asyncio.to_thread(runner.record_ack, scan_id)
+    await runner.submit(scan_id, body.config, ack=body.automation_ack)
     return {"scan_id": scan_id, "status": "queued"}
 
 

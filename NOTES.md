@@ -498,3 +498,8 @@ Giới hạn đã biết: nguyên nhân gốc thật của "Diff = 0" trên DB c
 | F8 a11y | link trong văn bản có gạch chân; mọi `.table-wrap`/`pre` cuộn được có `tabindex=0` + `role=region`; axe (wcag2a/aa) 10 route × 390/1366px: 0 lỗi serious/critical | axe chạy ngoài repo |
 
 Chưa làm: Review trên mobile vẫn dài (~4.9k px); ack cho schedule; xác nhận trên host với dữ liệu thật (F2/F3 cần chạy lại T3).
+
+### v1.2.2 (sau QA v1.2.1)
+- N1 race ack: `automation_ack` được ghi **trong cùng transaction** với chuyển sang `queued` (`submit(..., ack=True)`), nên worker nhanh không thể ghi đè hoặc chạy trước; audit `automation_ack_by_user` ghi ngay sau commit. Đã bỏ `record_ack` rời.
+- `test_recon_integration.py` nhớ `BBASM_BBROOT`/`BBASM_TOOLS_SUBDIR` lúc import (conftest xoá env mỗi test nên `Settings()` rơi về `/app/vendor`); chạy nguyên trạng trong image.
+- Sáu test cần recon được `skipif(os.name != "posix")`; trên Windows gốc: 301 passed, 6 skipped. Mobile không còn là tiêu chí nghiệm thu (người dùng chỉ dùng desktop).

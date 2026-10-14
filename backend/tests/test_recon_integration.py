@@ -13,12 +13,17 @@ import pytest
 from backend.config import Settings
 from backend.jobs.runner import stop_process_group
 
+# conftest wipes Settings env vars per test, so remember the image/CI layout (BBASM_BBROOT=/opt/...) at import time.
+_IMAGE_BBROOT = os.environ.get("BBASM_BBROOT")
+_IMAGE_SUBDIR = os.environ.get("BBASM_TOOLS_SUBDIR")
+
 pytestmark = [pytest.mark.integration, pytest.mark.skipif(os.name != "posix", reason="Linux/WSL2 only")]
 
 
 def test_tc_ro_6_passive_toggles_skip_active_commands(tmp_path):
     # Works in a checkout and in the Docker image (BBASM_BBROOT=/opt/claude-bug-bounty).
-    script = Settings().tool_path("recon_engine.sh")
+    overrides = {k: v for k, v in (("BBASM_BBROOT", _IMAGE_BBROOT), ("BBASM_TOOLS_SUBDIR", _IMAGE_SUBDIR)) if v}
+    script = Settings(**overrides).tool_path("recon_engine.sh")
     targets = tmp_path / "targets.txt"
     targets.write_text("example.com\n")
     output = tmp_path / "output"
