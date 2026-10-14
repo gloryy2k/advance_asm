@@ -1,0 +1,149 @@
+{
+  "source_sha256_before": "a8913f3c5db77f67600511032fa2035740df5d5d8daa737f26266d5f195e735e",
+  "before": {
+    "sha256": "a8913f3c5db77f67600511032fa2035740df5d5d8daa737f26266d5f195e735e",
+    "schema_meta": 1,
+    "user_version": 0,
+    "schema_version": 12,
+    "rows": {
+      "program": 6,
+      "scan_run": 12,
+      "asset": 4,
+      "url": 8836,
+      "finding": 0,
+      "diff_event": 4
+    }
+  },
+  "automatic_startup": {
+    "schema_meta": 1,
+    "urls_status": 500,
+    "urls_summary_status": 500
+  },
+  "manual_migration_ms": 96.6,
+  "after": {
+    "sha256": "a8913f3c5db77f67600511032fa2035740df5d5d8daa737f26266d5f195e735e",
+    "schema_meta": 2,
+    "user_version": 0,
+    "schema_version": 23,
+    "rows": {
+      "program": 6,
+      "scan_run": 12,
+      "asset": 4,
+      "url": 8836,
+      "finding": 0,
+      "diff_event": 4
+    }
+  },
+  "backup_files": [
+    "bbasm.db.bak-v1-20261014T123304Z"
+  ],
+  "rollback": {
+    "raised": true,
+    "exception_type": "OperationalError",
+    "after": {
+      "sha256": "a8913f3c5db77f67600511032fa2035740df5d5d8daa737f26266d5f195e735e",
+      "schema_meta": 1,
+      "user_version": 0,
+      "schema_version": 12,
+      "rows": {
+        "program": 6,
+        "scan_run": 12,
+        "asset": 4,
+        "url": 8836,
+        "finding": 0,
+        "diff_event": 4
+      }
+    },
+    "tags_json_column_present": false,
+    "backup_files": [
+      "bbasm.db.bak-v1-20261014T123304Z"
+    ]
+  },
+  "source_sha256_after": "a8913f3c5db77f67600511032fa2035740df5d5d8daa737f26266d5f195e735e",
+  "url_summary": {
+    "scan_id": 12,
+    "total": 8721,
+    "funnel": null,
+    "by_tag": {
+      "api": 0,
+      "auth": 0,
+      "admin": 0,
+      "sensitive": 0,
+      "redirect-param": 0,
+      "id-param": 0,
+      "file-param": 0,
+      "upload": 0,
+      "js": 0,
+      "docs": 0,
+      "params": 0,
+      "static": 0
+    },
+    "top_shape_count": 1,
+    "top_shapes": [
+      {
+        "shape": null,
+        "count": 8721
+      }
+    ]
+  },
+  "api_perf": [
+    {
+      "path": "/api/programs",
+      "status": 200,
+      "ms": 49.2,
+      "x_total_count": null,
+      "items": 5
+    },
+    {
+      "path": "/api/programs/qa-vuihoc-v11/urls/summary",
+      "status": 200,
+      "ms": 25.2,
+      "x_total_count": null,
+      "items": null
+    },
+    {
+      "path": "/api/programs/qa-vuihoc-v11/urls?limit=50",
+      "status": 200,
+      "ms": 16.1,
+      "x_total_count": "8721",
+      "items": 50
+    },
+    {
+      "path": "/api/programs/qa-vuihoc-v11/urls?limit=50&offset=1000",
+      "status": 200,
+      "ms": 29.2,
+      "x_total_count": "8721",
+      "items": 50
+    },
+    {
+      "path": "/api/programs/qa-vuihoc-v11/assets?limit=50",
+      "status": 200,
+      "ms": 6.1,
+      "x_total_count": "1",
+      "items": 1
+    },
+    {
+      "path": "/api/programs/qa-vuihoc-v11/diff?scan_id=12",
+      "status": 200,
+      "ms": 4.4,
+      "x_total_count": "0",
+      "items": 0
+    }
+  ],
+  "legacy_url_classification": {
+    "total": 8836,
+    "null_tags": 8836,
+    "null_shape": 8836,
+    "null_verification": 8836
+  },
+  "legacy_scan_12": {
+    "baseline_scan_id": null,
+    "diff_compared_hosts": null,
+    "diff": {
+      "new": 0,
+      "changed": 0,
+      "gone": 0
+    },
+    "status": "done"
+  }
+}

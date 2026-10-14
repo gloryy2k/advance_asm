@@ -1,0 +1,116 @@
+{
+  "target": "127.0.0.1 only; temporary HTTP fixture inside container on port 80",
+  "program": "qa-v12-diff",
+  "scans": [
+    {
+      "scan_id": 4,
+      "status": "done",
+      "depth": "passive",
+      "baseline_scan_id": null,
+      "diff_compared_hosts": 0,
+      "new": 1,
+      "changed": 0,
+      "gone": 0,
+      "live": 0,
+      "url_count": 0,
+      "http_status": null,
+      "tech": null,
+      "diff_header_total": "1",
+      "diff_details": [
+        {
+          "after": {
+            "category": "ip"
+          }
+        }
+      ]
+    },
+    {
+      "scan_id": 5,
+      "status": "done",
+      "depth": "light",
+      "baseline_scan_id": 4,
+      "diff_compared_hosts": 1,
+      "new": 0,
+      "changed": 1,
+      "gone": 0,
+      "live": 1,
+      "url_count": 1,
+      "http_status": 200,
+      "tech": [
+        "Python:3.13.16",
+        "SimpleHTTP:0.6"
+      ],
+      "diff_header_total": "1",
+      "diff_details": [
+        {
+          "status_code": {
+            "before": null,
+            "after": 200
+          },
+          "tech": {
+            "before": [],
+            "after": [
+              "python:3.13.16",
+              "simplehttp:0.6"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "scan_id": 6,
+      "status": "done",
+      "depth": "light",
+      "baseline_scan_id": 5,
+      "diff_compared_hosts": 1,
+      "new": 0,
+      "changed": 0,
+      "gone": 0,
+      "live": 1,
+      "url_count": 1,
+      "http_status": 200,
+      "tech": [
+        "Python:3.13.16",
+        "SimpleHTTP:0.6"
+      ],
+      "diff_header_total": "0",
+      "diff_details": []
+    },
+    {
+      "scan_id": 8,
+      "status": "cancelled",
+      "depth": "light",
+      "baseline_scan_id": 6,
+      "diff_compared_hosts": null,
+      "new": null,
+      "changed": null,
+      "gone": null,
+      "live": null,
+      "url_count": null,
+      "http_status": null,
+      "tech": null,
+      "diff_header_total": "0",
+      "diff_details": []
+    },
+    {
+      "scan_id": 9,
+      "status": "done",
+      "depth": "light",
+      "baseline_scan_id": 6,
+      "diff_compared_hosts": 1,
+      "new": 0,
+      "changed": 0,
+      "gone": 0,
+      "live": 1,
+      "url_count": 1,
+      "http_status": 200,
+      "tech": [
+        "Python:3.13.16",
+        "SimpleHTTP:0.6"
+      ],
+      "diff_header_total": "0",
+      "diff_details": []
+    }
+  ],
+  "cancel_request_status": 200
+}
