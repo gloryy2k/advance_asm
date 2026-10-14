@@ -316,7 +316,8 @@ class JobRunner:
                 await asyncio.to_thread(self.diff_engine.capture, plan)
                 for message in plan.warnings:
                     await self.logs.emit(scan_id, "log", level="warning", message=message)
-                for name in self.orchestrator.missing_tools():
+                missing = self.orchestrator.missing_tools()
+                for name in missing:
                     await self.logs.emit(scan_id, "log", level="warning", message=f"{name} missing; framework will skip unavailable tools")
                 parser = ReconLogParser(self.settings)
                 try:
@@ -326,6 +327,7 @@ class JobRunner:
                     errors.append("Scan hard timeout exceeded")
                 # _pipeline guarantees process cleanup before we inspect partial files.
                 stats = await asyncio.to_thread(self.ingester.ingest, plan)
+                stats["missing_tools"] = missing
                 stats["monitor_findings"] = await asyncio.to_thread(self.monitors.ingest, plan)
                 stats["findings"] = await asyncio.to_thread(self._finding_count, plan)
                 stats["diff"] = await asyncio.to_thread(self.diff_engine.apply, plan,

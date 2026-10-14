@@ -2,7 +2,8 @@
 
 import asyncio
 
-from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
 
 from backend.models import LaunchRequest, ScanConfig
 from backend.models import ResolveRequest
@@ -49,6 +50,46 @@ async def get_config(scan_id: int, request: Request):
 @router.put("/api/scans/{scan_id}/config", response_model=ScanConfig)
 async def put_config(scan_id: int, config: ScanConfig, request: Request):
     return await asyncio.to_thread(request.app.state.runner.config, scan_id, config)
+
+
+@router.get("/api/meta/phases")
+async def phase_catalog():
+    """Names and one-line explanations of every step — the Help page and Run page read the same list."""
+    from backend.asm.phases import PHASES
+    return [{k: p[k] for k in ("key", "title", "what", "touches", "tools", "count_label", "view")} | {"files": p["files"]} for p in PHASES]
+
+
+@router.get("/api/scans/{scan_id}/phases")
+async def scan_phases(scan_id: int, request: Request):
+    from backend.asm.phases import build_report
+    state = request.app.state
+    report = await asyncio.to_thread(build_report, state.settings, state.database, scan_id, state.runner.orchestrator.missing_tools())
+    if report is None:
+        raise ScopeError("Scan not found", "scan_not_found")
+    return report
+
+
+@router.get("/api/scans/{scan_id}/artifact")
+async def scan_artifact(scan_id: int, request: Request, path: str = Query(..., max_length=300),
+                        offset: int = Query(0, ge=0), limit: int = Query(200, ge=1, le=1000),
+                        q: str = Query("", max_length=200), reveal: bool = False):
+    from backend.asm.phases import read_artifact
+    state = request.app.state
+    page = await asyncio.to_thread(read_artifact, state.settings, state.database, scan_id, path, offset=offset, limit=limit, query=q, reveal=reveal)
+    if page is None:
+        raise ScopeError("Không đọc được file này (không tồn tại hoặc ngoài thư mục scan).", "artifact_unavailable")
+    return page
+
+
+@router.get("/api/scans/{scan_id}/artifact/download")
+async def scan_artifact_download(scan_id: int, request: Request, path: str = Query(..., max_length=300)):
+    from backend.asm.phases import read_artifact, scan_root
+    state = request.app.state
+    ok = await asyncio.to_thread(read_artifact, state.settings, state.database, scan_id, path, limit=1)
+    if ok is None:
+        raise ScopeError("Không đọc được file này (không tồn tại hoặc ngoài thư mục scan).", "artifact_unavailable")
+    slug = (await asyncio.to_thread(state.runner.review, scan_id))["slug"]
+    return FileResponse(scan_root(state.settings, slug, scan_id) / path, filename=f"scan{scan_id}-{ok['name']}", media_type="text/plain")
 
 
 @router.get("/api/drafts")
