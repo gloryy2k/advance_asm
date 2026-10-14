@@ -27,9 +27,10 @@ Ngày 2026-10-14 (Asia/Saigon). Nguồn `claude/upbeat-thompson-b7bb23` tại `8
 | F7 / T2-I | POST profile `based_on=passive`, PUT config partial, PUT `depth=light`; DELETE profile QA | PASS | Depth lần lượt `passive → passive → light`; `threads=1` được giữ sau PUT cuối. |
 | F8 | Playwright 1366px + axe-core WCAG 2 A/AA trên 10 route: Portfolio, New, Help, Profiles, Review, Run, Program, URLs, Hosts, Diff | PASS | **0 serious/critical** trên cả 10 route, không page error. Không chạy kiểm viewport 390px. |
 | T2-G | HTTP fixture chỉ `127.0.0.1:80` trong container; Passive #15 → Light #16 → Light #17; cancel #18 → Light #19 | PASS | #16 so #15: `changed=1`, HTTP status `null→200`; #17 so #16: `changed=0`; #19 bỏ qua cancelled #18, baseline #17, `changed=0`. Fixture đã dừng. |
+| H1-REVIEW | Đọc `/api/health` và `/api/scans/20/review` cho draft Verisk do người dùng tạo; kiểm điều kiện Launch trong Review | **FAIL** | `h1_api=false`, `policy.source=public_dump`, `policy.text=""`; scope chỉ có hai wildcard IN, không OUT/hướng dẫn asset. UI cảnh báo nhưng vẫn có thể bật Strong và Launch sau hai checkbox tự xác nhận. Không thể xác minh scope/policy hiện hành từ màn Review này (N2). Không Launch scan #20. |
 | T5-CLEAN | Dừng backend migration bản sao/HTTP fixture; `docker compose top`, logs, SHA256 DB v1.1 gốc | PASS | Container v1.2.1 healthy, chỉ còn init/backend; không có 500/Traceback/ERROR trong log gần đây. DB gốc trước/sau cùng SHA256 `a8913f3c5db77f67600511032fa2035740df5d5d8daa737f26266d5f195e735e`. |
 
-**Tổng: 18 PASS, 3 FAIL, 1 SKIP (22 dòng).** Các hàng `T1-LINUX` và `T1-WIN` là hai môi trường khác nhau; lỗi Windows là giới hạn recon native đã biết. `T1-RECON-RAW` chưa chạy nguyên trạng do đường dẫn test hardcode, còn cùng 4 ca pass sau setup tạm.
+**Tổng: 18 PASS, 4 FAIL, 1 SKIP (23 dòng).** Các hàng `T1-LINUX` và `T1-WIN` là hai môi trường khác nhau; lỗi Windows là giới hạn recon native đã biết. `T1-RECON-RAW` chưa chạy nguyên trạng do đường dẫn test hardcode, còn cùng 4 ca pass sau setup tạm. Hàng H1-REVIEW là kiểm tra bổ sung sau khi người dùng mở draft #20.
 
 ## Finding mới
 
@@ -38,6 +39,12 @@ Ngày 2026-10-14 (Asia/Saigon). Nguồn `claude/upbeat-thompson-b7bb23` tại `8
 - **Tái hiện:** chạy unit backend trong Linux như T1-LINUX. `backend/tests/test_u1_lifecycle.py::test_review_payload_rescan_ack_and_program_name` gọi Launch `automation_ack=true` nhận 200, rồi đọc Review ngay; `automation_ack=None` khiến 1/307 test fail. API probe Docker trên scan localhost lại thấy ack trong Review và audit, nên lỗi phụ thuộc thứ tự/timing.
 - **Tác động:** Review hoặc dữ liệu audit trên DB có thể thiếu dấu thời gian xác nhận ngay sau khi API báo launch thành công. Chưa có bằng chứng ack bị mất lâu dài; audit JSONL ở API probe vẫn có sự kiện ack.
 - **Hướng sửa:** lưu ack và trạng thái queued trong một giao dịch trước khi worker được chạy, hoặc bảo đảm worker merge `stats_json` không ghi đè ack; giữ regression test đọc Review ngay sau Launch. Không sửa code trong phiên QA.
+
+### N2 — P1: Review H1 từ nguồn công khai chưa đủ dữ liệu nhưng vẫn cho phép Strong sau xác nhận
+
+- **Tái hiện:** không cấu hình H1 API (`/api/health.h1_api=false`), Resolve `https://hackerone.com/verisk_vdp?type=team`; draft #20 có `policy.source=public_dump`, `policy.text=""`, đúng hai wildcard IN (`*.iso.com`, `*.verisk.com`), không OUT/hướng dẫn riêng. Review cho chọn Strong; điều kiện Launch chỉ kiểm hai checkbox xác nhận, không kiểm policy/scope đã được xác minh. Chưa Launch scan này.
+- **Tác động:** người dùng không thể đối chiếu điều kiện tự động quét hoặc phạm vi hiện hành ngay trên Review nhưng vẫn có thể chạy công cụ active dựa vào bản sao công khai có thể đã cũ. Đây là rủi ro quyết định sai phạm vi; không kết luận program thật cho phép hay cấm scan.
+- **Hướng sửa:** khi metadata là `public_dump` và thiếu policy, hiển thị Review ở trạng thái chưa đủ điều kiện cho Light/Strong; yêu cầu nhập/xác minh policy và scope hiện hành, hoặc Resolve lại từ API H1. Cho xem timestamp, nguồn và trạng thái từng asset; không gợi ý Strong trước khi có đủ thông tin. Kiểm bằng H1 mock và tình huống fallback.
 
 ## Giới hạn và mục chưa chạy
 
