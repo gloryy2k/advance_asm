@@ -12,7 +12,7 @@ from backend.jobs.scope_resolver import ScopeResolver
 S = os.environ.get("SCR", "/tmp/bbasm-mock")
 os.makedirs(f"{S}/h1run/data", exist_ok=True); os.makedirs(f"{S}/h1run/targets", exist_ok=True)
 settings = Settings(_env_file=None, BBASM_DATA=f"{S}/h1run/data", BBASM_TARGETS=f"{S}/h1run/targets",
-    BBASM_STATIC=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend/dist"), BBASM_PORT=18766, BBASM_SKIP_HISTORICAL=True,
+    BBASM_STATIC=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend/dist"), BBASM_PORT=int(os.environ.get("MOCK_PORT", "18766")), BBASM_SKIP_HISTORICAL=True,
     H1_USER="u", H1_TOKEN="t")
 scopes = [
  ("*.acme.com","WILDCARD",True,"Main wildcard. Do not test /internal."),
@@ -29,4 +29,4 @@ def handler(req):
     return httpx.Response(200, json={"data":{"attributes":{"handle":"acme","name":"Acme","policy":"## Acme policy\nNo DoS. No social engineering. Automated scanning limited to 5 req/s. Report via HackerOne only."}}})
 app = create_app(settings)
 app.state.scope_resolver = ScopeResolver(settings, app.state.database, HackerOneScopeProvider(settings, transport=httpx.MockTransport(handler)))
-uvicorn.run(app, host="127.0.0.1", port=18766, access_log=False, log_level="warning")
+uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("MOCK_PORT", "18766")), access_log=False, log_level="warning")

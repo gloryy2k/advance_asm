@@ -18,14 +18,15 @@ def test_browser_resolve_review_launch_to_brief():
         try:
             page = browser.new_page()
             page.goto(base + "/#/new")
+            page.get_by_role("tab", name="Raw scope").click()
             page.get_by_label("Scope — mỗi dòng một asset").fill(target)
             page.get_by_role("button", name="Resolve & review").click()
-            page.get_by_role("combobox", name="Depth", exact=True).select_option("passive")
+            page.get_by_role("radio", name=re.compile("Passive")).click()
             page.get_by_role("button", name="Launch scan").click()
-            sync_api.expect(page.get_by_role("status", name="Scan status")).to_have_text("done", timeout=360000)
+            sync_api.expect(page.get_by_role("status", name="Scan status")).to_have_text("hoàn tất", timeout=360000)
             page.goto(base + "/#/")
             page.get_by_role("heading", name=target, exact=True).click()
-            page.get_by_role("button", name="Brief", exact=True).click()
+            page.get_by_role("tab", name="Brief", exact=True).click()
             sync_api.expect(page.get_by_role("heading", name=re.compile("AGENT BRIEF"))).to_be_visible()
         finally:
             browser.close()

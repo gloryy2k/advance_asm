@@ -190,3 +190,22 @@ def test_program_md_without_policy_says_so_and_points_to_next_step():
     from backend.brief.generator import BriefGenerator
     text = BriefGenerator.program_text("x", {"policy_json": json.dumps({"scope_identity": "x"})}, [])
     assert "Không có policy trong dữ liệu" in text
+
+
+def test_broken_line_shows_only_the_error_not_a_phantom_valid_word():
+    lines = parse_scope(["bad host!!", "a.example.com"])
+    first = [r for r in lines if r.line == 1]
+    assert [r.status for r in first] == ["error"]
+    assert [r.status for r in lines if r.line == 2] == ["ok"]
+
+
+def test_hunt_command_uses_the_users_path_not_the_containers(tmp_path):
+    from backend.config import Settings
+    plain = Settings(_env_file=None, BBASM_TARGETS=tmp_path / "targets")
+    assert plain.hunt_target("acme")["hunt_command"] == f'cd "{(tmp_path / "targets" / "acme").resolve()}" && claude'
+    docker = Settings(_env_file=None, BBASM_TARGETS="/app/targets")
+    result = docker.hunt_target("acme")
+    assert result["hunt_command"] == 'cd "targets/acme" && claude' and "BBASM_HOST_TARGETS" in result["hunt_note"]
+    mapped = Settings(_env_file=None, BBASM_TARGETS="/app/targets", BBASM_HOST_TARGETS="/home/me/bbasm/targets")
+    assert mapped.hunt_target("acme") == {"hunt_command": 'cd "/home/me/bbasm/targets/acme" && claude', "hunt_note": ""}
+    assert Settings(_env_file=None, BBASM_HOST_TARGETS="").BBASM_HOST_TARGETS is None  # empty .env value

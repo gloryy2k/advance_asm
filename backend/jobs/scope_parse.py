@@ -142,9 +142,14 @@ def parse_box(lines, box="in", default_kind=None):
                 results.append(LineResult(box, number, raw, "skip", kind, note="Ghi chú, bỏ qua"))
             continue
         text = _BULLET.sub("", _INLINE_COMMENT.sub("", text)).strip()
+        line_results = []
         for token in _SPLIT.split(text):
             if token:
-                _token(raw, token, kind, box, number, results)
+                _token(raw, token, kind, box, number, line_results)
+        if any(r.status == "error" for r in line_results):
+            # "bad host!!" is one broken line, not a valid word "bad" plus an error: show only the error.
+            line_results = [r for r in line_results if r.status == "error"]
+        results.extend(line_results)
     return results
 
 

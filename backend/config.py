@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     BBASM_DATA: Path = PROJECT_ROOT / "data"
     BBASM_TARGETS: Path = PROJECT_ROOT / "targets"
     BBASM_STATIC: Path = PROJECT_ROOT / "frontend" / "dist"
+    BBASM_HOST_TARGETS: Path | None = None  # where BBASM_TARGETS appears on the user's machine (Docker)
     BBASM_BIND: str = "127.0.0.1"
     BBASM_PORT: int = Field(default=8000, ge=1, le=65535)
     BB_THREADS: int = Field(default=50, ge=1, le=200)
@@ -44,7 +45,7 @@ class Settings(BaseSettings):
     H1_USER: SecretStr = SecretStr("")
     H1_TOKEN: SecretStr = SecretStr("")
 
-    @field_validator("SUBFINDER_CONFIG_DIR", mode="before")
+    @field_validator("SUBFINDER_CONFIG_DIR", "BBASM_HOST_TARGETS", mode="before")
     @classmethod
     def empty_optional_path(cls, value):
         return None if value == "" else value
@@ -65,6 +66,19 @@ class Settings(BaseSettings):
     @property
     def tools_dir(self) -> Path:
         return self.BBASM_BBROOT / self.BBASM_TOOLS_SUBDIR
+
+    def hunt_target(self, slug: str) -> dict:
+        """The `cd … && claude` command as the *user's* shell needs it, not the container's."""
+        import json as _json
+        if self.BBASM_HOST_TARGETS is not None:
+            where, note = str(self.BBASM_HOST_TARGETS / slug), ""
+        elif str(self.BBASM_TARGETS).replace("\\", "/").startswith("/app/"):
+            where = "targets/" + slug
+            note = ("Chạy từ thư mục dự án BBASM trên máy bạn (thư mục ./targets được mount từ container). "
+                    "Đặt BBASM_HOST_TARGETS trong .env để hiện đường dẫn tuyệt đối.")
+        else:
+            where, note = str((self.BBASM_TARGETS / slug).resolve()), ""
+        return {"hunt_command": f"cd {_json.dumps(where)} && claude", "hunt_note": note}
 
     def tool_path(self, name: str) -> Path:
         if not name or name in {".", ".."} or any(c in name for c in "/\\:"):

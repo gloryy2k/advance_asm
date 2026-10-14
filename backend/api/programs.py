@@ -130,6 +130,7 @@ def summary(slug: str, request: Request):
         drafts = conn.execute("SELECT count(*) FROM scan_run WHERE program_id=? AND status='draft'", (program["id"],)).fetchone()[0]
     return {"slug": slug, "source": program["source"], "handle": program["handle"],
             "target_path": str((request.app.state.settings.BBASM_TARGETS / slug).resolve()),
+            **request.app.state.settings.hunt_target(slug),
             "latest_scan": decoded(latest) if latest else None,
             "last_completed_scan": decoded(scan) if scan else None,
             "changes": {k: counts.get(k, 0) for k in ("new", "changed", "gone")},

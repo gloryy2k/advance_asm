@@ -183,6 +183,7 @@ class JobRunner:
             "scan": {key: scan[key] for key in ("id", "depth", "status", "trigger", "started_at", "finished_at", "error")},
             "slug": program["slug"], "source": program["source"], "handle": program["handle"],
             "target_path": str((self.settings.BBASM_TARGETS / program["slug"]).resolve()),
+            **self.settings.hunt_target(program["slug"]),
             "scope": stats.get("resolved_scope", []), "warnings": stats.get("warnings", []),
             "automation_ack": stats.get("automation_ack"),
             "policy": {"text": text if isinstance(text, str) else "", "source": policy.get("policy_source"),
