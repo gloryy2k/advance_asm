@@ -21,7 +21,10 @@ def regenerate(slug: str, request: Request):
 
 def read(slug, request, filename):
     gen = generator(request)
-    gen.snapshot(slug)
+    if filename == "PROGRAM.md":
+        gen.ensure_program(slug)  # readable/editable before the first scan completes
+    else:
+        gen.snapshot(slug)
     path = gen.target(slug) / filename
     if not path.is_file() or path.is_symlink():
         raise ScopeError(f"{filename} unavailable")

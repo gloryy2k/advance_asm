@@ -198,10 +198,12 @@ class ScopeResolver:
                 else:
                     program_id = existing["id"]
                     conn.execute("UPDATE program SET policy_json=?,updated_at=? WHERE id=?", (json.dumps(policy), now, program_id))
-                conn.execute("DELETE FROM scope_rule WHERE program_id=?", (program_id,))
-                conn.executemany("INSERT INTO scope_rule(program_id,pattern,kind,asset_type) VALUES(?,?,?,?)", [
-                    (program_id, e.pattern, e.kind, e.asset_type) for e in entries
-                ])
+                if existing is None:
+                    # An existing program may be scheduled from its stored scope_rule rows. A draft
+                    # the user has not confirmed must not rewrite them; launch applies the snapshot.
+                    conn.executemany("INSERT INTO scope_rule(program_id,pattern,kind,asset_type) VALUES(?,?,?,?)", [
+                        (program_id, e.pattern, e.kind, e.asset_type) for e in entries
+                    ])
                 config = default_config(self.settings, entries)
                 scan_id = conn.execute("INSERT INTO scan_run(program_id,depth,status,trigger,stats_json) VALUES(?,?,'draft','manual',?)", (
                     program_id, config.depth, json.dumps({"resolved_scope": [e.model_dump() for e in entries]}),
@@ -212,14 +214,14 @@ class ScopeResolver:
                      config.nuclei_severity, config.skip_nmap, config.skip_nuclei, config.skip_active_crawl,
                      json.dumps(config.categories_enabled), json.dumps(config.excluded_hosts), now),
                 )
-                scope_text = "# IN\n" + "\n".join(e.pattern for e in entries if e.kind == "in") + "\n# OUT\n" + "\n".join(e.pattern for e in entries if e.kind == "out") + "\n"
                 target_dir.mkdir(parents=True, exist_ok=True)
-                # A scan-specific snapshot in DB is authoritative; .scope is the latest
-                # preview. P2 must use the launch scan's snapshot, not this shared file.
-                temp_scope = target_dir / ".scope.tmp"
-                with temp_scope.open("w", encoding="utf-8", newline="\n") as stream:
-                    stream.write(scope_text)
-                temp_scope.replace(target_dir / ".scope")
+                if existing is None:
+                    scope_text = "# IN\n" + "\n".join(e.pattern for e in entries if e.kind == "in") + "\n# OUT\n" + "\n".join(e.pattern for e in entries if e.kind == "out") + "\n"
+                    # A scan-specific snapshot in DB is authoritative; .scope is the latest preview.
+                    temp_scope = target_dir / ".scope.tmp"
+                    with temp_scope.open("w", encoding="utf-8", newline="\n") as stream:
+                        stream.write(scope_text)
+                    temp_scope.replace(target_dir / ".scope")
                 audit(audit_path, slug, "draft", "scope_resolved", scan_id=scan_id)
                 conn.commit()
             except Exception:

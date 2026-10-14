@@ -7,6 +7,16 @@ import threading
 from backend.db import utc_now
 from backend.jobs.scope_resolver import ScopeError
 
+TEST_IDEAS = {
+    "api": "kiểm tra phân quyền/IDOR và rate limit ở endpoint API",
+    "auth": "xem luồng đăng nhập/SSO/reset mật khẩu",
+    "fresh": "asset mới, chưa ai nhìn kỹ",
+    "tech_risk": "tech có tiền sử lỗi; đối chiếu phiên bản",
+    "nonproduction": "môi trường dev/staging thường lỏng hơn prod",
+    "nuclei_medium_plus": "xác minh thủ công finding nuclei mức medium+",
+    "nuclei_low": "xác minh finding nuclei mức low",
+    "status_restricted": "401/403: kiểm tra kiểm soát truy cập (trong phạm vi policy)",
+}
 USER_START = "<!-- user-editable -->"
 USER_END = "<!-- /user-editable -->"
 _lock = threading.RLock()
@@ -19,6 +29,29 @@ def clean(value, limit=250):
 class BriefGenerator:
     def __init__(self, settings, database):
         self.settings, self.database = settings, database
+
+    def program_row(self, slug):
+        if not self.database.path.exists():
+            raise ScopeError("Program not found", "program_not_found")
+        with self.database.connect() as conn:
+            row = conn.execute("SELECT * FROM program WHERE slug=?", (slug,)).fetchone()
+            if not row:
+                raise ScopeError("Program not found", "program_not_found")
+            scan = conn.execute("SELECT stats_json FROM scan_run WHERE program_id=? ORDER BY id DESC LIMIT 1", (row["id"],)).fetchone()
+        return dict(row), json.loads((scan["stats_json"] if scan else None) or "{}").get("resolved_scope", [])
+
+    def ensure_program(self, slug):
+        """PROGRAM.md must exist (and be editable) from resolve time, before any scan completes."""
+        with _lock:
+            program, scope = self.program_row(slug)
+            target = self.target(slug)
+            target.mkdir(parents=True, exist_ok=True)
+            path = target / "PROGRAM.md"
+            if path.is_symlink():
+                raise ScopeError("Refusing program symlink")
+            if not path.exists():
+                self.write(path, self.program_text(slug, program, scope))
+            return path
 
     def snapshot(self, slug, scan_id=None):
         if not self.database.path.exists():
@@ -33,7 +66,7 @@ class BriefGenerator:
             else:
                 scan = conn.execute("SELECT * FROM scan_run WHERE program_id=? AND id=?", (program["id"], scan_id)).fetchone()
             if not scan:
-                raise ScopeError("No completed scan available")
+                raise ScopeError("Chưa có scan hoàn tất; chạy scan trước khi tạo brief", "no_completed_scan")
             scan = dict(scan)
             assets = [dict(r) for r in conn.execute("SELECT * FROM asset WHERE program_id=? AND last_seen_scan=? ORDER BY rank_score DESC,host", (program["id"], scan["id"]))]
             findings = [dict(r) for r in conn.execute("SELECT * FROM finding WHERE program_id=? AND last_seen_scan=? ORDER BY id", (program["id"], scan["id"]))]
@@ -62,7 +95,7 @@ class BriefGenerator:
         user_policy = user_policy.strip()
         if user_policy:
             policy_block += "\n\n### Policy/hướng dẫn do người dùng dán\n" + user_policy[:20000]
-        body = f"# {slug}\n\n## Policy\n{policy_block}\n\n## Scope theo category\n"
+        body = f"# {slug}\n\n## Policy\n{policy_block}\n\n## Scope theo category (lúc tạo program; bản hiện hành: .scope và AGENT_BRIEF.md)\n"
         body += "\n".join(f"- {e['kind']} [{e['category']}] {e['pattern']}: {e.get('instruction', '')}" for e in scope)
         body += f"\n\n## Ghi chú của người dùng\n{USER_START}\nQuy định đặc biệt, auth, OOS và severity guideline: chưa bổ sung.\n{USER_END}\n"
         return body
@@ -109,14 +142,15 @@ class BriefGenerator:
             self.write(target / "CLAUDE.md", (Path(__file__).parent / "templates/CLAUDE.md").read_text(encoding="utf-8"))
             sections = [f"# AGENT BRIEF — {clean(slug)}\nScan {scan['id']} · {scan['depth']} · {scan['status']}\n",
                         "## SCOPE\n" + scope_text,
-                        "## SỐ LIỆU\n" + f"Assets: {len(assets)} · Live: {stats.get('live', 0)} · URLs: {stats.get('urls', 0)} · Findings: {len(findings)}\n"]
+                        "## SỐ LIỆU\n" + f"Assets: {len([a for a in assets if a.get('category') != 'cidr'])}" + (f" (+{len([a for a in assets if a.get('category') == 'cidr'])} dải)" if any(a.get('category') == 'cidr' for a in assets) else "") + f" · Live: {stats.get('live', 0)} · URLs: {stats.get('urls', 0)} · Findings: {len(findings)}\n"]
             if scan["depth"] == "passive":
                 sections.append("Depth=passive: chưa probe live/tech. Chạy lại light/strong để có surface đầy đủ.\n")
             if scan["status"] == "done_partial":
                 sections.append("Scan có dữ liệu một phần; không suy ra host vắng là đã biến mất.\n")
-            sections.extend(["## TOP SURFACE\n|Host|Rank|Status|Tech|\n|---|---:|---|---|\n",
+            sections.extend(["## TOP SURFACE\n|Host|Rank|Status|Tech|Lý do|\n|---|---:|---|---|---|\n",
                              "## ASSET MỚI\n", "## SIGNALS\n",
-                             "## HƯỚNG TEST\nƯu tiên API/auth và signal có rank cao; xác minh thủ công, tuân thủ policy.\n",
+                             "## HƯỚNG TEST\n",
+                             "## GHI CHÚ SCOPE\n",
                              "## CÁCH LÀM VIỆC\nĐọc PROGRAM.md để biết policy; dữ liệu recon ở recon/scans/" + str(scan["id"]) + "/. Ghi chú vào notes/, findings/ và reports/. Không tự submit.\n"])
             # Preserve all section headings and full scope. Overflow fails explicitly
             # instead of silently omitting scope rules from an apparently complete brief.
@@ -130,18 +164,40 @@ class BriefGenerator:
             top = next(i for i, s in enumerate(sections) if s.startswith("## TOP"))
             new = top + 1
             signals = top + 2
+            hints = top + 3
+            notes = top + 4
+            hosts = [a for a in assets if a.get("category") != "cidr"]
+            ranges = [a for a in assets if a.get("category") == "cidr"]
             for entry in scope:
                 if entry["category"] in {"mobile", "other"}:
                     append(signals, f"- Manual [{entry['category']}]: {clean(entry['pattern'])}; mobile: mobile-pentest.\n")
             for finding in findings[:20]:
                 append(signals, f"- {finding['severity']} {finding['type']}: {clean(finding['name'], 120)}\n")
-            for a in assets[:25]:
+            for a in hosts[:25]:
                 status = a['status_code'] or '-' if scan['depth'] != 'passive' else '-'
                 tech = clean(a['tech_json'], 70) if scan['depth'] != 'passive' else '-'
-                append(top, f"|{clean(a['host'], 120)}|{a['rank_score'] or 0:g}|{status}|{tech}|\n")
-            for a in assets:
-                if a["first_seen_scan"] == scan["id"]:
-                    append(new, f"- {clean(a['host'], 120)}\n")
+                reasons = clean(", ".join(json.loads(a["rank_reasons_json"] or "[]")), 60) or "-"
+                append(top, f"|{clean(a['host'], 120)}|{a['rank_score'] or 0:g}|{status}|{tech}|{reasons}|\n")
+            for a in ranges:
+                append(top, f"|{clean(a['host'], 120)} (dải: {clean(a['title'], 60)})|-|-|-|range|\n")
+            fresh = [a for a in hosts if a["first_seen_scan"] == scan["id"]]
+            for a in fresh[:30]:
+                append(new, f"- {clean(a['host'], 120)}\n")
+            if len(fresh) > 30:
+                append(new, f"- … và {len(fresh) - 30} asset mới khác (xem dashboard / recon/scans/{scan['id']}/)\n")
+            # Concrete next steps from each top host's own rank reasons (deterministic, no LLM).
+            for a in hosts[:5]:
+                found = json.loads(a["rank_reasons_json"] or "[]")
+                ideas = [TEST_IDEAS[r] for r in found if r in TEST_IDEAS]
+                if ideas:
+                    append(hints, f"- {clean(a['host'], 80)}: {'; '.join(ideas[:3])}\n")
+            if sections[hints].strip() == "## HƯỚNG TEST":
+                append(hints, "Chưa có tín hiệu rõ; bắt đầu từ host rank cao nhất, xác minh thủ công, tuân thủ policy.\n")
+            for entry in scope:
+                if entry.get("instruction"):
+                    append(notes, f"- {entry['kind'].upper()} {clean(entry['pattern'], 80)}: {clean(entry['instruction'], 150)}\n")
+            if sections[notes].strip() == "## GHI CHÚ SCOPE":
+                append(notes, "Không có instruction riêng theo asset; xem PROGRAM.md.\n")
             intel = target / "recon/scans" / str(scan["id"]) / "intel.json"
             if intel.is_file() and not intel.is_symlink():
                 try:
@@ -155,8 +211,7 @@ class BriefGenerator:
 
     def update_program(self, slug, text):
         with _lock:
-            self.snapshot(slug)
-            path = self.target(slug) / "PROGRAM.md"
+            path = self.ensure_program(slug)
             if path.is_symlink() or not path.is_file():
                 raise ScopeError("PROGRAM.md unavailable")
             old = path.read_text(encoding="utf-8")

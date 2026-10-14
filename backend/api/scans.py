@@ -28,6 +28,8 @@ async def auto_scan(body: AutoScanRequest, request: Request):
         raise ScopeError("depth must match config.depth")
     await asyncio.to_thread(state.database.migrate)
     result = await asyncio.to_thread(state.scope_resolver.resolve, ResolveRequest(input=body.input, scope=body.scope))
+    from backend.brief.generator import BriefGenerator
+    BriefGenerator(state.settings, state.database).ensure_program(result.slug)
     config = body.config or default_config(state.settings.model_copy(update={"BBASM_DEFAULT_DEPTH": body.depth}),
         [entry for group in result.assets_by_category.values() for entry in group])
     await state.runner.submit(result.scan_id, config)
@@ -47,6 +49,17 @@ async def get_config(scan_id: int, request: Request):
 @router.put("/api/scans/{scan_id}/config", response_model=ScanConfig)
 async def put_config(scan_id: int, config: ScanConfig, request: Request):
     return await asyncio.to_thread(request.app.state.runner.config, scan_id, config)
+
+
+@router.get("/api/drafts")
+async def drafts(request: Request):
+    return await asyncio.to_thread(request.app.state.runner.drafts)
+
+
+@router.delete("/api/scans/{scan_id}")
+async def delete_draft(scan_id: int, request: Request):
+    await asyncio.to_thread(request.app.state.runner.delete_draft, scan_id)
+    return {"deleted": scan_id}
 
 
 @router.post("/api/scans/{scan_id}/launch")

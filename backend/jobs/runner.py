@@ -2,6 +2,7 @@
 
 import asyncio
 import codecs
+from datetime import datetime, timedelta, timezone
 import json
 import os
 import signal
@@ -107,6 +108,7 @@ class JobRunner:
             return
         with self.database.connect() as conn, conn:
             conn.execute("UPDATE scan_run SET status='failed',finished_at=?,error='Dashboard interrupted; create a new scan to retry' WHERE status IN ('queued','running')", (utc_now(),))
+        self.purge_drafts()
 
     def config(self, scan_id, new_config=None):
         if not self.database.path.exists():
@@ -144,7 +146,69 @@ class JobRunner:
             config = config or read_config(conn.execute("SELECT * FROM scan_config WHERE scan_run_id=?", (scan_id,)).fetchone())
             self._validate(config)
             store_config(conn, scan_id, config)
+            self._apply_scope_snapshot(conn, scan_id)
             conn.execute("UPDATE scan_run SET status='queued' WHERE id=?", (scan_id,))
+
+    @staticmethod
+    def _apply_scope_snapshot(conn, scan_id):
+        """Launch is the moment the reviewed scope becomes the program's scope (schedules read it)."""
+        row = conn.execute("SELECT program_id,stats_json FROM scan_run WHERE id=?", (scan_id,)).fetchone()
+        entries = json.loads(row["stats_json"] or "{}").get("resolved_scope") or []
+        if not entries:
+            return
+        conn.execute("DELETE FROM scope_rule WHERE program_id=?", (row["program_id"],))
+        conn.executemany("INSERT INTO scope_rule(program_id,pattern,kind,asset_type) VALUES(?,?,?,?)",
+                         [(row["program_id"], e["pattern"], e["kind"], e["asset_type"]) for e in entries])
+
+    def drafts(self):
+        if not self.database.path.exists():
+            return []
+        with self.database.connect() as conn:
+            rows = conn.execute("SELECT s.id,s.depth,s.stats_json,p.slug,p.source,c.created_at FROM scan_run s "
+                                "JOIN program p ON p.id=s.program_id LEFT JOIN scan_config c ON c.scan_run_id=s.id "
+                                "WHERE s.status='draft' ORDER BY s.id DESC").fetchall()
+        result = []
+        for row in rows:
+            scope = json.loads(row["stats_json"] or "{}").get("resolved_scope") or []
+            result.append({"id": row["id"], "slug": row["slug"], "source": row["source"], "depth": row["depth"],
+                           "created_at": row["created_at"],
+                           "in": sum(e["kind"] == "in" for e in scope), "out": sum(e["kind"] == "out" for e in scope)})
+        return result
+
+    def delete_draft(self, scan_id):
+        if not self.database.path.exists():
+            raise ScopeError("Scan not found", "scan_not_found")
+        with self.database.connect() as conn, conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT status,program_id FROM scan_run WHERE id=?", (scan_id,)).fetchone()
+            if row is None:
+                raise ScopeError("Scan not found", "scan_not_found")
+            if row["status"] != "draft":
+                raise ScopeError("Only draft scans can be deleted", "invalid_state")
+            self._drop_draft(conn, scan_id, row["program_id"])
+
+    @staticmethod
+    def _drop_draft(conn, scan_id, program_id):
+        conn.execute("DELETE FROM scan_config WHERE scan_run_id=?", (scan_id,))
+        conn.execute("DELETE FROM scan_run WHERE id=?", (scan_id,))
+        # A program that never ran anything and has no schedule is just leftover from an abandoned resolve.
+        if not conn.execute("SELECT 1 FROM scan_run WHERE program_id=?", (program_id,)).fetchone() and \
+                not conn.execute("SELECT 1 FROM schedule WHERE program_id=?", (program_id,)).fetchone():
+            conn.execute("DELETE FROM scope_rule WHERE program_id=?", (program_id,))
+            conn.execute("DELETE FROM program WHERE id=?", (program_id,))
+
+    def purge_drafts(self, days=7):
+        """Abandoned drafts never expire on their own; drop the old ones at boot."""
+        if not self.database.path.exists():
+            return 0
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        with self.database.connect() as conn, conn:
+            conn.execute("BEGIN IMMEDIATE")
+            old = conn.execute("SELECT s.id,s.program_id FROM scan_run s LEFT JOIN scan_config c ON c.scan_run_id=s.id "
+                               "WHERE s.status='draft' AND COALESCE(c.created_at,'')<?", (cutoff,)).fetchall()
+            for row in old:
+                self._drop_draft(conn, row["id"], row["program_id"])
+            return len(old)
 
     async def submit(self, scan_id, config=None):
         if self.closing:

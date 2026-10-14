@@ -16,7 +16,8 @@ def score_asset(asset, scan_id, urls=(), severities=()):
 
     add(bool(re.search(r"\b(api|graphql|v1|v2|rest)\b", text + " " + tech)), 2.5, "api")
     add(bool(re.search(r"\b(login|sso|oauth|admin|account)\b", text)), 2.0, "auth")
-    add(asset["first_seen_scan"] == scan_id, 1.5, "fresh")
+    # A CIDR range row is a container, not a host; "new range" is not attack-surface signal.
+    add(asset["first_seen_scan"] == scan_id and asset.get("category") != "cidr", 1.5, "fresh")
     risks = [t for t in ("graphql", "flask", "express", "wordpress", "jenkins", "gitlab", "grafana", "s3", "firebase") if t in tech]
     add(bool(risks), 1.5, "tech_risk")
     reasons.extend(risks)

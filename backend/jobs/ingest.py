@@ -1,5 +1,6 @@
 """Idempotent ingestion of scoped framework output, including partial scans."""
 
+import ipaddress
 import json
 import re
 
@@ -15,6 +16,14 @@ def lines(path):
             for line in stream:
                 if line.strip():
                     yield line.strip()
+
+
+def _in_network(host, network):
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return address.version == network.version and address in network
 
 
 def httpx_record(line):
@@ -33,9 +42,47 @@ def httpx_record(line):
     return url, status, title, tech, None
 
 
+EVIDENCE = ("status_code", "title", "tech", "ip", "http_live")
+
+
 class Ingester:
     def __init__(self, settings, database):
         self.settings, self.database = settings, database
+
+    @staticmethod
+    def _collapse_ranges(plan, assets, urls, findings):
+        """A CIDR is one range asset; individual IPs only exist with real evidence.
+
+        recon_engine enumerates every address of a CIDR into subdomains/all.txt. Treating
+        each as an asset made a /24 look like 254 new assets (and a /16 like 65k) even when
+        nothing answered. Dead/unprobed addresses are dropped, answering ones are kept.
+        """
+        exact = set()
+        ranges = []
+        for pattern in plan.gate.allow:
+            if pattern.startswith("repo:"):
+                continue
+            try:
+                if "/" in pattern:
+                    ranges.append(ipaddress.ip_network(pattern))
+                else:
+                    exact.add(str(ipaddress.ip_address(pattern)))
+            except ValueError:
+                continue
+        referenced = {host for host, _ in urls.values()} | {item[0] for item in findings}
+        collapsed = 0
+        for host in list(assets):
+            row = assets[host]
+            if row["category"] != "ip" or host in exact or host in referenced:
+                continue
+            if not any(key in row for key in EVIDENCE):
+                del assets[host]
+                collapsed += 1
+        for network in ranges:
+            members = [h for h, r in assets.items() if r["category"] == "ip" and _in_network(h, network)]
+            title = f"{network.num_addresses} địa chỉ" + (f" · {len(members)} có phản hồi" if members else "")
+            assets[str(network)] = {"category": "cidr", "title": title}
+        return collapsed
 
     def ingest(self, plan):
         module = load_module(self.settings, "recon_adapter.py")
@@ -120,6 +167,7 @@ class Ingester:
                     findings.append((host, "nuclei", severity, name, {"matched_at": target, "name": info.get("name")}))
                 except (ValueError, TypeError, AttributeError):
                     continue
+        collapsed = self._collapse_ranges(plan, assets, urls, findings)
         observed = len(assets) + len(urls) + len(findings)
         with self.database.connect() as conn, conn:
             conn.execute("BEGIN IMMEDIATE")
@@ -135,6 +183,6 @@ class Ingester:
             for host, kind, severity, name, details in findings:
                 conn.execute("INSERT INTO finding(program_id,asset_id,type,severity,name,detail_json,first_seen_scan,last_seen_scan) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(program_id,type,name,asset_id) DO UPDATE SET severity=excluded.severity,detail_json=excluded.detail_json,last_seen_scan=excluded.last_seen_scan", (
                     plan.program_id, ids[host], kind, severity, name, json.dumps(details), plan.scan_id, plan.scan_id))
-        return {"observed": observed, "subs": len(assets), "live": sum("status_code" in row for row in assets.values()),
+        return {"observed": observed, "collapsed_ips": collapsed, "subs": len(assets), "live": sum("status_code" in row for row in assets.values()),
                 "urls": len(urls), "findings": len({(item[0], item[1], item[3]) for item in findings}),
                 "observations": assets}

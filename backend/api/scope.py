@@ -19,7 +19,10 @@ class PreviewRequest(BaseModel):
 @router.post("/resolve", response_model=ResolveResponse)
 def resolve_scope(body: ResolveRequest, request: Request):
     request.app.state.database.migrate()
-    return request.app.state.scope_resolver.resolve(body)
+    result = request.app.state.scope_resolver.resolve(body)
+    from backend.brief.generator import BriefGenerator
+    BriefGenerator(request.app.state.settings, request.app.state.database).ensure_program(result.slug)
+    return result
 
 
 @router.post("/preview")
