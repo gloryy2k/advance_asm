@@ -1,0 +1,3522 @@
+{
+  "schema": "bbasm-v11-scan-evidence-1",
+  "scope": "vuihoc.vn (exact host)",
+  "sanitization": "No raw URL, query value, page content, JS bundle, token, local absolute path, or out-of-scope hostname. URL shapes retain at most three safe path segments; variable, numeric, non-ASCII, and long segments become *.",
+  "scans": [
+    {
+      "id": 9,
+      "depth": "passive",
+      "status": "done",
+      "trigger": "manual",
+      "started_at": "2026-10-14T07:49:13.048Z",
+      "finished_at": "2026-10-14T07:51:31.357Z",
+      "config": {
+        "depth": "passive",
+        "threads": 1,
+        "rate_limit": 1,
+        "scan_timeout": 300,
+        "skip_nmap": 1,
+        "skip_nuclei": 1,
+        "skip_active_crawl": 1,
+        "nuclei_severity": ""
+      },
+      "stats": {
+        "observed": 8837,
+        "subs": 1,
+        "live": 0,
+        "urls": 8836,
+        "findings": 0,
+        "monitor_findings": 0,
+        "diff": {
+          "new": 1,
+          "changed": 0,
+          "gone": 0
+        },
+        "diff_complete": true
+      },
+      "artifacts": [
+        {
+          "path": "0/subdomains/all.txt",
+          "bytes": 10,
+          "lines": 1,
+          "unique_lines": 1,
+          "sha256": "fc6ff0a3e6af06de409117fe33fc71652b8ee3f2455cf47c988795a67ff924f0"
+        },
+        {
+          "path": "0/urls/all.txt",
+          "bytes": 743732,
+          "lines": 9332,
+          "unique_lines": 9332,
+          "sha256": "8a98eecb5d28e2bda8cb9aab4c0bbf0f6bf12f57ddbd6d3a031d1df6407cf91f",
+          "host_counts": {
+            "exact_scope": 9109,
+            "other_subdomain": 222,
+            "unparsed": 1
+          }
+        },
+        {
+          "path": "0/urls/api_endpoints.txt",
+          "bytes": 298,
+          "lines": 5,
+          "unique_lines": 5,
+          "sha256": "f9d6b0ed1410d87d05ec2d8f791ef1316f1cb81e0447607a2ef09b17768ce86b",
+          "host_counts": {
+            "exact_scope": 5
+          }
+        },
+        {
+          "path": "0/urls/gau.txt",
+          "bytes": 829261,
+          "lines": 10306,
+          "unique_lines": 9332,
+          "sha256": "584bda52b3c9147186d729a53383c4238320e3055a6c944609e069e23cd8de19",
+          "host_counts": {
+            "exact_scope": 10083,
+            "other_subdomain": 222,
+            "unparsed": 1
+          }
+        },
+        {
+          "path": "0/urls/js_files.txt",
+          "bytes": 18285,
+          "lines": 295,
+          "unique_lines": 295,
+          "sha256": "6fdeef2902e9dca344931378f0613cb017102276704c830e836934d2de7682cb",
+          "host_counts": {
+            "exact_scope": 284,
+            "other_subdomain": 11
+          }
+        },
+        {
+          "path": "0/urls/sensitive_paths.txt",
+          "bytes": 693,
+          "lines": 18,
+          "unique_lines": 18,
+          "sha256": "d1a299bf06a683e743dc553a3327d2179327eca92e93702f7a59a7896747daf3",
+          "host_counts": {
+            "exact_scope": 18
+          }
+        },
+        {
+          "path": "0/urls/with_params.txt",
+          "bytes": 63603,
+          "lines": 786,
+          "unique_lines": 786,
+          "sha256": "67abb846547b33119a93e00015401326a897c71e83c73c2cd8ec622cf5a608f9",
+          "host_counts": {
+            "exact_scope": 739,
+            "other_subdomain": 46,
+            "unparsed": 1
+          }
+        }
+      ],
+      "url_shape_count": 183,
+      "url_shapes_all": [
+        {
+          "shape": "/tin/*",
+          "count": 4778
+        },
+        {
+          "shape": "/module/filesystem/service",
+          "count": 1141
+        },
+        {
+          "shape": "/*/*",
+          "count": 853
+        },
+        {
+          "shape": "/*/*/dang-ky",
+          "count": 399
+        },
+        {
+          "shape": "/giao-vien/*",
+          "count": 224
+        },
+        {
+          "shape": "/*/*/*",
+          "count": 208
+        },
+        {
+          "shape": "/tim-kiem",
+          "count": 184
+        },
+        {
+          "shape": "/tag/*",
+          "count": 133
+        },
+        {
+          "shape": "/theme/vuihoc/vue_app",
+          "count": 101
+        },
+        {
+          "shape": "/thpt/_nuxt/*",
+          "count": 90
+        },
+        {
+          "shape": "/liveclass/tieu-hoc/*",
+          "count": 81
+        },
+        {
+          "shape": "/*",
+          "count": 78
+        },
+        {
+          "shape": "/thpt/_nuxt/img",
+          "count": 65
+        },
+        {
+          "shape": "/upload/*/*",
+          "count": 65
+        },
+        {
+          "shape": "/service/comment/getcomments",
+          "count": 63
+        },
+        {
+          "shape": "/assets/global/plugins",
+          "count": 58
+        },
+        {
+          "shape": "/theme/vuihoc/imgs",
+          "count": 48
+        },
+        {
+          "shape": "/",
+          "count": 47
+        },
+        {
+          "shape": "/theme/vuihoc/libs",
+          "count": 41
+        },
+        {
+          "shape": "/ho-tro/q/*",
+          "count": 36
+        },
+        {
+          "shape": "/service/course/getcoursedetail",
+          "count": 17
+        },
+        {
+          "shape": "/service/course/study",
+          "count": 16
+        },
+        {
+          "shape": "/thpt/_nuxt/fonts",
+          "count": 14
+        },
+        {
+          "shape": "/shop/shopping/product_details.php",
+          "count": 13
+        },
+        {
+          "shape": "/build/vuihoc.min.css",
+          "count": 13
+        },
+        {
+          "shape": "/*/*/assets",
+          "count": 12
+        },
+        {
+          "shape": "/build/vuihoc.min.js",
+          "count": 11
+        },
+        {
+          "shape": "/do-vui/*",
+          "count": 11
+        },
+        {
+          "shape": "/theme/vuihoc/styles.css",
+          "count": 10
+        },
+        {
+          "shape": "/assets/global/css",
+          "count": 9
+        },
+        {
+          "shape": "/assets/lib/pushjs",
+          "count": 8
+        },
+        {
+          "shape": "/theme/vuihoc/custom.css",
+          "count": 8
+        },
+        {
+          "shape": "/theme/vuihoc/js",
+          "count": 8
+        },
+        {
+          "shape": "/thpt/*/chuong-trinh-cu",
+          "count": 8
+        },
+        {
+          "shape": "/tin",
+          "count": 8
+        },
+        {
+          "shape": "/shop/shopping/cart_add.php",
+          "count": 7
+        },
+        {
+          "shape": "/liveclass/thpt/*",
+          "count": 7
+        },
+        {
+          "shape": "/theme/vuihoc/common_script.js",
+          "count": 7
+        },
+        {
+          "shape": "/thpt/_nuxt/icons",
+          "count": 7
+        },
+        {
+          "shape": "/thpt/giaovien/*",
+          "count": 7
+        },
+        {
+          "shape": "/*/vuihoc.vn",
+          "count": 7
+        },
+        {
+          "shape": "/images/*",
+          "count": 6
+        },
+        {
+          "shape": "/index.php",
+          "count": 6
+        },
+        {
+          "shape": "/ho-tro/cat/*",
+          "count": 6
+        },
+        {
+          "shape": "/thpt/*/*",
+          "count": 6
+        },
+        {
+          "shape": "/assets/css/liveclassforcap.css",
+          "count": 5
+        },
+        {
+          "shape": "/liveclass/*",
+          "count": 5
+        },
+        {
+          "shape": "/theme/vuihoc/*",
+          "count": 5
+        },
+        {
+          "shape": "/thi-thu-cung-vuihoc",
+          "count": 5
+        },
+        {
+          "shape": "/assets/imgs/news_newspapers",
+          "count": 4
+        },
+        {
+          "shape": "/assets/lib/*",
+          "count": 4
+        },
+        {
+          "shape": "/audio/*",
+          "count": 4
+        },
+        {
+          "shape": "/assets/lib/vue-paginate",
+          "count": 3
+        },
+        {
+          "shape": "/event/feedback/image",
+          "count": 3
+        },
+        {
+          "shape": "/*/*/vuihoc.vn",
+          "count": 3
+        },
+        {
+          "shape": "/liveclass/thcs/*",
+          "count": 3
+        },
+        {
+          "shape": "/css/style.css",
+          "count": 2
+        },
+        {
+          "shape": "/robots.txt",
+          "count": 2
+        },
+        {
+          "shape": "/arena",
+          "count": 2
+        },
+        {
+          "shape": "/assets/imgs/courses",
+          "count": 2
+        },
+        {
+          "shape": "/assets/imgs/duo",
+          "count": 2
+        },
+        {
+          "shape": "/assets/imgs/thpt",
+          "count": 2
+        },
+        {
+          "shape": "/feedback",
+          "count": 2
+        },
+        {
+          "shape": "/fonts/*",
+          "count": 2
+        },
+        {
+          "shape": "/puzzle/getother",
+          "count": 2
+        },
+        {
+          "shape": "/thpt",
+          "count": 2
+        },
+        {
+          "shape": "/thpt/*",
+          "count": 2
+        },
+        {
+          "shape": "/thpt/home",
+          "count": 2
+        },
+        {
+          "shape": "/thpt/trial-class",
+          "count": 2
+        },
+        {
+          "shape": "/cgi-sys/defaultwebpage.cgi",
+          "count": 1
+        },
+        {
+          "shape": "/cgi-sys/suspendedpage.cgi",
+          "count": 1
+        },
+        {
+          "shape": "/css/bootstrap.min.css",
+          "count": 1
+        },
+        {
+          "shape": "/favicon.ico",
+          "count": 1
+        },
+        {
+          "shape": "/*/css/font-awesome.min.css",
+          "count": 1
+        },
+        {
+          "shape": "/images/logo-eurodns.png",
+          "count": 1
+        },
+        {
+          "shape": "/images/logo-pavn.jpg",
+          "count": 1
+        },
+        {
+          "shape": "/images/logo_inet.png",
+          "count": 1
+        },
+        {
+          "shape": "/images/bkns-logo.png",
+          "count": 1
+        },
+        {
+          "shape": "/images/esc.gif",
+          "count": 1
+        },
+        {
+          "shape": "/images/gmo-runsystem-logo.png",
+          "count": 1
+        },
+        {
+          "shape": "/images/logo-matbao.png",
+          "count": 1
+        },
+        {
+          "shape": "/images/spt.gif",
+          "count": 1
+        },
+        {
+          "shape": "/js/bootstrap.min.js",
+          "count": 1
+        },
+        {
+          "shape": "/js/jquery.min.js",
+          "count": 1
+        },
+        {
+          "shape": "/logo.ico",
+          "count": 1
+        },
+        {
+          "shape": "/shop/shopping/cart_view.php",
+          "count": 1
+        },
+        {
+          "shape": "/shop/shopping/purchase_now.php",
+          "count": 1
+        },
+        {
+          "shape": "/shop/shopping/vuihoc.vn",
+          "count": 1
+        },
+        {
+          "shape": "/*/assets/imgs",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/ai-plugin.json",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/*",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/assetlinks.json",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/dnt-policy.txt",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/gpc.json",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/nodeinfo",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/openid-configuration",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/security.txt",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/trust.txt",
+          "count": 1
+        },
+        {
+          "shape": "/trung",
+          "count": 1
+        },
+        {
+          "shape": "/vuihoc.vn",
+          "count": 1
+        },
+        {
+          "shape": "/ads.txt",
+          "count": 1
+        },
+        {
+          "shape": "/app-ads.txt",
+          "count": 1
+        },
+        {
+          "shape": "/assets/global/img",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/arena",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/banks",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/bg_kids.png",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/news",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/th.png",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/thcs.png",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/thpt.png",
+          "count": 1
+        },
+        {
+          "shape": "/atom.xml",
+          "count": 1
+        },
+        {
+          "shape": "/audio/oop.ogg",
+          "count": 1
+        },
+        {
+          "shape": "/audio/tink.ogg",
+          "count": 1
+        },
+        {
+          "shape": "/audio/yeah.ogg",
+          "count": 1
+        },
+        {
+          "shape": "/*/home",
+          "count": 1
+        },
+        {
+          "shape": "/chinh-sach-bao-mat.html",
+          "count": 1
+        },
+        {
+          "shape": "/do-vui",
+          "count": 1
+        },
+        {
+          "shape": "/do-vui/*/assets",
+          "count": 1
+        },
+        {
+          "shape": "/duo/thcs",
+          "count": 1
+        },
+        {
+          "shape": "/duo/thpt",
+          "count": 1
+        },
+        {
+          "shape": "/duo/tieu-hoc",
+          "count": 1
+        },
+        {
+          "shape": "/feed.xml",
+          "count": 1
+        },
+        {
+          "shape": "/feed",
+          "count": 1
+        },
+        {
+          "shape": "/feeds/all.atom.xml",
+          "count": 1
+        },
+        {
+          "shape": "/giao-vien/*/assets",
+          "count": 1
+        },
+        {
+          "shape": "/giao-vien/vuihoc.vn",
+          "count": 1
+        },
+        {
+          "shape": "/gioi-thieu.html",
+          "count": 1
+        },
+        {
+          "shape": "/ho-tro",
+          "count": 1
+        },
+        {
+          "shape": "/ho-tro/navbar-static-top",
+          "count": 1
+        },
+        {
+          "shape": "/ho-tro/q/vuihoc.vn",
+          "count": 1
+        },
+        {
+          "shape": "/hoi-dap",
+          "count": 1
+        },
+        {
+          "shape": "/index.xml",
+          "count": 1
+        },
+        {
+          "shape": "/item.user.avatar_url",
+          "count": 1
+        },
+        {
+          "shape": "/kich-hoat-khoa-hoc",
+          "count": 1
+        },
+        {
+          "shape": "/kiem-tra-dau-vao",
+          "count": 1
+        },
+        {
+          "shape": "/kiem-tra-nang-luc/*",
+          "count": 1
+        },
+        {
+          "shape": "/lien-he",
+          "count": 1
+        },
+        {
+          "shape": "/lien-he.html",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/*/assets",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/navbar-static-top",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/navbar",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/thcs",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/thpt",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/tieu-hoc",
+          "count": 1
+        },
+        {
+          "shape": "/ma-kich-hoat",
+          "count": 1
+        },
+        {
+          "shape": "/module",
+          "count": 1
+        },
+        {
+          "shape": "/navbar-static-top",
+          "count": 1
+        },
+        {
+          "shape": "/navbar",
+          "count": 1
+        },
+        {
+          "shape": "/pas/thpt",
+          "count": 1
+        },
+        {
+          "shape": "/service/blograting/getaveragerating",
+          "count": 1
+        },
+        {
+          "shape": "/service/comment/getbannedkeyword",
+          "count": 1
+        },
+        {
+          "shape": "/service/ratings/getdatascore",
+          "count": 1
+        },
+        {
+          "shape": "/service/security/createkeymemcache",
+          "count": 1
+        },
+        {
+          "shape": "/service/security/gettoken",
+          "count": 1
+        },
+        {
+          "shape": "/service/security/login",
+          "count": 1
+        },
+        {
+          "shape": "/service/user/courses",
+          "count": 1
+        },
+        {
+          "shape": "/sitemap.html",
+          "count": 1
+        },
+        {
+          "shape": "/sitemap.xml",
+          "count": 1
+        },
+        {
+          "shape": "/sitemap/html",
+          "count": 1
+        },
+        {
+          "shape": "/sites",
+          "count": 1
+        },
+        {
+          "shape": "/sites/pages",
+          "count": 1
+        },
+        {
+          "shape": "/sites/pages/.html",
+          "count": 1
+        },
+        {
+          "shape": "/so-lien-lac",
+          "count": 1
+        },
+        {
+          "shape": "/tag/vuihoc.vn",
+          "count": 1
+        },
+        {
+          "shape": "/tai-khoan/khoa-hoc",
+          "count": 1
+        },
+        {
+          "shape": "/thcs",
+          "count": 1
+        },
+        {
+          "shape": "/theme/vuihoc/achievement_notify.css",
+          "count": 1
+        },
+        {
+          "shape": "/theme/vuihoc/order_create.css",
+          "count": 1
+        },
+        {
+          "shape": "/theme/vuihoc/page_study.css",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/*/assets",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/*/www.youtube.com",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/giaovien",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/hotlivestream.image_url",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/hottypevideos.image_url",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/item.image_url",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/luyen-de",
+          "count": 1
+        },
+        {
+          "shape": "/tieu-hoc",
+          "count": 1
+        },
+        {
+          "shape": "/tin/*/assets",
+          "count": 1
+        },
+        {
+          "shape": "/tin/vuihoc.vn",
+          "count": 1
+        },
+        {
+          "shape": "/tin/gtm.js",
+          "count": 1
+        },
+        {
+          "shape": "/tin/o.vdoc.vn/data",
+          "count": 1
+        },
+        {
+          "shape": "/tin/photo",
+          "count": 1
+        },
+        {
+          "shape": "/tuyen-dung",
+          "count": 1
+        }
+      ],
+      "query_keys_all": [
+        {
+          "key": "v",
+          "count": 246
+        },
+        {
+          "key": "key",
+          "count": 183
+        },
+        {
+          "key": "page",
+          "count": 157
+        },
+        {
+          "key": "limit",
+          "count": 64
+        },
+        {
+          "key": "objectid",
+          "count": 63
+        },
+        {
+          "key": "objecttype",
+          "count": 63
+        },
+        {
+          "key": "objectparent",
+          "count": 63
+        },
+        {
+          "key": "parentid",
+          "count": 63
+        },
+        {
+          "key": "id",
+          "count": 61
+        },
+        {
+          "key": "redirect_url",
+          "count": 38
+        },
+        {
+          "key": "utm_source",
+          "count": 31
+        },
+        {
+          "key": "utm_medium",
+          "count": 30
+        },
+        {
+          "key": "utm_campaign",
+          "count": 30
+        },
+        {
+          "key": "lan",
+          "count": 18
+        },
+        {
+          "key": "keyword",
+          "count": 17
+        },
+        {
+          "key": "code",
+          "count": 10
+        },
+        {
+          "key": "cid",
+          "count": 5
+        },
+        {
+          "key": "ma",
+          "count": 5
+        },
+        {
+          "key": "trk",
+          "count": 2
+        },
+        {
+          "key": "cap",
+          "count": 2
+        },
+        {
+          "key": "gidzl",
+          "count": 2
+        },
+        {
+          "key": "ver",
+          "count": 1
+        },
+        {
+          "key": "ref",
+          "count": 1
+        },
+        {
+          "key": "config",
+          "count": 1
+        },
+        {
+          "key": "fbclid",
+          "count": 1
+        },
+        {
+          "key": "name",
+          "count": 1
+        },
+        {
+          "key": "enablejsapi",
+          "count": 1
+        },
+        {
+          "key": "rel",
+          "count": 1
+        },
+        {
+          "key": "showinfo",
+          "count": 1
+        },
+        {
+          "key": "vip",
+          "count": 1
+        },
+        {
+          "key": "source-pas",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "depth": "light",
+      "status": "cancelled",
+      "trigger": "manual",
+      "started_at": "2026-10-14T08:12:51.411Z",
+      "finished_at": "2026-10-14T08:15:21.841Z",
+      "config": {
+        "depth": "light",
+        "threads": 1,
+        "rate_limit": 1,
+        "scan_timeout": 600,
+        "skip_nmap": 1,
+        "skip_nuclei": 1,
+        "skip_active_crawl": 0,
+        "nuclei_severity": "low,medium"
+      },
+      "stats": {
+        "observed": null,
+        "subs": null,
+        "live": null,
+        "urls": null,
+        "findings": null,
+        "monitor_findings": null,
+        "diff": null,
+        "diff_complete": null
+      },
+      "artifacts": [
+        {
+          "path": "0/js/endpoints_raw.txt",
+          "bytes": 740,
+          "lines": 39,
+          "unique_lines": 25,
+          "sha256": "d0c1962271737f16b060b3dbd19abe3e760f2c6e2564d9859e4b21c21365ade3"
+        },
+        {
+          "path": "0/live/httpx_full.txt",
+          "bytes": 249,
+          "lines": 1,
+          "unique_lines": 1,
+          "sha256": "129de01a5a5d9047126c653b30797c6043eb7eb6c678217eb967879ca43d6167"
+        },
+        {
+          "path": "0/live/status_200.txt",
+          "bytes": 249,
+          "lines": 1,
+          "unique_lines": 1,
+          "sha256": "129de01a5a5d9047126c653b30797c6043eb7eb6c678217eb967879ca43d6167"
+        },
+        {
+          "path": "0/live/status_3xx.txt",
+          "bytes": 0,
+          "lines": 0,
+          "unique_lines": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "0/live/status_401.txt",
+          "bytes": 0,
+          "lines": 0,
+          "unique_lines": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "0/live/status_403.txt",
+          "bytes": 0,
+          "lines": 0,
+          "unique_lines": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "0/live/urls.txt",
+          "bytes": 18,
+          "lines": 1,
+          "unique_lines": 1,
+          "sha256": "2749128922cf88616f486e80309558e4e1957005571c9cd099a40ecca8acbf29"
+        },
+        {
+          "path": "0/subdomains/all.txt",
+          "bytes": 10,
+          "lines": 1,
+          "unique_lines": 1,
+          "sha256": "fc6ff0a3e6af06de409117fe33fc71652b8ee3f2455cf47c988795a67ff924f0"
+        },
+        {
+          "path": "0/urls/all.txt",
+          "bytes": 57318,
+          "lines": 796,
+          "unique_lines": 796,
+          "sha256": "7f29af62cff20aebdf02045e7731b8cae51ae44d5121c80536e3fa97efc95fb1",
+          "host_counts": {
+            "exact_scope": 677,
+            "external": 43,
+            "other_subdomain": 75,
+            "unparsed": 1
+          }
+        },
+        {
+          "path": "0/urls/api_endpoints.txt",
+          "bytes": 292,
+          "lines": 5,
+          "unique_lines": 5,
+          "sha256": "9bcc18f15906b8cf7504ba9f1f616b5cf22501189d52e74df057f1ec5e96597a",
+          "host_counts": {
+            "other_subdomain": 5
+          }
+        },
+        {
+          "path": "0/urls/gau.txt",
+          "bytes": 0,
+          "lines": 0,
+          "unique_lines": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "host_counts": {}
+        },
+        {
+          "path": "0/urls/js_files.txt",
+          "bytes": 9621,
+          "lines": 138,
+          "unique_lines": 138,
+          "sha256": "22cb0a758cad496b10fab67fa5ae80b3ea855457dc54728a06b7c93a18fd6c25",
+          "host_counts": {
+            "exact_scope": 69,
+            "external": 14,
+            "other_subdomain": 55
+          }
+        },
+        {
+          "path": "0/urls/katana.txt",
+          "bytes": 851350,
+          "lines": 14174,
+          "unique_lines": 796,
+          "sha256": "1fd2d4deabc185517b100a20270e7dd253b5798ef3967a8ae11ccb4d3e958cca",
+          "host_counts": {
+            "exact_scope": 4044,
+            "external": 3682,
+            "other_subdomain": 6153,
+            "unparsed": 295
+          }
+        },
+        {
+          "path": "0/urls/katana_targets.txt",
+          "bytes": 18,
+          "lines": 1,
+          "unique_lines": 1,
+          "sha256": "2749128922cf88616f486e80309558e4e1957005571c9cd099a40ecca8acbf29",
+          "host_counts": {
+            "exact_scope": 1
+          }
+        },
+        {
+          "path": "0/urls/sensitive_paths.txt",
+          "bytes": 106,
+          "lines": 2,
+          "unique_lines": 2,
+          "sha256": "d53ad9a2725b95e6fe048471e2fdec8e7f07263b620e652664256ae38c45a448",
+          "host_counts": {
+            "exact_scope": 1,
+            "other_subdomain": 1
+          }
+        },
+        {
+          "path": "0/urls/with_params.txt",
+          "bytes": 5944,
+          "lines": 80,
+          "unique_lines": 80,
+          "sha256": "c465226b227e6e5da87ad3c3838cc24d828c7b295bc57050a388bb57424c5319",
+          "host_counts": {
+            "exact_scope": 5,
+            "external": 16,
+            "other_subdomain": 59
+          }
+        }
+      ],
+      "url_shape_count": 66,
+      "url_shapes_all": [
+        {
+          "shape": "/*/*/*",
+          "count": 175
+        },
+        {
+          "shape": "/*/*",
+          "count": 128
+        },
+        {
+          "shape": "/*/*/tpl",
+          "count": 77
+        },
+        {
+          "shape": "/*/*/dang-ky",
+          "count": 56
+        },
+        {
+          "shape": "/*/*/gtm.js",
+          "count": 46
+        },
+        {
+          "shape": "/giao-vien/*",
+          "count": 35
+        },
+        {
+          "shape": "/tin/*",
+          "count": 35
+        },
+        {
+          "shape": "/tag/*",
+          "count": 14
+        },
+        {
+          "shape": "/*",
+          "count": 13
+        },
+        {
+          "shape": "/thpt/_nuxt/*",
+          "count": 7
+        },
+        {
+          "shape": "/ho-tro/q/*",
+          "count": 6
+        },
+        {
+          "shape": "/ho-tro/cat/*",
+          "count": 6
+        },
+        {
+          "shape": "/*/gtm.js",
+          "count": 5
+        },
+        {
+          "shape": "/*/tpl/grademodal.php",
+          "count": 5
+        },
+        {
+          "shape": "/do-vui/*",
+          "count": 5
+        },
+        {
+          "shape": "/*/tpl/chon-cap-modal.php",
+          "count": 4
+        },
+        {
+          "shape": "/*/tpl/*",
+          "count": 3
+        },
+        {
+          "shape": "/tag/*/*",
+          "count": 3
+        },
+        {
+          "shape": "/tim-kiem",
+          "count": 3
+        },
+        {
+          "shape": "/tin/*/*",
+          "count": 3
+        },
+        {
+          "shape": "/",
+          "count": 2
+        },
+        {
+          "shape": "/thpt",
+          "count": 2
+        },
+        {
+          "shape": "/assets/socket/socket.io.min.js",
+          "count": 1
+        },
+        {
+          "shape": "/assets/socket/socket_app.js",
+          "count": 1
+        },
+        {
+          "shape": "/*/dgnl-hcm-khoa-tu-on",
+          "count": 1
+        },
+        {
+          "shape": "/*/tpl/gtm.js",
+          "count": 1
+        },
+        {
+          "shape": "/*/tpl/tpl",
+          "count": 1
+        },
+        {
+          "shape": "/*/dgnl-hn-khoa-tu-on",
+          "count": 1
+        },
+        {
+          "shape": "/*/exam-dgnl-dhqg-hcm",
+          "count": 1
+        },
+        {
+          "shape": "/*/dgtd-bk-khoa-tu-on",
+          "count": 1
+        },
+        {
+          "shape": "/do-vui",
+          "count": 1
+        },
+        {
+          "shape": "/duo/thcs",
+          "count": 1
+        },
+        {
+          "shape": "/duo/thpt",
+          "count": 1
+        },
+        {
+          "shape": "/end",
+          "count": 1
+        },
+        {
+          "shape": "/feedback",
+          "count": 1
+        },
+        {
+          "shape": "/giao-vien/gtm.js",
+          "count": 1
+        },
+        {
+          "shape": "/gioi-thieu.html",
+          "count": 1
+        },
+        {
+          "shape": "/gtm.js",
+          "count": 1
+        },
+        {
+          "shape": "/ho-tro",
+          "count": 1
+        },
+        {
+          "shape": "/*/vuihoc-duo-hoa",
+          "count": 1
+        },
+        {
+          "shape": "/hoi-dap",
+          "count": 1
+        },
+        {
+          "shape": "/lich-su-bixu",
+          "count": 1
+        },
+        {
+          "shape": "/lien-he.html",
+          "count": 1
+        },
+        {
+          "shape": "/ma-kich-hoat",
+          "count": 1
+        },
+        {
+          "shape": "/notifications",
+          "count": 1
+        },
+        {
+          "shape": "/puzzle/getother",
+          "count": 1
+        },
+        {
+          "shape": "/sitemap.html",
+          "count": 1
+        },
+        {
+          "shape": "/so-lien-lac",
+          "count": 1
+        },
+        {
+          "shape": "/tag/gtm.js",
+          "count": 1
+        },
+        {
+          "shape": "/thcs",
+          "count": 1
+        },
+        {
+          "shape": "/theme/vuihoc/vue_app",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/*",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/giaovien",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/github.com/jgthms",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/luyen-de",
+          "count": 1
+        },
+        {
+          "shape": "/*/tv-duo-tien-lop",
+          "count": 1
+        },
+        {
+          "shape": "/tieu-hoc",
+          "count": 1
+        },
+        {
+          "shape": "/tin",
+          "count": 1
+        },
+        {
+          "shape": "/tin/gtm.js",
+          "count": 1
+        },
+        {
+          "shape": "/*/duo-toan-tien-lop",
+          "count": 1
+        },
+        {
+          "shape": "/*/gia-su-toan",
+          "count": 1
+        },
+        {
+          "shape": "/*/techvh-toan",
+          "count": 1
+        },
+        {
+          "shape": "/tpl/chon-cap-modal.php",
+          "count": 1
+        },
+        {
+          "shape": "/tpl/grademodal.php",
+          "count": 1
+        },
+        {
+          "shape": "/tpl/headerbackground.php",
+          "count": 1
+        },
+        {
+          "shape": "/tuyen-dung",
+          "count": 1
+        }
+      ],
+      "query_keys_all": [
+        {
+          "key": "key",
+          "count": 2
+        },
+        {
+          "key": "name",
+          "count": 1
+        },
+        {
+          "key": "v",
+          "count": 1
+        },
+        {
+          "key": "vip",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "depth": "light",
+      "status": "cancelled",
+      "trigger": "manual",
+      "started_at": "2026-10-14T08:16:15.948Z",
+      "finished_at": "2026-10-14T08:17:34.005Z",
+      "config": {
+        "depth": "light",
+        "threads": 1,
+        "rate_limit": 1,
+        "scan_timeout": 600,
+        "skip_nmap": 1,
+        "skip_nuclei": 1,
+        "skip_active_crawl": 1,
+        "nuclei_severity": "low,medium"
+      },
+      "stats": {
+        "observed": null,
+        "subs": null,
+        "live": null,
+        "urls": null,
+        "findings": null,
+        "monitor_findings": null,
+        "diff": null,
+        "diff_complete": null
+      },
+      "artifacts": [
+        {
+          "path": "0/live/httpx_full.txt",
+          "bytes": 249,
+          "lines": 1,
+          "unique_lines": 1,
+          "sha256": "129de01a5a5d9047126c653b30797c6043eb7eb6c678217eb967879ca43d6167"
+        },
+        {
+          "path": "0/live/status_200.txt",
+          "bytes": 249,
+          "lines": 1,
+          "unique_lines": 1,
+          "sha256": "129de01a5a5d9047126c653b30797c6043eb7eb6c678217eb967879ca43d6167"
+        },
+        {
+          "path": "0/live/status_3xx.txt",
+          "bytes": 0,
+          "lines": 0,
+          "unique_lines": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "0/live/status_401.txt",
+          "bytes": 0,
+          "lines": 0,
+          "unique_lines": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "0/live/status_403.txt",
+          "bytes": 0,
+          "lines": 0,
+          "unique_lines": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "0/live/urls.txt",
+          "bytes": 18,
+          "lines": 1,
+          "unique_lines": 1,
+          "sha256": "2749128922cf88616f486e80309558e4e1957005571c9cd099a40ecca8acbf29"
+        },
+        {
+          "path": "0/subdomains/all.txt",
+          "bytes": 10,
+          "lines": 1,
+          "unique_lines": 1,
+          "sha256": "fc6ff0a3e6af06de409117fe33fc71652b8ee3f2455cf47c988795a67ff924f0"
+        },
+        {
+          "path": "0/takeover_candidates.txt",
+          "bytes": 0,
+          "lines": 0,
+          "unique_lines": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "0/urls/all.txt",
+          "bytes": 734918,
+          "lines": 9210,
+          "unique_lines": 9210,
+          "sha256": "99282cd9551a9df5023a6e66832d926eb032e922bde19988576d242ba0eb8576",
+          "host_counts": {
+            "exact_scope": 8988,
+            "other_subdomain": 221,
+            "unparsed": 1
+          }
+        },
+        {
+          "path": "0/urls/api_endpoints.txt",
+          "bytes": 298,
+          "lines": 5,
+          "unique_lines": 5,
+          "sha256": "f9d6b0ed1410d87d05ec2d8f791ef1316f1cb81e0447607a2ef09b17768ce86b",
+          "host_counts": {
+            "exact_scope": 5
+          }
+        },
+        {
+          "path": "0/urls/gau.txt",
+          "bytes": 734918,
+          "lines": 9210,
+          "unique_lines": 9210,
+          "sha256": "74c784053364724027ec42297ce2c6b48969c79e5a07beee2c10d30ff79a82b4",
+          "host_counts": {
+            "exact_scope": 8988,
+            "other_subdomain": 221,
+            "unparsed": 1
+          }
+        },
+        {
+          "path": "0/urls/js_files.txt",
+          "bytes": 18285,
+          "lines": 295,
+          "unique_lines": 295,
+          "sha256": "6fdeef2902e9dca344931378f0613cb017102276704c830e836934d2de7682cb",
+          "host_counts": {
+            "exact_scope": 284,
+            "other_subdomain": 11
+          }
+        },
+        {
+          "path": "0/urls/sensitive_paths.txt",
+          "bytes": 664,
+          "lines": 17,
+          "unique_lines": 17,
+          "sha256": "14dd4f40ae9b667369805254816fd5eddfb58e3001c2dd97c7dfa71984ceab6f",
+          "host_counts": {
+            "exact_scope": 17
+          }
+        },
+        {
+          "path": "0/urls/with_params.txt",
+          "bytes": 62962,
+          "lines": 775,
+          "unique_lines": 775,
+          "sha256": "483371a07d07abc2a56c2e8d476fc7728e063211d16e1284d4ce7e14fdd0328e",
+          "host_counts": {
+            "exact_scope": 728,
+            "other_subdomain": 46,
+            "unparsed": 1
+          }
+        },
+        {
+          "path": "monitors/input/subdomains/all.txt",
+          "bytes": 10,
+          "lines": 1,
+          "unique_lines": 1,
+          "sha256": "fc6ff0a3e6af06de409117fe33fc71652b8ee3f2455cf47c988795a67ff924f0"
+        },
+        {
+          "path": "monitors/input/urls/js_files.txt",
+          "bytes": 17866,
+          "lines": 284,
+          "unique_lines": 284,
+          "sha256": "85d71b1d6ef975eecd1b0c321bca26356fbf1c05a5da9a95cd34483feee9e6a3",
+          "host_counts": {
+            "exact_scope": 284
+          }
+        },
+        {
+          "path": "monitors/secret/regex_hits.txt",
+          "bytes": 0,
+          "lines": 0,
+          "unique_lines": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "monitors/secret/trufflehog.jsonl",
+          "bytes": 0,
+          "lines": 0,
+          "unique_lines": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "monitors/takeover/subjack.txt",
+          "bytes": 27,
+          "lines": 1,
+          "unique_lines": 1,
+          "sha256": "3b3f328b4e2091a5b73af4cc93b81848efdcbfb427f39e418b7767599a60a16d"
+        }
+      ],
+      "excluded_js_bundles": {
+        "files": 100,
+        "bytes": 12981695
+      },
+      "url_shape_count": 181,
+      "url_shapes_all": [
+        {
+          "shape": "/tin/*",
+          "count": 4686
+        },
+        {
+          "shape": "/module/filesystem/service",
+          "count": 1141
+        },
+        {
+          "shape": "/*/*",
+          "count": 847
+        },
+        {
+          "shape": "/*/*/dang-ky",
+          "count": 395
+        },
+        {
+          "shape": "/giao-vien/*",
+          "count": 224
+        },
+        {
+          "shape": "/*/*/*",
+          "count": 208
+        },
+        {
+          "shape": "/tim-kiem",
+          "count": 184
+        },
+        {
+          "shape": "/tag/*",
+          "count": 127
+        },
+        {
+          "shape": "/theme/vuihoc/vue_app",
+          "count": 101
+        },
+        {
+          "shape": "/thpt/_nuxt/*",
+          "count": 90
+        },
+        {
+          "shape": "/liveclass/tieu-hoc/*",
+          "count": 81
+        },
+        {
+          "shape": "/*",
+          "count": 78
+        },
+        {
+          "shape": "/thpt/_nuxt/img",
+          "count": 65
+        },
+        {
+          "shape": "/upload/*/*",
+          "count": 65
+        },
+        {
+          "shape": "/service/comment/getcomments",
+          "count": 63
+        },
+        {
+          "shape": "/assets/global/plugins",
+          "count": 58
+        },
+        {
+          "shape": "/theme/vuihoc/imgs",
+          "count": 48
+        },
+        {
+          "shape": "/theme/vuihoc/libs",
+          "count": 41
+        },
+        {
+          "shape": "/",
+          "count": 39
+        },
+        {
+          "shape": "/ho-tro/q/*",
+          "count": 34
+        },
+        {
+          "shape": "/service/course/getcoursedetail",
+          "count": 17
+        },
+        {
+          "shape": "/service/course/study",
+          "count": 16
+        },
+        {
+          "shape": "/thpt/_nuxt/fonts",
+          "count": 14
+        },
+        {
+          "shape": "/shop/shopping/product_details.php",
+          "count": 13
+        },
+        {
+          "shape": "/build/vuihoc.min.css",
+          "count": 13
+        },
+        {
+          "shape": "/*/*/assets",
+          "count": 12
+        },
+        {
+          "shape": "/build/vuihoc.min.js",
+          "count": 11
+        },
+        {
+          "shape": "/do-vui/*",
+          "count": 11
+        },
+        {
+          "shape": "/theme/vuihoc/styles.css",
+          "count": 10
+        },
+        {
+          "shape": "/assets/global/css",
+          "count": 9
+        },
+        {
+          "shape": "/assets/lib/pushjs",
+          "count": 8
+        },
+        {
+          "shape": "/theme/vuihoc/custom.css",
+          "count": 8
+        },
+        {
+          "shape": "/theme/vuihoc/js",
+          "count": 8
+        },
+        {
+          "shape": "/thpt/*/chuong-trinh-cu",
+          "count": 8
+        },
+        {
+          "shape": "/tin",
+          "count": 8
+        },
+        {
+          "shape": "/shop/shopping/cart_add.php",
+          "count": 7
+        },
+        {
+          "shape": "/liveclass/thpt/*",
+          "count": 7
+        },
+        {
+          "shape": "/theme/vuihoc/common_script.js",
+          "count": 7
+        },
+        {
+          "shape": "/thpt/_nuxt/icons",
+          "count": 7
+        },
+        {
+          "shape": "/thpt/giaovien/*",
+          "count": 7
+        },
+        {
+          "shape": "/*/vuihoc.vn",
+          "count": 7
+        },
+        {
+          "shape": "/images/*",
+          "count": 6
+        },
+        {
+          "shape": "/index.php",
+          "count": 6
+        },
+        {
+          "shape": "/ho-tro/cat/*",
+          "count": 6
+        },
+        {
+          "shape": "/thpt/*/*",
+          "count": 6
+        },
+        {
+          "shape": "/assets/css/liveclassforcap.css",
+          "count": 5
+        },
+        {
+          "shape": "/liveclass/*",
+          "count": 5
+        },
+        {
+          "shape": "/theme/vuihoc/*",
+          "count": 5
+        },
+        {
+          "shape": "/thi-thu-cung-vuihoc",
+          "count": 5
+        },
+        {
+          "shape": "/assets/imgs/news_newspapers",
+          "count": 4
+        },
+        {
+          "shape": "/assets/lib/*",
+          "count": 4
+        },
+        {
+          "shape": "/audio/*",
+          "count": 4
+        },
+        {
+          "shape": "/assets/lib/vue-paginate",
+          "count": 3
+        },
+        {
+          "shape": "/event/feedback/image",
+          "count": 3
+        },
+        {
+          "shape": "/*/*/vuihoc.vn",
+          "count": 3
+        },
+        {
+          "shape": "/liveclass/thcs/*",
+          "count": 3
+        },
+        {
+          "shape": "/css/style.css",
+          "count": 2
+        },
+        {
+          "shape": "/arena",
+          "count": 2
+        },
+        {
+          "shape": "/assets/imgs/courses",
+          "count": 2
+        },
+        {
+          "shape": "/assets/imgs/duo",
+          "count": 2
+        },
+        {
+          "shape": "/assets/imgs/thpt",
+          "count": 2
+        },
+        {
+          "shape": "/feedback",
+          "count": 2
+        },
+        {
+          "shape": "/fonts/*",
+          "count": 2
+        },
+        {
+          "shape": "/puzzle/getother",
+          "count": 2
+        },
+        {
+          "shape": "/thpt",
+          "count": 2
+        },
+        {
+          "shape": "/thpt/*",
+          "count": 2
+        },
+        {
+          "shape": "/thpt/home",
+          "count": 2
+        },
+        {
+          "shape": "/thpt/trial-class",
+          "count": 2
+        },
+        {
+          "shape": "/cgi-sys/defaultwebpage.cgi",
+          "count": 1
+        },
+        {
+          "shape": "/cgi-sys/suspendedpage.cgi",
+          "count": 1
+        },
+        {
+          "shape": "/css/bootstrap.min.css",
+          "count": 1
+        },
+        {
+          "shape": "/favicon.ico",
+          "count": 1
+        },
+        {
+          "shape": "/*/css/font-awesome.min.css",
+          "count": 1
+        },
+        {
+          "shape": "/images/logo-eurodns.png",
+          "count": 1
+        },
+        {
+          "shape": "/images/logo-pavn.jpg",
+          "count": 1
+        },
+        {
+          "shape": "/images/logo_inet.png",
+          "count": 1
+        },
+        {
+          "shape": "/images/bkns-logo.png",
+          "count": 1
+        },
+        {
+          "shape": "/images/esc.gif",
+          "count": 1
+        },
+        {
+          "shape": "/images/gmo-runsystem-logo.png",
+          "count": 1
+        },
+        {
+          "shape": "/images/logo-matbao.png",
+          "count": 1
+        },
+        {
+          "shape": "/images/spt.gif",
+          "count": 1
+        },
+        {
+          "shape": "/js/bootstrap.min.js",
+          "count": 1
+        },
+        {
+          "shape": "/js/jquery.min.js",
+          "count": 1
+        },
+        {
+          "shape": "/logo.ico",
+          "count": 1
+        },
+        {
+          "shape": "/robots.txt",
+          "count": 1
+        },
+        {
+          "shape": "/shop/shopping/cart_view.php",
+          "count": 1
+        },
+        {
+          "shape": "/shop/shopping/purchase_now.php",
+          "count": 1
+        },
+        {
+          "shape": "/shop/shopping/vuihoc.vn",
+          "count": 1
+        },
+        {
+          "shape": "/*/assets/imgs",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/ai-plugin.json",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/*",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/assetlinks.json",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/dnt-policy.txt",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/gpc.json",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/nodeinfo",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/openid-configuration",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/security.txt",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/trust.txt",
+          "count": 1
+        },
+        {
+          "shape": "/trung",
+          "count": 1
+        },
+        {
+          "shape": "/ads.txt",
+          "count": 1
+        },
+        {
+          "shape": "/app-ads.txt",
+          "count": 1
+        },
+        {
+          "shape": "/assets/global/img",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/arena",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/banks",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/bg_kids.png",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/news",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/th.png",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/thcs.png",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/thpt.png",
+          "count": 1
+        },
+        {
+          "shape": "/atom.xml",
+          "count": 1
+        },
+        {
+          "shape": "/audio/oop.ogg",
+          "count": 1
+        },
+        {
+          "shape": "/audio/tink.ogg",
+          "count": 1
+        },
+        {
+          "shape": "/audio/yeah.ogg",
+          "count": 1
+        },
+        {
+          "shape": "/*/home",
+          "count": 1
+        },
+        {
+          "shape": "/chinh-sach-bao-mat.html",
+          "count": 1
+        },
+        {
+          "shape": "/do-vui",
+          "count": 1
+        },
+        {
+          "shape": "/do-vui/*/assets",
+          "count": 1
+        },
+        {
+          "shape": "/duo/thcs",
+          "count": 1
+        },
+        {
+          "shape": "/duo/thpt",
+          "count": 1
+        },
+        {
+          "shape": "/duo/tieu-hoc",
+          "count": 1
+        },
+        {
+          "shape": "/feed.xml",
+          "count": 1
+        },
+        {
+          "shape": "/feed",
+          "count": 1
+        },
+        {
+          "shape": "/feeds/all.atom.xml",
+          "count": 1
+        },
+        {
+          "shape": "/giao-vien/*/assets",
+          "count": 1
+        },
+        {
+          "shape": "/giao-vien/vuihoc.vn",
+          "count": 1
+        },
+        {
+          "shape": "/gioi-thieu.html",
+          "count": 1
+        },
+        {
+          "shape": "/ho-tro",
+          "count": 1
+        },
+        {
+          "shape": "/ho-tro/navbar-static-top",
+          "count": 1
+        },
+        {
+          "shape": "/ho-tro/q/vuihoc.vn",
+          "count": 1
+        },
+        {
+          "shape": "/hoi-dap",
+          "count": 1
+        },
+        {
+          "shape": "/index.xml",
+          "count": 1
+        },
+        {
+          "shape": "/item.user.avatar_url",
+          "count": 1
+        },
+        {
+          "shape": "/kich-hoat-khoa-hoc",
+          "count": 1
+        },
+        {
+          "shape": "/kiem-tra-dau-vao",
+          "count": 1
+        },
+        {
+          "shape": "/kiem-tra-nang-luc/*",
+          "count": 1
+        },
+        {
+          "shape": "/lien-he",
+          "count": 1
+        },
+        {
+          "shape": "/lien-he.html",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/*/assets",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/navbar-static-top",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/navbar",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/thcs",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/thpt",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/tieu-hoc",
+          "count": 1
+        },
+        {
+          "shape": "/ma-kich-hoat",
+          "count": 1
+        },
+        {
+          "shape": "/module",
+          "count": 1
+        },
+        {
+          "shape": "/navbar-static-top",
+          "count": 1
+        },
+        {
+          "shape": "/navbar",
+          "count": 1
+        },
+        {
+          "shape": "/pas/thpt",
+          "count": 1
+        },
+        {
+          "shape": "/service/blograting/getaveragerating",
+          "count": 1
+        },
+        {
+          "shape": "/service/comment/getbannedkeyword",
+          "count": 1
+        },
+        {
+          "shape": "/service/ratings/getdatascore",
+          "count": 1
+        },
+        {
+          "shape": "/service/security/createkeymemcache",
+          "count": 1
+        },
+        {
+          "shape": "/service/security/gettoken",
+          "count": 1
+        },
+        {
+          "shape": "/service/security/login",
+          "count": 1
+        },
+        {
+          "shape": "/service/user/courses",
+          "count": 1
+        },
+        {
+          "shape": "/sitemap.html",
+          "count": 1
+        },
+        {
+          "shape": "/sitemap.xml",
+          "count": 1
+        },
+        {
+          "shape": "/sitemap/html",
+          "count": 1
+        },
+        {
+          "shape": "/sites",
+          "count": 1
+        },
+        {
+          "shape": "/sites/pages",
+          "count": 1
+        },
+        {
+          "shape": "/sites/pages/.html",
+          "count": 1
+        },
+        {
+          "shape": "/tag/vuihoc.vn",
+          "count": 1
+        },
+        {
+          "shape": "/tai-khoan/khoa-hoc",
+          "count": 1
+        },
+        {
+          "shape": "/thcs",
+          "count": 1
+        },
+        {
+          "shape": "/theme/vuihoc/achievement_notify.css",
+          "count": 1
+        },
+        {
+          "shape": "/theme/vuihoc/order_create.css",
+          "count": 1
+        },
+        {
+          "shape": "/theme/vuihoc/page_study.css",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/*/assets",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/*/www.youtube.com",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/giaovien",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/hotlivestream.image_url",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/hottypevideos.image_url",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/item.image_url",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/luyen-de",
+          "count": 1
+        },
+        {
+          "shape": "/tieu-hoc",
+          "count": 1
+        },
+        {
+          "shape": "/tin/*/assets",
+          "count": 1
+        },
+        {
+          "shape": "/tin/vuihoc.vn",
+          "count": 1
+        },
+        {
+          "shape": "/tin/gtm.js",
+          "count": 1
+        },
+        {
+          "shape": "/tin/o.vdoc.vn/data",
+          "count": 1
+        },
+        {
+          "shape": "/tin/photo",
+          "count": 1
+        },
+        {
+          "shape": "/tuyen-dung",
+          "count": 1
+        }
+      ],
+      "query_keys_all": [
+        {
+          "key": "v",
+          "count": 246
+        },
+        {
+          "key": "key",
+          "count": 183
+        },
+        {
+          "key": "page",
+          "count": 153
+        },
+        {
+          "key": "limit",
+          "count": 64
+        },
+        {
+          "key": "objectid",
+          "count": 63
+        },
+        {
+          "key": "objecttype",
+          "count": 63
+        },
+        {
+          "key": "objectparent",
+          "count": 63
+        },
+        {
+          "key": "parentid",
+          "count": 63
+        },
+        {
+          "key": "id",
+          "count": 61
+        },
+        {
+          "key": "redirect_url",
+          "count": 33
+        },
+        {
+          "key": "utm_source",
+          "count": 31
+        },
+        {
+          "key": "utm_medium",
+          "count": 30
+        },
+        {
+          "key": "utm_campaign",
+          "count": 30
+        },
+        {
+          "key": "lan",
+          "count": 18
+        },
+        {
+          "key": "keyword",
+          "count": 17
+        },
+        {
+          "key": "code",
+          "count": 9
+        },
+        {
+          "key": "cid",
+          "count": 5
+        },
+        {
+          "key": "ma",
+          "count": 5
+        },
+        {
+          "key": "trk",
+          "count": 2
+        },
+        {
+          "key": "cap",
+          "count": 2
+        },
+        {
+          "key": "gidzl",
+          "count": 2
+        },
+        {
+          "key": "ver",
+          "count": 1
+        },
+        {
+          "key": "ref",
+          "count": 1
+        },
+        {
+          "key": "config",
+          "count": 1
+        },
+        {
+          "key": "fbclid",
+          "count": 1
+        },
+        {
+          "key": "enablejsapi",
+          "count": 1
+        },
+        {
+          "key": "rel",
+          "count": 1
+        },
+        {
+          "key": "showinfo",
+          "count": 1
+        },
+        {
+          "key": "vip",
+          "count": 1
+        },
+        {
+          "key": "source-pas",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "depth": "light",
+      "status": "done",
+      "trigger": "manual",
+      "started_at": "2026-10-14T08:37:29.265Z",
+      "finished_at": "2026-10-14T08:39:27.421Z",
+      "config": {
+        "depth": "light",
+        "threads": 1,
+        "rate_limit": 1,
+        "scan_timeout": 600,
+        "skip_nmap": 1,
+        "skip_nuclei": 1,
+        "skip_active_crawl": 1,
+        "nuclei_severity": "low,medium"
+      },
+      "stats": {
+        "observed": 8722,
+        "subs": 1,
+        "live": 1,
+        "urls": 8721,
+        "findings": 0,
+        "monitor_findings": 0,
+        "diff": {
+          "new": 0,
+          "changed": 0,
+          "gone": 0
+        },
+        "diff_complete": true
+      },
+      "artifacts": [
+        {
+          "path": "0/live/httpx_full.txt",
+          "bytes": 249,
+          "lines": 1,
+          "unique_lines": 1,
+          "sha256": "129de01a5a5d9047126c653b30797c6043eb7eb6c678217eb967879ca43d6167"
+        },
+        {
+          "path": "0/live/status_200.txt",
+          "bytes": 249,
+          "lines": 1,
+          "unique_lines": 1,
+          "sha256": "129de01a5a5d9047126c653b30797c6043eb7eb6c678217eb967879ca43d6167"
+        },
+        {
+          "path": "0/live/status_3xx.txt",
+          "bytes": 0,
+          "lines": 0,
+          "unique_lines": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "0/live/status_401.txt",
+          "bytes": 0,
+          "lines": 0,
+          "unique_lines": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "0/live/status_403.txt",
+          "bytes": 0,
+          "lines": 0,
+          "unique_lines": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "0/live/urls.txt",
+          "bytes": 18,
+          "lines": 1,
+          "unique_lines": 1,
+          "sha256": "2749128922cf88616f486e80309558e4e1957005571c9cd099a40ecca8acbf29"
+        },
+        {
+          "path": "0/subdomains/all.txt",
+          "bytes": 10,
+          "lines": 1,
+          "unique_lines": 1,
+          "sha256": "fc6ff0a3e6af06de409117fe33fc71652b8ee3f2455cf47c988795a67ff924f0"
+        },
+        {
+          "path": "0/takeover_candidates.txt",
+          "bytes": 0,
+          "lines": 0,
+          "unique_lines": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "0/urls/all.txt",
+          "bytes": 734918,
+          "lines": 9210,
+          "unique_lines": 9210,
+          "sha256": "99282cd9551a9df5023a6e66832d926eb032e922bde19988576d242ba0eb8576",
+          "host_counts": {
+            "exact_scope": 8988,
+            "other_subdomain": 221,
+            "unparsed": 1
+          }
+        },
+        {
+          "path": "0/urls/api_endpoints.txt",
+          "bytes": 298,
+          "lines": 5,
+          "unique_lines": 5,
+          "sha256": "f9d6b0ed1410d87d05ec2d8f791ef1316f1cb81e0447607a2ef09b17768ce86b",
+          "host_counts": {
+            "exact_scope": 5
+          }
+        },
+        {
+          "path": "0/urls/gau.txt",
+          "bytes": 734918,
+          "lines": 9210,
+          "unique_lines": 9210,
+          "sha256": "74c784053364724027ec42297ce2c6b48969c79e5a07beee2c10d30ff79a82b4",
+          "host_counts": {
+            "exact_scope": 8988,
+            "other_subdomain": 221,
+            "unparsed": 1
+          }
+        },
+        {
+          "path": "0/urls/js_files.txt",
+          "bytes": 18285,
+          "lines": 295,
+          "unique_lines": 295,
+          "sha256": "6fdeef2902e9dca344931378f0613cb017102276704c830e836934d2de7682cb",
+          "host_counts": {
+            "exact_scope": 284,
+            "other_subdomain": 11
+          }
+        },
+        {
+          "path": "0/urls/sensitive_paths.txt",
+          "bytes": 664,
+          "lines": 17,
+          "unique_lines": 17,
+          "sha256": "14dd4f40ae9b667369805254816fd5eddfb58e3001c2dd97c7dfa71984ceab6f",
+          "host_counts": {
+            "exact_scope": 17
+          }
+        },
+        {
+          "path": "0/urls/with_params.txt",
+          "bytes": 62962,
+          "lines": 775,
+          "unique_lines": 775,
+          "sha256": "483371a07d07abc2a56c2e8d476fc7728e063211d16e1284d4ce7e14fdd0328e",
+          "host_counts": {
+            "exact_scope": 728,
+            "other_subdomain": 46,
+            "unparsed": 1
+          }
+        },
+        {
+          "path": "intel.json",
+          "bytes": 15758,
+          "lines": 455,
+          "unique_lines": 182,
+          "sha256": "3dd1179d99af6dfa1216a3cc3670b9b136b55cd7395038d7c003138764857fcb"
+        }
+      ],
+      "url_shape_count": 181,
+      "url_shapes_all": [
+        {
+          "shape": "/tin/*",
+          "count": 4686
+        },
+        {
+          "shape": "/module/filesystem/service",
+          "count": 1141
+        },
+        {
+          "shape": "/*/*",
+          "count": 847
+        },
+        {
+          "shape": "/*/*/dang-ky",
+          "count": 395
+        },
+        {
+          "shape": "/giao-vien/*",
+          "count": 224
+        },
+        {
+          "shape": "/*/*/*",
+          "count": 208
+        },
+        {
+          "shape": "/tim-kiem",
+          "count": 184
+        },
+        {
+          "shape": "/tag/*",
+          "count": 127
+        },
+        {
+          "shape": "/theme/vuihoc/vue_app",
+          "count": 101
+        },
+        {
+          "shape": "/thpt/_nuxt/*",
+          "count": 90
+        },
+        {
+          "shape": "/liveclass/tieu-hoc/*",
+          "count": 81
+        },
+        {
+          "shape": "/*",
+          "count": 78
+        },
+        {
+          "shape": "/thpt/_nuxt/img",
+          "count": 65
+        },
+        {
+          "shape": "/upload/*/*",
+          "count": 65
+        },
+        {
+          "shape": "/service/comment/getcomments",
+          "count": 63
+        },
+        {
+          "shape": "/assets/global/plugins",
+          "count": 58
+        },
+        {
+          "shape": "/theme/vuihoc/imgs",
+          "count": 48
+        },
+        {
+          "shape": "/theme/vuihoc/libs",
+          "count": 41
+        },
+        {
+          "shape": "/",
+          "count": 39
+        },
+        {
+          "shape": "/ho-tro/q/*",
+          "count": 34
+        },
+        {
+          "shape": "/service/course/getcoursedetail",
+          "count": 17
+        },
+        {
+          "shape": "/service/course/study",
+          "count": 16
+        },
+        {
+          "shape": "/thpt/_nuxt/fonts",
+          "count": 14
+        },
+        {
+          "shape": "/shop/shopping/product_details.php",
+          "count": 13
+        },
+        {
+          "shape": "/build/vuihoc.min.css",
+          "count": 13
+        },
+        {
+          "shape": "/*/*/assets",
+          "count": 12
+        },
+        {
+          "shape": "/build/vuihoc.min.js",
+          "count": 11
+        },
+        {
+          "shape": "/do-vui/*",
+          "count": 11
+        },
+        {
+          "shape": "/theme/vuihoc/styles.css",
+          "count": 10
+        },
+        {
+          "shape": "/assets/global/css",
+          "count": 9
+        },
+        {
+          "shape": "/assets/lib/pushjs",
+          "count": 8
+        },
+        {
+          "shape": "/theme/vuihoc/custom.css",
+          "count": 8
+        },
+        {
+          "shape": "/theme/vuihoc/js",
+          "count": 8
+        },
+        {
+          "shape": "/thpt/*/chuong-trinh-cu",
+          "count": 8
+        },
+        {
+          "shape": "/tin",
+          "count": 8
+        },
+        {
+          "shape": "/shop/shopping/cart_add.php",
+          "count": 7
+        },
+        {
+          "shape": "/liveclass/thpt/*",
+          "count": 7
+        },
+        {
+          "shape": "/theme/vuihoc/common_script.js",
+          "count": 7
+        },
+        {
+          "shape": "/thpt/_nuxt/icons",
+          "count": 7
+        },
+        {
+          "shape": "/thpt/giaovien/*",
+          "count": 7
+        },
+        {
+          "shape": "/*/vuihoc.vn",
+          "count": 7
+        },
+        {
+          "shape": "/images/*",
+          "count": 6
+        },
+        {
+          "shape": "/index.php",
+          "count": 6
+        },
+        {
+          "shape": "/ho-tro/cat/*",
+          "count": 6
+        },
+        {
+          "shape": "/thpt/*/*",
+          "count": 6
+        },
+        {
+          "shape": "/assets/css/liveclassforcap.css",
+          "count": 5
+        },
+        {
+          "shape": "/liveclass/*",
+          "count": 5
+        },
+        {
+          "shape": "/theme/vuihoc/*",
+          "count": 5
+        },
+        {
+          "shape": "/thi-thu-cung-vuihoc",
+          "count": 5
+        },
+        {
+          "shape": "/assets/imgs/news_newspapers",
+          "count": 4
+        },
+        {
+          "shape": "/assets/lib/*",
+          "count": 4
+        },
+        {
+          "shape": "/audio/*",
+          "count": 4
+        },
+        {
+          "shape": "/assets/lib/vue-paginate",
+          "count": 3
+        },
+        {
+          "shape": "/event/feedback/image",
+          "count": 3
+        },
+        {
+          "shape": "/*/*/vuihoc.vn",
+          "count": 3
+        },
+        {
+          "shape": "/liveclass/thcs/*",
+          "count": 3
+        },
+        {
+          "shape": "/css/style.css",
+          "count": 2
+        },
+        {
+          "shape": "/arena",
+          "count": 2
+        },
+        {
+          "shape": "/assets/imgs/courses",
+          "count": 2
+        },
+        {
+          "shape": "/assets/imgs/duo",
+          "count": 2
+        },
+        {
+          "shape": "/assets/imgs/thpt",
+          "count": 2
+        },
+        {
+          "shape": "/feedback",
+          "count": 2
+        },
+        {
+          "shape": "/fonts/*",
+          "count": 2
+        },
+        {
+          "shape": "/puzzle/getother",
+          "count": 2
+        },
+        {
+          "shape": "/thpt",
+          "count": 2
+        },
+        {
+          "shape": "/thpt/*",
+          "count": 2
+        },
+        {
+          "shape": "/thpt/home",
+          "count": 2
+        },
+        {
+          "shape": "/thpt/trial-class",
+          "count": 2
+        },
+        {
+          "shape": "/cgi-sys/defaultwebpage.cgi",
+          "count": 1
+        },
+        {
+          "shape": "/cgi-sys/suspendedpage.cgi",
+          "count": 1
+        },
+        {
+          "shape": "/css/bootstrap.min.css",
+          "count": 1
+        },
+        {
+          "shape": "/favicon.ico",
+          "count": 1
+        },
+        {
+          "shape": "/*/css/font-awesome.min.css",
+          "count": 1
+        },
+        {
+          "shape": "/images/logo-eurodns.png",
+          "count": 1
+        },
+        {
+          "shape": "/images/logo-pavn.jpg",
+          "count": 1
+        },
+        {
+          "shape": "/images/logo_inet.png",
+          "count": 1
+        },
+        {
+          "shape": "/images/bkns-logo.png",
+          "count": 1
+        },
+        {
+          "shape": "/images/esc.gif",
+          "count": 1
+        },
+        {
+          "shape": "/images/gmo-runsystem-logo.png",
+          "count": 1
+        },
+        {
+          "shape": "/images/logo-matbao.png",
+          "count": 1
+        },
+        {
+          "shape": "/images/spt.gif",
+          "count": 1
+        },
+        {
+          "shape": "/js/bootstrap.min.js",
+          "count": 1
+        },
+        {
+          "shape": "/js/jquery.min.js",
+          "count": 1
+        },
+        {
+          "shape": "/logo.ico",
+          "count": 1
+        },
+        {
+          "shape": "/robots.txt",
+          "count": 1
+        },
+        {
+          "shape": "/shop/shopping/cart_view.php",
+          "count": 1
+        },
+        {
+          "shape": "/shop/shopping/purchase_now.php",
+          "count": 1
+        },
+        {
+          "shape": "/shop/shopping/vuihoc.vn",
+          "count": 1
+        },
+        {
+          "shape": "/*/assets/imgs",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/ai-plugin.json",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/*",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/assetlinks.json",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/dnt-policy.txt",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/gpc.json",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/nodeinfo",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/openid-configuration",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/security.txt",
+          "count": 1
+        },
+        {
+          "shape": "/.well-known/trust.txt",
+          "count": 1
+        },
+        {
+          "shape": "/trung",
+          "count": 1
+        },
+        {
+          "shape": "/ads.txt",
+          "count": 1
+        },
+        {
+          "shape": "/app-ads.txt",
+          "count": 1
+        },
+        {
+          "shape": "/assets/global/img",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/arena",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/banks",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/bg_kids.png",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/news",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/th.png",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/thcs.png",
+          "count": 1
+        },
+        {
+          "shape": "/assets/imgs/thpt.png",
+          "count": 1
+        },
+        {
+          "shape": "/atom.xml",
+          "count": 1
+        },
+        {
+          "shape": "/audio/oop.ogg",
+          "count": 1
+        },
+        {
+          "shape": "/audio/tink.ogg",
+          "count": 1
+        },
+        {
+          "shape": "/audio/yeah.ogg",
+          "count": 1
+        },
+        {
+          "shape": "/*/home",
+          "count": 1
+        },
+        {
+          "shape": "/chinh-sach-bao-mat.html",
+          "count": 1
+        },
+        {
+          "shape": "/do-vui",
+          "count": 1
+        },
+        {
+          "shape": "/do-vui/*/assets",
+          "count": 1
+        },
+        {
+          "shape": "/duo/thcs",
+          "count": 1
+        },
+        {
+          "shape": "/duo/thpt",
+          "count": 1
+        },
+        {
+          "shape": "/duo/tieu-hoc",
+          "count": 1
+        },
+        {
+          "shape": "/feed.xml",
+          "count": 1
+        },
+        {
+          "shape": "/feed",
+          "count": 1
+        },
+        {
+          "shape": "/feeds/all.atom.xml",
+          "count": 1
+        },
+        {
+          "shape": "/giao-vien/*/assets",
+          "count": 1
+        },
+        {
+          "shape": "/giao-vien/vuihoc.vn",
+          "count": 1
+        },
+        {
+          "shape": "/gioi-thieu.html",
+          "count": 1
+        },
+        {
+          "shape": "/ho-tro",
+          "count": 1
+        },
+        {
+          "shape": "/ho-tro/navbar-static-top",
+          "count": 1
+        },
+        {
+          "shape": "/ho-tro/q/vuihoc.vn",
+          "count": 1
+        },
+        {
+          "shape": "/hoi-dap",
+          "count": 1
+        },
+        {
+          "shape": "/index.xml",
+          "count": 1
+        },
+        {
+          "shape": "/item.user.avatar_url",
+          "count": 1
+        },
+        {
+          "shape": "/kich-hoat-khoa-hoc",
+          "count": 1
+        },
+        {
+          "shape": "/kiem-tra-dau-vao",
+          "count": 1
+        },
+        {
+          "shape": "/kiem-tra-nang-luc/*",
+          "count": 1
+        },
+        {
+          "shape": "/lien-he",
+          "count": 1
+        },
+        {
+          "shape": "/lien-he.html",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/*/assets",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/navbar-static-top",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/navbar",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/thcs",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/thpt",
+          "count": 1
+        },
+        {
+          "shape": "/liveclass/tieu-hoc",
+          "count": 1
+        },
+        {
+          "shape": "/ma-kich-hoat",
+          "count": 1
+        },
+        {
+          "shape": "/module",
+          "count": 1
+        },
+        {
+          "shape": "/navbar-static-top",
+          "count": 1
+        },
+        {
+          "shape": "/navbar",
+          "count": 1
+        },
+        {
+          "shape": "/pas/thpt",
+          "count": 1
+        },
+        {
+          "shape": "/service/blograting/getaveragerating",
+          "count": 1
+        },
+        {
+          "shape": "/service/comment/getbannedkeyword",
+          "count": 1
+        },
+        {
+          "shape": "/service/ratings/getdatascore",
+          "count": 1
+        },
+        {
+          "shape": "/service/security/createkeymemcache",
+          "count": 1
+        },
+        {
+          "shape": "/service/security/gettoken",
+          "count": 1
+        },
+        {
+          "shape": "/service/security/login",
+          "count": 1
+        },
+        {
+          "shape": "/service/user/courses",
+          "count": 1
+        },
+        {
+          "shape": "/sitemap.html",
+          "count": 1
+        },
+        {
+          "shape": "/sitemap.xml",
+          "count": 1
+        },
+        {
+          "shape": "/sitemap/html",
+          "count": 1
+        },
+        {
+          "shape": "/sites",
+          "count": 1
+        },
+        {
+          "shape": "/sites/pages",
+          "count": 1
+        },
+        {
+          "shape": "/sites/pages/.html",
+          "count": 1
+        },
+        {
+          "shape": "/tag/vuihoc.vn",
+          "count": 1
+        },
+        {
+          "shape": "/tai-khoan/khoa-hoc",
+          "count": 1
+        },
+        {
+          "shape": "/thcs",
+          "count": 1
+        },
+        {
+          "shape": "/theme/vuihoc/achievement_notify.css",
+          "count": 1
+        },
+        {
+          "shape": "/theme/vuihoc/order_create.css",
+          "count": 1
+        },
+        {
+          "shape": "/theme/vuihoc/page_study.css",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/*/assets",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/*/www.youtube.com",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/giaovien",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/hotlivestream.image_url",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/hottypevideos.image_url",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/item.image_url",
+          "count": 1
+        },
+        {
+          "shape": "/thpt/luyen-de",
+          "count": 1
+        },
+        {
+          "shape": "/tieu-hoc",
+          "count": 1
+        },
+        {
+          "shape": "/tin/*/assets",
+          "count": 1
+        },
+        {
+          "shape": "/tin/vuihoc.vn",
+          "count": 1
+        },
+        {
+          "shape": "/tin/gtm.js",
+          "count": 1
+        },
+        {
+          "shape": "/tin/o.vdoc.vn/data",
+          "count": 1
+        },
+        {
+          "shape": "/tin/photo",
+          "count": 1
+        },
+        {
+          "shape": "/tuyen-dung",
+          "count": 1
+        }
+      ],
+      "query_keys_all": [
+        {
+          "key": "v",
+          "count": 246
+        },
+        {
+          "key": "key",
+          "count": 183
+        },
+        {
+          "key": "page",
+          "count": 153
+        },
+        {
+          "key": "limit",
+          "count": 64
+        },
+        {
+          "key": "objectid",
+          "count": 63
+        },
+        {
+          "key": "objecttype",
+          "count": 63
+        },
+        {
+          "key": "objectparent",
+          "count": 63
+        },
+        {
+          "key": "parentid",
+          "count": 63
+        },
+        {
+          "key": "id",
+          "count": 61
+        },
+        {
+          "key": "redirect_url",
+          "count": 33
+        },
+        {
+          "key": "utm_source",
+          "count": 31
+        },
+        {
+          "key": "utm_medium",
+          "count": 30
+        },
+        {
+          "key": "utm_campaign",
+          "count": 30
+        },
+        {
+          "key": "lan",
+          "count": 18
+        },
+        {
+          "key": "keyword",
+          "count": 17
+        },
+        {
+          "key": "code",
+          "count": 9
+        },
+        {
+          "key": "cid",
+          "count": 5
+        },
+        {
+          "key": "ma",
+          "count": 5
+        },
+        {
+          "key": "trk",
+          "count": 2
+        },
+        {
+          "key": "cap",
+          "count": 2
+        },
+        {
+          "key": "gidzl",
+          "count": 2
+        },
+        {
+          "key": "ver",
+          "count": 1
+        },
+        {
+          "key": "ref",
+          "count": 1
+        },
+        {
+          "key": "config",
+          "count": 1
+        },
+        {
+          "key": "fbclid",
+          "count": 1
+        },
+        {
+          "key": "enablejsapi",
+          "count": 1
+        },
+        {
+          "key": "rel",
+          "count": 1
+        },
+        {
+          "key": "showinfo",
+          "count": 1
+        },
+        {
+          "key": "vip",
+          "count": 1
+        },
+        {
+          "key": "source-pas",
+          "count": 1
+        }
+      ]
+    }
+  ],
+  "final_asset": {
+    "host": "vuihoc.vn",
+    "status_code": 200,
+    "tech": [
+      "Amazon CloudFront",
+      "Amazon Web Services",
+      "Bootstrap",
+      "Cloudflare",
+      "Firebase:8.4.2",
+      "Google Analytics",
+      "Google Tag Manager",
+      "MathJax:2.7.5",
+      "Nginx",
+      "cdnjs",
+      "reCAPTCHA"
+    ],
+    "rank_score": 6.5,
+    "rank_reasons": [
+      "api",
+      "auth",
+      "tech_risk",
+      "firebase",
+      "status_200"
+    ]
+  },
+  "database": {
+    "urls_total": 8836,
+    "findings_total": 0
+  }
+}
