@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -39,6 +40,9 @@ PAGE_QUERY_COUNTS = PAGE_QUERY.replace("    handle name policy\n", """    handle
 # The public GraphQL endpoint answers browser-like clients; a bare library user agent may be refused.
 PAGE_USER_AGENT = "Mozilla/5.0 (compatible; BBASM-metadata-reader; read-only)"
 AUTO_CATEGORIES = {"web", "wildcard", "ip", "cidr"}  # what recon can actually target
+# H1 sometimes files a perfectly concrete host under asset_type OTHER. A clean domain/wildcard/IP is still a precise rule.
+_CLEAN_HOST = re.compile(r"(?:\*\.)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,}")
+_GLOB_HOST = re.compile(r"[A-Za-z0-9*-]+(?:\.[A-Za-z0-9*-]+)+")
 
 
 class HackerOneScopeProvider:
@@ -138,7 +142,25 @@ class HackerOneScopeProvider:
         return matches[0]
 
     @staticmethod
-    def _entries(program):
+    def _by_shape(identifier, kind, instruction, by_shape):
+        """An OTHER-typed identifier that is itself a clean host rule is accepted by its form; anything else is not."""
+        text = str(identifier).strip()
+        try:
+            if _CLEAN_HOST.fullmatch(text):
+                entry = classify(text, kind, None, instruction)
+            elif kind == "out" and "*" in text and _GLOB_HOST.fullmatch(text):
+                entry = classify(text, kind, None, instruction)   # excluding more than written is always safe
+            else:
+                entry = None
+        except ScopeError:
+            entry = None
+        if entry is not None and entry.category in AUTO_CATEGORIES:
+            by_shape.append({"identifier": text[:200], "kind": kind})
+            return entry, ""
+        return None, "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+
+    @staticmethod
+    def _entries(program, by_shape=None):
         """(entries, unclassified). Only assets we can name precisely reach the scope gate.
 
         "Open Scope", a bare "*", "*.com" or free text are never widened into "scan anything": they are listed
@@ -147,6 +169,7 @@ class HackerOneScopeProvider:
         if not isinstance(targets, dict) or not isinstance(targets.get("in_scope"), list) or not isinstance(targets.get("out_of_scope"), list):
             raise ScopeError("Cannot distinguish IN/OUT scope; refusing unlabelled output")
         result, unclassified = [], []
+        by_shape = by_shape if by_shape is not None else []
         for key, kind in (("in_scope", "in"), ("out_of_scope", "out")):
             for asset in targets[key]:
                 if isinstance(asset, str):
@@ -161,15 +184,21 @@ class HackerOneScopeProvider:
                 try:
                     entry = classify(identifier, actual_kind, asset_type, instruction)
                 except ScopeError:
-                    reason = "Định dạng không nhận diện được"
+                    entry, reason = None, "Định dạng không nhận diện được"
                 else:
                     reason = ""
                     if entry.category == "other":
-                        reason = "Loại asset không rõ (ví dụ Open Scope/OTHER): không suy diễn thành quyền quét"
+                        entry, reason = HackerOneScopeProvider._by_shape(identifier, actual_kind, instruction, by_shape)
                     elif entry.category == "wildcard" and "." not in entry.pattern[2:]:
-                        reason = "Wildcard quá rộng (không có domain cụ thể)"
-                if reason:
-                    unclassified.append({"identifier": str(identifier)[:200], "kind": actual_kind,
+                        entry, reason = None, "Wildcard quá rộng (không có domain cụ thể)"
+                if entry is None:
+                    text = str(identifier).strip()
+                    describes = bool(re.search(r"\s", text)) or not re.search(r"[.*/:]", text)
+                    # A description ("Other", "Fraud Reports") names no host, so it cannot hide an IN host from the gate.
+                    blocking = actual_kind == "out" and not describes
+                    if describes and not reason.startswith("Wildcard"):
+                        reason = "Mô tả, không phải host cụ thể: không thi hành được ở scope gate; hãy tự đọc policy"
+                    unclassified.append({"identifier": text[:200], "kind": actual_kind, "blocking": blocking,
                                          "asset_type": str(asset_type or "")[:40], "reason": reason})
                 else:
                     result.append(entry)
@@ -229,7 +258,8 @@ class HackerOneScopeProvider:
             # Do not expose tokens or remote response bodies in API errors.
             raise ScopeError("Scope metadata unavailable", "metadata_unavailable") from None
         completeness = program.pop("_counts", None)
-        entries, unclassified = self._entries(program)
+        by_shape = []
+        entries, unclassified = self._entries(program, by_shape)
         self.settings.BBASM_DATA.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="scope-", dir=self.settings.BBASM_DATA) as directory:
             directory = Path(directory)
@@ -267,6 +297,9 @@ class HackerOneScopeProvider:
             warnings.append("Dữ liệu đọc từ trang công khai HackerOne, chưa xác minh bằng API: đối chiếu với trang chính thức.")
         if not policy_text:
             warnings.append("Chưa có nội dung policy; dán policy/hướng dẫn của program khi nhập hoặc bổ sung ở PROGRAM.md.")
+        if by_shape:
+            warnings.append(f"{len(by_shape)} asset khai báo loại OTHER nhưng có dạng domain/wildcard rõ ràng nên được nhận theo hình thức: "
+                            + ", ".join(f"{b['identifier'][:40]} ({b['kind'].upper()})" for b in by_shape[:5]) + ("…" if len(by_shape) > 5 else ""))
         if unclassified:
             shown = ", ".join(f"{u['identifier'][:40]} ({u['kind'].upper()})" for u in unclassified[:5])
             warnings.append(f"{len(unclassified)} asset không phân loại rõ nên KHÔNG đưa vào scope gate: {shown}"
@@ -276,5 +309,5 @@ class HackerOneScopeProvider:
                          "policy_text": policy_text, "policy_source": source,
                          "attempts": attempts, "completeness": completeness,
                          "classification": {"classified": len(entries), "unclassified_count": len(unclassified),
-                                            "unclassified": unclassified[:100]},
+                                            "unclassified": unclassified[:100], "by_shape": by_shape[:100]},
                          "fetched_at": utc_now()}, warnings

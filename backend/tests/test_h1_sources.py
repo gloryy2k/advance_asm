@@ -172,8 +172,8 @@ def test_only_unclassified_in_assets_means_nothing_to_scan(cfg, tmp_path):
     assert gate["allowed_depths"] == ["passive"] and "IN phân loại rõ" in gate["missing"]
 
 
-def test_an_unclassifiable_out_item_blocks_active_depths(cfg, tmp_path):
-    nodes = NODES[:2] + [{"asset_type": "OTHER", "asset_identifier": "Anything internal", "eligible_for_submission": False}]
+def test_a_host_like_out_item_we_cannot_parse_blocks_active_depths(cfg, tmp_path):
+    nodes = NODES[:2] + [{"asset_type": "URL", "asset_identifier": "bad_host!.acme.com", "eligible_for_submission": False}]
     _, policy, _ = resolve(cfg, lambda r: httpx.Response(200, json=page_response(nodes)), tmp_path)
     gate = launch_gate("h1", policy)
     assert gate["allowed_depths"] == ["passive"] and "OUT chưa phân loại" in gate["missing"]
@@ -299,3 +299,67 @@ def test_when_the_page_refuses_the_totals_fields_the_plain_query_is_used_and_not
     _, policy, _ = resolve(cfg, handler, tmp_path)
     assert seen == [True, False] and policy["policy_source"] == "public_page" and policy["completeness"] is None
     assert launch_gate("h1", policy)["allowed_depths"] == ["passive", "light", "strong"]   # unknown totals do not block, they are just not claimed
+
+
+# ── real public shapes seen on the live check (GitLab, Shopify, Uber) ───────────
+
+def node(identifier, asset_type, eligible=True):
+    return {"asset_type": asset_type, "asset_identifier": identifier, "eligible_for_submission": eligible, "instruction": ""}
+
+
+LIVE_SHAPES = [
+    node("*.acme.com", "WILDCARD"),
+    node("https://gitlab.com/gitlab-org/gitlab", "SOURCE_CODE"),
+    node("https://github.com/Shopify/*", "SOURCE_CODE"),
+    node("*.uberinternal.com", "OTHER"),
+    node("Your Own GitLab Instance", "OTHER"),
+    node("*ubereats.com", "OTHER"),
+    node("https://gitlab.com/gitlab-org/opstrace/opstrace-ui", "SOURCE_CODE", False),
+    node("https://gitlab.com/gitlab-org/cli/", "SOURCE_CODE", False),
+    node("supplier-portal.shopifycloud.com", "OTHER", False),
+    node("*.ubercarshare.com", "OTHER", False),
+    node("*scaledsolutions.uber.com", "WILDCARD", False),
+    node("scaledsolutions*.uber.com", "WILDCARD", False),
+    node("Other", "OTHER", False),
+    node("Fraud Reports", "OTHER", False),
+]
+
+
+def test_real_world_shapes_are_classified_precisely_or_left_out(cfg, tmp_path):
+    entries, policy, warnings = resolve(cfg, lambda r: httpx.Response(200, json=page_response(LIVE_SHAPES)), tmp_path)
+    by = {(e.kind, e.pattern): e.category for e in entries}
+    assert by[("in", "repo:https://gitlab.com/gitlab-org/gitlab")] == "source_code"
+    assert by[("in", "repo:https://github.com/shopify")] == "source_code"          # "/*" means the organisation, nothing wider
+    assert by[("out", "repo:https://gitlab.com/gitlab-org/opstrace/opstrace-ui")] == "source_code"   # GitLab subgroups
+    assert by[("out", "repo:https://gitlab.com/gitlab-org/cli")] == "source_code"
+    assert by[("in", "*.uberinternal.com")] == "wildcard"                         # clean host typed OTHER: accepted by form, and said so
+    assert by[("out", "supplier-portal.shopifycloud.com")] == "web" and by[("out", "*.ubercarshare.com")] == "wildcard"
+    assert by[("out", "*scaledsolutions.uber.com")] == "wildcard" and by[("out", "scaledsolutions*.uber.com")] == "wildcard"
+    assert ("in", "*ubereats.com") not in by                                       # cannot be an allow rule: never widened
+    left = {u["identifier"]: u for u in policy["classification"]["unclassified"]}
+    assert set(left) == {"Your Own GitLab Instance", "*ubereats.com", "Other", "Fraud Reports"}
+    assert not left["Other"]["blocking"] and not left["Fraud Reports"]["blocking"]  # descriptions name no host
+    assert {b["identifier"] for b in policy["classification"]["by_shape"]} == {"*.uberinternal.com", "supplier-portal.shopifycloud.com", "*.ubercarshare.com"}
+    assert any("theo hình thức" in w for w in warnings)
+    assert launch_gate("h1", policy)["allowed_depths"] == ["passive", "light", "strong"]
+
+
+def test_the_scope_gate_enforces_repo_hosts_and_glob_exclusions(cfg, tmp_path):
+    from backend.scope_gate import ScopeGate
+    gate = ScopeGate(["*.uber.com", "repo:https://gitlab.com/gitlab-org/gitlab", "repo:https://github.com/shopify"],
+                     ["*scaledsolutions.uber.com", "scaledsolutions*.uber.com", "repo:https://gitlab.com/gitlab-org/cli"],
+                     tmp_path / "a.jsonl", cfg)
+    assert gate.in_scope("riders.uber.com") and not gate.in_scope("scaledsolutions.uber.com")
+    assert not gate.in_scope("x-scaledsolutions.uber.com") and not gate.in_scope("scaledsolutions2.uber.com")
+    assert gate.in_scope("repo:https://gitlab.com/gitlab-org/gitlab") and gate.in_scope("repo:https://github.com/Shopify/hydrogen")
+    assert not gate.in_scope("repo:https://gitlab.com/gitlab-org/cli") and not gate.in_scope("repo:https://gitlab.com/gitlab-org/other")
+    assert not gate.in_scope("repo:https://github.com/gitlab-org/gitlab")          # same path on another host is another repository
+    for bad in ("*scaled.uber.com", "repo:https://evil.com/x/y"):
+        assert not gate.in_scope(bad)                                              # a glob is a rule, never an outbound target
+
+
+def test_a_glob_is_never_accepted_as_an_allow_rule():
+    from backend.scope_gate import normalize_pattern
+    with pytest.raises(ValueError):
+        normalize_pattern("*ubereats.com")
+    assert normalize_pattern("*ubereats.com", deny=True) == "*ubereats.com"

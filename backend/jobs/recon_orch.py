@@ -210,6 +210,9 @@ class ReconOrchestrator:
             plan.warnings.append("source_code remains manual at passive depth; repository fetching requires active depth")
             return
         url = resource.removeprefix("repo:")
+        if urlsplit(url).netloc != "github.com":
+            plan.warnings.append(f"Repo ngoài GitHub chỉ được ghi nhận để làm tay, không tự clone: {url}")
+            return
         path = urlsplit(url).path.strip("/")
         output = plan.root / str(len(plan.commands))
         flag, value = ("--github-org", path) if "/" not in path else ("--git", url)

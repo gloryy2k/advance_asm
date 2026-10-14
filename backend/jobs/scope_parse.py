@@ -80,9 +80,9 @@ def _token(raw, token, kind, box, line, results):
             notes.append("Bỏ scheme khỏi wildcard")
         if "*" in value and not value.startswith("*."):
             raise ScopeError("Wildcard chỉ hỗ trợ ở đầu dạng *.domain")
-        if re.fullmatch(r"(?:https?://)?github\.com/[^\s?#]+", value, re.I):
+        if re.fullmatch(r"(?:https?://)?(?:github\.com|gitlab\.com|bitbucket\.org)/[^\s?#]+", value, re.I):
             value = "repo:" + (value if "://" in value else "https://" + value)
-            notes.append("Tự thêm repo: cho GitHub")
+            notes.append("Tự thêm repo: cho kho mã")
         elif "/" in value and "://" not in value and not value.lower().startswith(("repo:", "app:")):
             try:
                 network = ipaddress.ip_network(value, strict=False)

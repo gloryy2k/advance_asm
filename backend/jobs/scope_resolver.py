@@ -11,7 +11,7 @@ from backend.config import Settings
 from backend.db import Database, utc_now
 from backend.trust import launch_gate
 from backend.models import ResolveRequest, ResolveResponse, ScanConfig, ScopeEntry
-from backend.scope_gate import audit, normalize_host, normalize_pattern
+from backend.scope_gate import audit, normalize_host, normalize_pattern, normalize_repo
 
 
 class ScopeError(ValueError):
@@ -64,14 +64,8 @@ def classify(value: str, kind="in", asset_type: str | None = None, instruction="
     declared = (asset_type or "").upper()
     try:
         if declared == "SOURCE_CODE" or value.startswith("repo:"):
-            repo = value.removeprefix("repo:")
-            url = urlsplit(repo)
-            # Keep resource scope, never grant all of github.com for one repository.
-            if (url.scheme != "https" or url.netloc.lower() != "github.com"
-                    or url.query or url.fragment or not re.fullmatch(r"/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?/?", url.path)
-                    or any(p in {".", ".."} for p in url.path.split("/"))):
-                raise ValueError("source code scope must be a GitHub organization or repository URL")
-            pattern, category, inferred = "repo:https://github.com" + url.path.rstrip("/"), "source_code", "SOURCE_CODE"
+            # Keep resource scope, never grant all of a code host for one repository.
+            pattern, category, inferred = "repo:" + normalize_repo(value.removeprefix("repo:")), "source_code", "SOURCE_CODE"
         elif declared in {"GOOGLE_PLAY_APP_ID", "APPLE_STORE_APP_ID", "ANDROID", "IOS"} or value.startswith("app:"):
             pattern, category, inferred = value, "mobile", "mobile"
         elif declared and declared not in {"URL", "DOMAIN", "WILDCARD", "IP", "IP_ADDRESS", "CIDR", "WEB"}:
@@ -87,6 +81,9 @@ def classify(value: str, kind="in", asset_type: str | None = None, instruction="
                 pattern, category, inferred = str(ipaddress.ip_network(value, strict=True)), "cidr", "cidr"
             elif value.startswith("*."):
                 pattern, category, inferred = normalize_pattern(value), "wildcard", "wildcard"
+            elif kind == "out" and "*" in value and "/" not in value and ":" not in value:
+                # "*label.example.com": cannot be expressed as an allow rule, but excluding it is always safe.
+                pattern, category, inferred = normalize_pattern(value, deny=True), "wildcard", "wildcard"
             elif value.startswith(("http://", "https://")):
                 normalize_host(value)
                 pattern, category, inferred = value, "web", "url"

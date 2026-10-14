@@ -28,7 +28,7 @@ def launch_gate(source, policy):
         missing.append("policy")
         reasons.append("Chưa có nội dung policy (automation/scanner/rate limit). Dán policy ở bước nhập rồi Resolve lại.")
     classification = policy.get("classification") or {}
-    if any(u.get("kind") == "out" for u in classification.get("unclassified", [])):
+    if any(u.get("kind") == "out" and u.get("blocking", True) for u in classification.get("unclassified", [])):
         missing.append("OUT chưa phân loại")
         reasons.append("Có mục OUT không phân loại được nên không chắc phần nào bị loại trừ.")
     short = [f"{label} {c['fetched']}/{c['total']}" for key, label in (("in", "IN"), ("out", "OUT"))

@@ -1,5 +1,6 @@
 """Fail-closed domain/IP scope decisions with a mandatory audit trail."""
 
+import fnmatch
 import importlib.util
 import ipaddress
 import json
@@ -50,22 +51,41 @@ def normalize_host(value: str) -> str:
         return host
 
 
-def normalize_pattern(value: str) -> str:
+# Hosts whose repositories we can name precisely, with the deepest path allowed (GitLab has subgroups).
+REPO_HOSTS = {"github.com": 2, "gitlab.com": 6, "bitbucket.org": 2}
+
+
+def normalize_repo(resource: str) -> str:
+    """https://host/org[/repo] -> canonical form. A trailing /* means "the organisation" and nothing wider."""
+    parsed = urlsplit(resource)
+    host = parsed.netloc.lower()
+    if parsed.scheme != "https" or host not in REPO_HOSTS or parsed.query or parsed.fragment:
+        raise ValueError("invalid repository scope")
+    path = parsed.path
+    if path.endswith("/*"):
+        path = path[:-2]
+    segments = path.rstrip("/").removesuffix(".git").strip("/").split("/")
+    if not 1 <= len(segments) <= REPO_HOSTS[host] or any(
+            not re.fullmatch(r"[A-Za-z0-9_.-]+", part) or part in {".", ".."} for part in segments):
+        raise ValueError("invalid repository scope")
+    return f"https://{host}/" + "/".join(segments).lower()
+
+
+def normalize_pattern(value: str, *, deny: bool = False) -> str:
+    """Canonical scope rule. With deny=True a "*" inside a label is allowed (it can only exclude more, never widen)."""
     value = value.strip()
     if value.startswith("repo:"):
-        resource = value[5:]
-        parsed = urlsplit(resource)
-        if (parsed.scheme != "https" or parsed.netloc.lower() != "github.com"
-                or parsed.query or parsed.fragment
-                or not re.fullmatch(r"/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?/?", parsed.path)
-                or any(part in {".", ".."} for part in parsed.path.split("/"))):
-            raise ValueError("invalid repository scope")
-        return "repo:https://github.com" + parsed.path.rstrip("/").removesuffix(".git").lower()
+        return "repo:" + normalize_repo(value[5:])
     if value.startswith("*."):
         base = value[2:]
         if any(c in base for c in "/:*?#@"):
             raise ValueError("invalid wildcard")
         return "*." + normalize_host(base)
+    if deny and "*" in value:
+        value = value.lower()
+        if not re.fullmatch(r"[a-z0-9*-]+(?:\.[a-z0-9*-]+)+", value) or value.startswith(".") or ".." in value:
+            raise ValueError("invalid glob")
+        return value
     if "/" in value and "://" not in value:
         return str(ipaddress.ip_network(value, strict=True))
     return normalize_host(value)
@@ -81,7 +101,7 @@ def _network(value):
 class ScopeGate:
     def __init__(self, allow: list[str], deny: list[str], audit_path: Path, settings: Settings):
         self.allow = [normalize_pattern(value) for value in allow]
-        self.deny = [normalize_pattern(value) for value in deny]
+        self.deny = [normalize_pattern(value, deny=True) for value in deny]
         self.audit_path = Path(audit_path)
         path = settings.tool_path("scope_checker.py")
         spec = importlib.util.spec_from_file_location("bbasm_vendor_scope_checker", path)
@@ -95,13 +115,15 @@ class ScopeGate:
     def _matches(self, target: str, pattern: str, *, deny: bool, resource: str) -> bool:
         if pattern.startswith("repo:"):
             parsed = urlsplit(resource.removeprefix("repo:"))
-            if parsed.scheme != "https" or parsed.netloc.lower() != "github.com":
+            base = urlsplit(pattern[5:])
+            if parsed.scheme != "https" or parsed.netloc.lower() != base.netloc or parsed.netloc.lower() not in REPO_HOSTS:
                 return False
             path = parsed.path.rstrip("/").removesuffix(".git").lower()
             if any(part in {".", ".."} for part in path.split("/")):
                 return False
-            base = urlsplit(pattern[5:]).path
-            return path == base or path.startswith(base + "/")
+            return path == base.path or path.startswith(base.path + "/")
+        if deny and "*" in pattern and not pattern.startswith("*."):
+            return fnmatch.fnmatchcase(target, pattern)   # conservative: "*" also spans dots
         candidate, rule = _network(target), _network(pattern)
         if candidate is not None or rule is not None:
             if candidate is None or rule is None or candidate.version != rule.version:

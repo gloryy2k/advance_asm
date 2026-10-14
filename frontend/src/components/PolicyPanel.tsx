@@ -72,7 +72,7 @@ export function PolicyPanel({ review }: { review: ReviewData }) {
           <summary>{unclassified.length} asset chưa phân loại — không đưa vào scope gate</summary>
           <ul>
             {unclassified.map((u, i) => (
-              <li key={i}><Badge tone={u.kind === "out" ? "out" : undefined}>{u.kind.toUpperCase()}</Badge> <code>{u.identifier}</code> — {u.reason}</li>
+              <li key={i}><Badge tone={u.kind === "out" ? "out" : undefined}>{u.kind.toUpperCase()}</Badge> <code>{u.identifier}</code> — {u.reason}{u.blocking ? " (chặn Light/Strong)" : ""}</li>
             ))}
           </ul>
         </details>

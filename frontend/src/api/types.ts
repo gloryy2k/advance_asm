@@ -124,7 +124,7 @@ export type Trust = {
 
 export type LaunchGate = { allowed_depths: Depth[]; reasons: string[]; missing: string[] };
 export type SourceAttempt = { source: "api" | "public_page" | "public_dump"; ok: boolean; reason?: string };
-export type Unclassified = { identifier: string; kind: "in" | "out"; asset_type: string; reason: string };
+export type Unclassified = { identifier: string; kind: "in" | "out"; asset_type: string; reason: string; blocking?: boolean };
 
 export type ScopeEntry = {
   pattern: string;
