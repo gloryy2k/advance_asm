@@ -28,6 +28,9 @@ export type Config = {
   brief_budget_kb: number;
   brief_top_assets: number;
   brief_top_urls: number;
+  /** "Name: value" headers the program's policy requires on requests to the target. Per program, never part of a profile. */
+  request_headers?: string[];
+  allow_active_on_path_rules?: boolean;
 };
 
 export const RECIPE_FIELDS = [
@@ -63,7 +66,7 @@ export type PhaseReport = {
   title: string;
   what: string;
   touches: boolean;
-  status: "ran" | "empty" | "skipped" | "missing_tool" | "no_output" | "pending";
+  status: "ran" | "empty" | "skipped" | "missing_tool" | "no_output" | "timeout" | "pending";
   status_label: string;
   reason: string | null;
   count: number;
@@ -71,7 +74,18 @@ export type PhaseReport = {
   files: PhaseFile[];
   view: { kind: string; label: string; filter?: Record<string, string> };
 };
-export type ScanPhases = {
+export type StageRecord = { key: string; label: string; status: string; budget_s: number; used_s: number; commands: number };
+export type SourceRecord = { source: string; status: "ok" | "timeout" | "error"; seconds: number; stage?: string };
+export type Coverage = { discovered: number; probed: number; unprobed: number; explicit: number; batches: number; batches_done: number };
+export type ScanProgressData = {
+  stages?: StageRecord[];
+  coverage?: Coverage | null;
+  sources?: SourceRecord[];
+  partial_inputs?: { command: string; found: number; in_scope: number; files: string[] }[];
+  path_rule_hosts?: Record<string, string[]>;
+  missing_needed?: string[];
+};
+export type ScanPhases = ScanProgressData & {
   scan_id: number;
   slug: string;
   status: string;
@@ -87,6 +101,8 @@ export type UrlFunnel = {
   out_of_scope: number;
   invalid: number;
   excluded_by_rule?: number;
+  path_rule_blocked?: number;
+  by_path_rule?: { rule: string; count: number }[];
   by_tag?: Record<string, number>;
   by_verification?: Record<string, number>;
   out_of_scope_hosts?: { host: string; count: number }[];
@@ -175,6 +191,7 @@ export type ReviewData = {
   hunt_command: string;
   hunt_note: string;
   scope: ScopeEntry[];
+  request_header_hints?: string[];
   warnings: string[];
   automation_ack: string | null;
   policy: {
@@ -196,6 +213,7 @@ export type Health = {
   missing_by_depth: Record<string, string[]>;
   h1_api: boolean;
   runtime?: { os: string; recon_supported: boolean; reason: string };
+  optional_tools?: string[];
 };
 
 export type ProgramCard = {
@@ -241,6 +259,7 @@ export type Summary = {
   hunt_note: string;
   trust?: Trust;
   default_profile_id?: number | null;
+  request_headers?: string[];
   latest_scan: ScanRow | null;
   last_completed_scan: ScanRow | null;
   changes: { new: number; changed: number; gone: number };

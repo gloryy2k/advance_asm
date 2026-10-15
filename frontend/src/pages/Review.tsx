@@ -43,6 +43,8 @@ export function Review({ id }: { id: string }) {
   const [saving, setSaving] = useState(false);
   const [newName, setNewName] = useState("");
   const [asDefault, setAsDefault] = useState(false);
+  const [skipHint, setSkipHint] = useState(false);
+  const [headerDefault, setHeaderDefault] = useState(false);
   const confirmRef = useRef<HTMLElement>(null);
   const autoPassive = useRef(false);
 
@@ -104,8 +106,16 @@ export function Review({ id }: { id: string }) {
   const blockedDepths: Record<string, string> = gateReason ? Object.fromEntries((["light", "strong"] as Depth[]).filter((d) => !gate!.allowed_depths.includes(d)).map((d) => [d, gateReason])) : {};
   const depthBlocked = !!blockedDepths[config.depth];
   const unsupported = health.data?.runtime && !health.data.runtime.recon_supported;
+  const headerLines = config.request_headers || [];
+  const headerNames = headerLines.map((h) => h.split(":")[0].trim().toLowerCase());
+  const badHeader = headerLines.find((h) => !/^[A-Za-z0-9][A-Za-z0-9-]{0,59}:\s*[\x20-\x7e]+$/.test(h));
+  const hintsMissing = needAck ? (review.request_header_hints || []).filter((n) => !headerNames.includes(n.toLowerCase())) : [];
+  const pathRules = outs.filter((e) => /^https?:\/\/[^/]+\/.+/.test(e.pattern));
+  const pathHosts = [...new Set(pathRules.map((e) => new URL(e.pattern).hostname.toLowerCase()))];
   const blocker = !isDraft ? "Scan này đã được launch."
     : depthBlocked ? gateReason + ". Chỉ chạy được Passive cho tới khi đủ dữ liệu."
+    : badHeader ? `Header không hợp lệ: "${badHeader.slice(0, 40)}" (dạng 'Tên: giá trị', giá trị là ký tự in được)`
+    : hintsMissing.length && !skipHint ? `Policy yêu cầu header ${hintsMissing.join(", ")}: điền giá trị hoặc xác nhận bỏ qua`
     : unsupported ? health.data!.runtime!.reason
     : included.length === 0 ? "Chưa có mục IN nào được chọn để kiểm tra."
     : needAck && !ack ? "Cần xác nhận program cho phép scan tự động."
@@ -140,6 +150,9 @@ export function Review({ id }: { id: string }) {
     setError("");
     try {
       await api("/api/scans/" + id + "/launch", { method: "POST", body: JSON.stringify({ config, automation_ack: needAck && ack }) });
+      if (headerDefault) {
+        await api("/api/programs/" + encodeURIComponent(review.slug) + "/request-headers", { method: "PUT", body: JSON.stringify({ headers: headerLines }) }).catch(() => undefined);
+      }
       go("/scan/" + id);
     } catch (e) { setError(explain(e)); setBusy(false); }
   }
@@ -207,6 +220,43 @@ export function Review({ id }: { id: string }) {
           </label>
         </details>
       </Panel>
+
+      {(needAck || headerLines.length > 0 || (review.request_header_hints || []).length > 0) && (
+        <Panel id="headers-h" title="Header gửi kèm request tới target"
+          hint="Một số policy yêu cầu header nhận diện nhà nghiên cứu (ví dụ X-HackerOne-Research: <username>). Header chỉ đi kèm các lệnh thật sự chạm target (httpx, katana, nuclei, ffuf, curl); khám phá thụ động không bao giờ mang nó. Giá trị không được ghi vào log.">
+          <div className="headers-editor">
+            {(review.request_header_hints || []).length > 0 && (
+              <p className="warnbox" role="note">Policy nhắc tới header: <strong>{review.request_header_hints!.join(", ")}</strong>. Đọc nguyên văn policy để biết giá trị cần dùng.</p>
+            )}
+            <label>Mỗi dòng một header (tối đa 5)
+              <textarea rows={2} aria-label="Header gửi kèm" spellCheck={false}
+                placeholder={(review.request_header_hints || [])[0] ? (review.request_header_hints || [])[0] + ": <username của bạn>" : "Tên-Header: giá trị"}
+                value={headerLines.join("\n")}
+                onChange={(e) => edit({ request_headers: e.target.value.split("\n").map((l) => l.trim()).filter(Boolean) })} />
+            </label>
+            {hintsMissing.length > 0 && (
+              <label className="check"><input type="checkbox" checked={skipHint} onChange={(e) => setSkipHint(e.target.checked)} />Tôi đã đọc policy và không dùng header {hintsMissing.join(", ")} cho scan này.</label>
+            )}
+            <label className="check inline"><input type="checkbox" checked={headerDefault} onChange={(e) => setHeaderDefault(e.target.checked)} />Dùng làm mặc định cho program này (các scan sau tự điền)</label>
+          </div>
+        </Panel>
+      )}
+
+      {pathHosts.length > 0 && (
+        <Panel id="pathrules-h" title="OUT theo đường dẫn" hint="Một số mục OUT là URL có đường dẫn. Chúng chỉ chặn đúng đường dẫn đó (và phần bên dưới), không chặn cả host.">
+          <div className="pathrules">
+            <ul>{pathRules.map((e) => <li key={e.pattern}><Badge tone="out">OUT</Badge> <code>{e.pattern}</code></li>)}</ul>
+            <p>
+              Crawler (katana), nuclei và ffuf không có cách nhận loại trừ theo đường dẫn, nên với <strong>{pathHosts.join(", ")}</strong> BBASM chỉ probe (liveness + tech),
+              không crawl/quét mẫu/dò thư mục. URL OUT luôn bị lọc khỏi kết quả và không bị tải về.
+            </p>
+            <label className="check">
+              <input type="checkbox" checked={!!config.allow_active_on_path_rules} onChange={(e) => edit({ allow_active_on_path_rules: e.target.checked })} />
+              Cho phép quét chủ động các host này. Tôi hiểu công cụ có thể đã gửi request tới đường dẫn OUT (kết quả vẫn bị lọc).
+            </label>
+          </div>
+        </Panel>
+      )}
 
       <Panel id="preset-h" title="Mức quét" hint="Chọn một preset, một profile của bạn, hoặc chỉnh từng phần ở dưới. Preset chỉ là điểm xuất phát — mọi giá trị đều sửa được.">
         <PresetPicker value={config.depth} missing={missing} blocked={blockedDepths} onChange={choosePreset} />

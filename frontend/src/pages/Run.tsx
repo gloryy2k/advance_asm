@@ -5,6 +5,7 @@ import { ArtifactViewer } from "../components/ArtifactViewer";
 import { HuntCard } from "../components/HuntCard";
 import { PageHead, Panel } from "../components/layout";
 import { ScanLog } from "../components/ScanLog";
+import { ScanProgress } from "../components/ScanProgress";
 import { StepList, type StepRow } from "../components/StepList";
 import { Badge, ErrorBox, StatusBadge } from "../components/ui";
 import { useData } from "../hooks/useData";
@@ -80,7 +81,8 @@ export function Run({ id }: { id: string }) {
         {slug && <a href={"#" + programPath(slug)}>Mở program →</a>}
       </div>
 
-      {status === "done_partial" && <p className="warnbox">Scan hoàn tất một phần: một số bước lỗi hoặc bị bỏ qua (xem bảng bên dưới). Dữ liệu có được vẫn đã nạp; không suy ra host vắng là đã biến mất.</p>}
+      {status === "done_partial" && <p className="warnbox">Scan hoàn tất một phần: một số giai đoạn hết thời gian, nguồn lỗi hoặc host chưa được probe (xem "Giai đoạn & độ phủ"). Dữ liệu có được vẫn đã nạp; không suy ra host vắng là đã biến mất.</p>}
+      {state.data?.error && good && <p className="muted" data-testid="partial-reason">Lý do: {state.data.error}</p>}
       {(status === "failed" || status === "cancelled") && (
         <Panel id="fail-h" title={status === "failed" ? "Scan lỗi" : "Scan đã huỷ"} tone="warn">
           {state.data?.error && <p className="error">{state.data.error}</p>}
@@ -96,6 +98,13 @@ export function Run({ id }: { id: string }) {
             <a className="button secondary" href={"#" + programPath(info.data.slug)}>Tổng quan program</a>
           </p>
         </>
+      )}
+
+      {status !== "draft" && report.data && (
+        <Panel id="stages-h" title="Giai đoạn & độ phủ"
+          hint="Scan chạy theo giai đoạn có ngân sách thời gian riêng: khám phá → host nêu trong scope → probe host đã khám phá → quét sâu. Hết ngân sách thì giai đoạn dừng, dữ liệu đã có vẫn được nạp.">
+          <ScanProgress data={report.data} partial={status === "done_partial"} />
+        </Panel>
       )}
 
       {status !== "draft" && (
@@ -133,7 +142,8 @@ export function Run({ id }: { id: string }) {
           <p>
             <strong>{funnel.raw.toLocaleString("vi-VN")}</strong> URL do tool tìm thấy → <strong>{funnel.in_scope.toLocaleString("vi-VN")}</strong> trong scope
             {funnel.out_of_scope > 0 && <>, <Badge tone="medium">{funnel.out_of_scope.toLocaleString("vi-VN")} ngoài scope đã loại</Badge></>}
-            {!!funnel.excluded_by_rule && <>, {funnel.excluded_by_rule} loại theo mẫu của bạn</>}.{" "}
+            {!!funnel.excluded_by_rule && <>, {funnel.excluded_by_rule} loại theo mẫu của bạn</>}
+            {!!funnel.path_rule_blocked && <>, <Badge tone="medium">{funnel.path_rule_blocked.toLocaleString("vi-VN")} chặn theo OUT đường dẫn</Badge></>}.{" "}
             {slug && <a href={dataLink(slug, { kind: "urls" })}>Xem URL →</a>}
           </p>
         </Panel>

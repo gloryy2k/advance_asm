@@ -284,3 +284,23 @@ def test_passive_and_discovery_never_get_the_header(settings, tools):
                                   config={"request_headers": ["X-HackerOne-Research: tester-4711"]})
     assert "has_header" not in (tools / "curl.log").read_text()          # crt.sh / Wayback traffic is anonymous
     assert stats["request_headers"] == ["X-HackerOne-Research"]
+
+
+def test_curl_shim_adds_the_policy_header_to_target_calls_only(tmp_path):
+    """JS downloads and other curl calls in scripts that know nothing about headers still carry the policy header;
+    passive source hosts never do, and a header the script already set is not duplicated."""
+    import subprocess
+    from backend.jobs.recon_orch import SHIM_DIR
+    recorder = Recorder()
+    try:
+        env = {"PATH": "/usr/bin:/bin", "BBHUNT_AUTH_HEADERS": "X-HackerOne-Research: tester-4711\nX-Other: 1", "RECON_OUT_DIR": str(tmp_path)}
+        curl = [str(SHIM_DIR / "curl"), "-s", "-o", "/dev/null"]
+        subprocess.run([*curl, f"http://127.0.0.1:{recorder.port}/app.js"], env=env, check=True, timeout=20)
+        subprocess.run([*curl, "-H", "x-other: mine", f"http://127.0.0.1:{recorder.port}/dup"], env=env, check=True, timeout=20)
+        subprocess.run([*curl, f"http://localhost:{recorder.port}/passive"], env={**env, "BBASM_SOURCE_HOSTS": "localhost"}, check=True, timeout=20)
+        headers = {path: h for path, h in recorder.seen}
+        assert headers["/app.js"]["X-HackerOne-Research"] == "tester-4711" and headers["/app.js"]["X-Other"] == "1"
+        assert headers["/dup"]["X-HackerOne-Research"] == "tester-4711" and headers["/dup"]["x-other"] == "mine"   # the script's own value wins
+        assert "X-HackerOne-Research" not in headers["/passive"]                                                    # passive source: anonymous
+    finally:
+        recorder.close()

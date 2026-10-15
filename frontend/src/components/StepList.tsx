@@ -15,7 +15,7 @@ export type StepRow = {
 };
 
 const TONE: Record<string, string> = {
-  on: "good", ran: "good", off: "muted", skipped: "muted", empty: "warn", missing_tool: "bad", no_output: "muted", pending: "muted",
+  on: "good", ran: "good", off: "muted", skipped: "muted", empty: "warn", missing_tool: "bad", no_output: "muted", timeout: "warn", pending: "muted",
 };
 
 /** One row per function: what it does, whether it runs/ran, how much it found, where to read it. */

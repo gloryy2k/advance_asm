@@ -16,11 +16,29 @@ done
 args=("$@")
 [ "$has_max" = 0 ] && args=(--max-time "${BBASM_SOURCE_TIMEOUT:-45}" --connect-timeout 15 "$@")
 
+host="${url#*://}"; host="${host%%/*}"; host="${host%%\?*}"; host="${host%%:*}"
+is_source=0
+for known in ${BBASM_SOURCE_HOSTS:-crt.sh web.archive.org}; do [ "$host" = "$known" ] && is_source=1; done
+
+# Policy header (BBHUNT_AUTH_HEADERS, one "Name: value" per line): every curl that reaches the target carries it, even
+# in scripts that do not know about it (JS download for secret scanning). Passive sources never get it, and a header
+# the caller already set is left alone.
+if [ "$is_source" = 0 ] && [ -n "$url" ] && [ -n "${BBHUNT_AUTH_HEADERS:-}" ]; then
+    while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        name="${line%%:*}"; have=0; prev=""
+        for arg in "$@"; do
+            [ "$prev" = "-H" ] || [ "$prev" = "--header" ] && case "$(printf '%s' "$arg" | tr 'A-Z' 'a-z')" in "$(printf '%s' "$name" | tr 'A-Z' 'a-z')":*) have=1 ;; esac
+            prev="$arg"
+        done
+        [ "$have" = 0 ] && args=(-H "$line" "${args[@]}")
+    done <<< "$BBHUNT_AUTH_HEADERS"
+fi
+
 start=$SECONDS
 "$real" "${args[@]}"
 code=$?
 
-host="${url#*://}"; host="${host%%/*}"; host="${host%%\?*}"; host="${host%%:*}"
 for known in ${BBASM_SOURCE_HOSTS:-crt.sh web.archive.org}; do
     if [ "$host" = "$known" ]; then
         status=ok; [ "$code" = 28 ] && status=timeout; { [ "$code" != 0 ] && [ "$code" != 28 ]; } && status=error

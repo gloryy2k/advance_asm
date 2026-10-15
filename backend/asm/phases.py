@@ -180,7 +180,7 @@ def build_report(settings, database, scan_id, tools_missing=None):
         reason = disabled_reason(config, phase["key"], historical_off=settings.BBASM_SKIP_HISTORICAL) if config else None
         tools_out = [t for t in phase["tools"] if t in missing]
         if reason and not any((f["lines"] or 0) for f in mine):
-            status, label = "skipped", "Bỏ qua"
+            status, label = "skipped", "Bỏ qua theo cấu hình"
         elif mine and any((f["lines"] or 0) for f in mine):
             status, label, reason = "ran", "Đã chạy", None
         elif mine:
@@ -188,14 +188,21 @@ def build_report(settings, database, scan_id, tools_missing=None):
         elif phase["tools"] and len(tools_out) == len(phase["tools"]):
             status, label, reason = "missing_tool", "Thiếu công cụ", "Thiếu " + ", ".join(tools_out) + " nên bước này không chạy."
         elif over:
-            status, label, reason = "no_output", "Không có dữ liệu", "Không có file kết quả (chưa tới bước này, bị huỷ, hoặc lỗi)."
+            cut = any(st.get("status") in {"timeout", "skipped_budget"} for st in stats.get("stages") or [])
+            status, label = ("timeout", "Hết thời gian") if cut else ("no_output", "Không có dữ liệu")
+            reason = ("Một giai đoạn hết ngân sách thời gian trước khi tới bước này (xem bảng Giai đoạn)." if cut
+                      else "Không có file kết quả (chưa tới bước này, bị huỷ, hoặc lỗi).")
         else:
             status, label = "pending", "Chưa tới"
         report.append({"key": phase["key"], "title": phase["title"], "what": phase["what"], "touches": phase["touches"],
                        "status": status, "status_label": label, "reason": reason, "count": total,
                        "count_label": phase["count_label"], "files": mine, "view": phase["view"], "tools": phase["tools"]})
     return {"scan_id": scan_id, "slug": scan["slug"], "status": scan["status"], "depth": scan["depth"],
-            "phases": report, "funnel": stats.get("url_funnel"), "missing_tools": sorted(missing)}
+            "phases": report, "funnel": stats.get("url_funnel"), "missing_tools": sorted(missing),
+            # How far the scan actually got: stages and their budgets, discovered/probed/unprobed, failed passive sources.
+            "stages": stats.get("stages") or [], "coverage": stats.get("coverage"), "sources": stats.get("sources") or [],
+            "path_rule_hosts": stats.get("path_rule_hosts") or {}, "partial_inputs": stats.get("partial_inputs") or [],
+            "missing_needed": stats.get("missing_needed") or [], "request_headers": stats.get("request_headers") or []}
 
 
 # Credentials with a recognisable shape are hidden in every file, not only in scanner output.

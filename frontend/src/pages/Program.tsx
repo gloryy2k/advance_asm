@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { api, apiPage } from "../api/client";
 import type { Asset, Depth, Profile, Summary, Trust, UrlSummary } from "../api/types";
+import { ScanProgress } from "../components/ScanProgress";
 import { HuntCard } from "../components/HuntCard";
 import { Chip, PageHead, Panel, Segmented, TrustBadge } from "../components/layout";
 import { UrlExplorer } from "../components/UrlExplorer";
@@ -117,8 +118,23 @@ function Overview({ slug, summary, detail, urls, reload }: { slug: string; summa
   if (total > 0) todo.push({ text: `Xem ${total} finding.`, href: "#" + programPath(slug, "findings") });
   if (c.new + c.changed + c.gone > 0) todo.push({ text: `Xem ${c.new + c.changed + c.gone} thay đổi so với scan trước.`, href: "#" + programPath(slug, "history", "diff") });
   if (summary.last_completed_scan && !enabled) todo.push({ text: "Bật giám sát nếu program cho phép quét tự động, để biết khi có asset mới." });
+  const active = summary.latest_scan && ["queued", "running"].includes(summary.latest_scan.status) ? summary.latest_scan : null;
+  const dataScan = summary.last_completed_scan;
+  const dataStats = (dataScan as any)?.stats || {};
   return (
     <>
+      {dataScan && (
+        <p className={"databanner " + (active || dataScan.status === "done_partial" ? "warnbox" : "muted")} role="status" data-testid="data-scan">
+          {active && <><strong>Scan #{active.id} ({active.depth}) đang {active.status === "queued" ? "chờ chạy" : "chạy"}</strong> — số liệu dưới đây vẫn là của </>}
+          {!active && <>Số liệu dưới đây là của </>}
+          <strong>scan #{dataScan.id}</strong> ({dataScan.depth}, {dataScan.status === "done_partial" ? "hoàn tất MỘT PHẦN" : "hoàn tất"}
+          {dataScan.finished_at ? ` lúc ${when(dataScan.finished_at)}` : ""}).
+          {active && " Kết quả của scan đang chạy chỉ xem được ở trang Run."}
+          {dataScan.status === "done_partial" && dataStats.coverage?.unprobed > 0 && <> Còn {dataStats.coverage.unprobed.toLocaleString("vi-VN")} host khám phá chưa probe.</>}
+          {" "}<a href={"#/scan/" + (active ? active.id : dataScan.id)}>Mở scan #{active ? active.id : dataScan.id} →</a>
+        </p>
+      )}
+      {dataScan?.status === "done_partial" && <ScanProgress data={dataStats} partial />}
       <div className="tiles">
         <Tile label="Host" value={summary.assets_active} sub="đang hoạt động" href={`#/program/${encodeURIComponent(slug)}/data?v=hosts`} />
         <Tile label="URL" value={(urls?.total ?? 0).toLocaleString("vi-VN")} sub={urls?.funnel ? `${urls.funnel.out_of_scope.toLocaleString("vi-VN")} ngoài scope đã loại` : "trong scope"} href={`#/program/${encodeURIComponent(slug)}/data?v=urls`} />

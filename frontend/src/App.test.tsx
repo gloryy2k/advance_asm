@@ -235,7 +235,7 @@ describe("Review", () => {
 
   test("turning every group off blocks launch with a reason", async () => {
     setup();
-    fireEvent.click(await screen.findByLabelText(/Tôi đã đọc policy/));
+    fireEvent.click(await screen.findByLabelText(/Tôi đã đọc policy và program cho phép/));
     fireEvent.click(screen.getByLabelText("Nhóm Wildcard (liệt kê subdomain)"));
     fireEvent.click(screen.getByLabelText("Nhóm Web / domain"));
     expect(screen.getByRole("button", { name: "Launch scan" })).toBeDisabled();
@@ -256,7 +256,7 @@ describe("Review", () => {
         : { __error: { status: 422, code: "invalid_state", message: "Only draft scans can be launched" } });
     location.hash = "/scan/4/review";
     render(<App />);
-    fireEvent.click(await screen.findByLabelText(/Tôi đã đọc policy/));
+    fireEvent.click(await screen.findByLabelText(/Tôi đã đọc policy và program cho phép/));
     fireEvent.click(screen.getByRole("button", { name: "Launch scan" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/Thao tác không hợp lệ/);
     expect(location.hash).toBe("#/scan/4/review");
@@ -829,5 +829,122 @@ describe("Profiles page", () => {
     fireEvent.click((await screen.findAllByRole("button", { name: "Xoá" }))[0]);
     await waitFor(() => expect(calls(fetch, "/api/profiles/3", "DELETE")).toHaveLength(1));
     expect(await screen.findByText("Chưa có profile nào")).toBeInTheDocument();
+  });
+});
+
+describe("v1.3: policy header, OUT paths, stages and coverage", () => {
+  const withHint = () => baseReview({
+    request_header_hints: ["X-HackerOne-Research"],
+    scope: [
+      { pattern: "*.wolt.com", kind: "in", asset_type: "WILDCARD", category: "wildcard", instruction: "" },
+      { pattern: "https://wolt.com/en/wolt-for-work-contact-request", kind: "out", asset_type: "URL", category: "web", instruction: "" },
+    ],
+  });
+  const reviewStub = (review: object) => stubFetch((path) =>
+    path === "/api/health" ? health() : path.endsWith("/review") ? review : path.endsWith("/config") ? baseConfig
+      : path.endsWith("/launch") ? { scan_id: 4, status: "queued" } : path.endsWith("/request-headers") ? { headers: [] } : {});
+
+  test("a header the policy asks for blocks Light until it is filled in or knowingly skipped; the value is sent with the config only", async () => {
+    const fetch = reviewStub(withHint());
+    location.hash = "/scan/4/review";
+    render(<App />);
+    fireEvent.click(await screen.findByLabelText(/Tôi đã đọc policy và program cho phép/));
+    const launch = screen.getByRole("button", { name: "Launch scan" });
+    expect(launch).toBeDisabled();
+    expect(screen.getAllByRole("status").some((n) => /Policy yêu cầu header X-HackerOne-Research/.test(n.textContent || ""))).toBe(true);
+    fireEvent.change(screen.getByLabelText("Header gửi kèm"), { target: { value: "X-HackerOne-Research: tester-4711" } });
+    await waitFor(() => expect(launch).toBeEnabled());
+    fireEvent.click(screen.getByLabelText(/Dùng làm mặc định cho program/));
+    fireEvent.click(launch);
+    await waitFor(() => expect(location.hash).toBe("#/scan/4"));
+    expect(JSON.parse(calls(fetch, "/launch")[0][1]!.body as string).config.request_headers).toEqual(["X-HackerOne-Research: tester-4711"]);
+    await waitFor(() => expect(calls(fetch, "/request-headers", "PUT")).toHaveLength(1));
+  });
+
+  test("an invalid header is named, and skipping the hint is an explicit choice", async () => {
+    reviewStub(withHint());
+    location.hash = "/scan/4/review";
+    render(<App />);
+    fireEvent.click(await screen.findByLabelText(/Tôi đã đọc policy và program cho phép/));
+    fireEvent.click(screen.getByLabelText(/không dùng header X-HackerOne-Research/));
+    const launch = screen.getByRole("button", { name: "Launch scan" });
+    await waitFor(() => expect(launch).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Header gửi kèm"), { target: { value: "Cookie ngu" } });
+    await waitFor(() => expect(launch).toBeDisabled());
+    expect(screen.getAllByRole("status").some((n) => /Header không hợp lệ/.test(n.textContent || ""))).toBe(true);
+  });
+
+  test("OUT URLs with a path are listed as path rules, hosts are probe-only unless the user opts in", async () => {
+    const fetch = reviewStub(withHint());
+    location.hash = "/scan/4/review";
+    render(<App />);
+    const panel = (await screen.findByText("OUT theo đường dẫn", { selector: "h2" })).closest("section")!;
+    expect(within(panel).getByText("https://wolt.com/en/wolt-for-work-contact-request")).toBeInTheDocument();
+    expect(within(panel).getByText(/chỉ probe/)).toHaveTextContent("wolt.com");
+    fireEvent.click(within(panel).getByLabelText(/Cho phép quét chủ động các host này/));
+    fireEvent.click(await screen.findByLabelText(/Tôi đã đọc policy và program cho phép/));
+    fireEvent.click(screen.getByLabelText(/không dùng header X-HackerOne-Research/));
+    fireEvent.click(screen.getByRole("button", { name: "Launch scan" }));
+    await waitFor(() => expect(location.hash).toBe("#/scan/4"));
+    expect(JSON.parse(calls(fetch, "/launch")[0][1]!.body as string).config.allow_active_on_path_rules).toBe(true);
+  });
+
+  test("Run shows stages, discovered/probed/unprobed, failed sources and why, and says unprobed hosts are not 'gone'", async () => {
+    stubFetch((path) => path.endsWith("/phases")
+      ? { scan_id: 31, slug: "wolt", status: "done_partial", depth: "light", phases: [], funnel: { raw: 4422, in_scope: 223, out_of_scope: 75, invalid: 17, path_rule_blocked: 4107 },
+          missing_tools: [], coverage: { discovered: 720, probed: 4, unprobed: 716, explicit: 4, batches: 5, batches_done: 0 },
+          stages: [{ key: "discovery", label: "Khám phá subdomain/URL", status: "ok", budget_s: 270, used_s: 190, commands: 1 },
+                   { key: "probe", label: "Probe host đã khám phá", status: "timeout", budget_s: 270, used_s: 270, commands: 5 }],
+          sources: [{ source: "web.archive.org", status: "timeout", seconds: 45 }], partial_inputs: [], path_rule_hosts: { "wolt.com": ["/en/x"] } }
+      : path.endsWith("/review") ? baseReview({ scan: { id: 31, depth: "light", status: "done_partial" } })
+      : path.endsWith("/config") ? baseConfig
+      : { id: 31, depth: "light", status: "done_partial", started_at: "2026-10-15T02:11:56Z", finished_at: "2026-10-15T02:27:45Z", error: "Giai đoạn 'Probe host đã khám phá' hết ngân sách 270s (timeout)" });
+    location.hash = "/scan/31";
+    render(<App />);
+    const coverage = await screen.findByLabelText("Phủ host khám phá");
+    expect(coverage).toHaveTextContent("720");
+    expect(coverage).toHaveTextContent(/chưa probe\s*716/);
+    expect(coverage).toHaveTextContent("không bị coi là đã biến mất");
+    const probe = screen.getByText("Probe host đã khám phá").closest("tr")!;
+    expect(within(probe).getByText("hết thời gian")).toBeInTheDocument();
+    expect(within(probe).getByText("270s / 270s")).toBeInTheDocument();
+    expect(screen.getByText("web.archive.org").closest("p")).toHaveTextContent("web.archive.org quá thời gian sau 45s");
+    expect(screen.getByTestId("partial-reason")).toHaveTextContent("hết ngân sách");
+    expect(screen.getByText(/chặn theo OUT đường dẫn/)).toBeInTheDocument();
+  });
+
+  test("Program overview tells a running scan apart from the finished data it still shows", async () => {
+    const done = { id: 28, depth: "light", status: "done_partial", finished_at: "2026-10-15T02:27:45Z",
+      stats: { coverage: { discovered: 720, probed: 4, unprobed: 716 }, stages: [], sources: [] } };
+    stubFetch((path) => path.endsWith("/summary")
+      ? { slug: "wolt", source: "h1", handle: "wolt", target_path: "/t/wolt", hunt_command: "cd t && claude", hunt_note: "", latest_scan: { id: 32, depth: "light", status: "running" },
+          last_completed_scan: done, changes: { new: 0, changed: 0, gone: 0 }, findings_by_severity: {}, assets_active: 5, top_surface: [], draft_count: 0, schedule: null }
+      : {});
+    location.hash = "/program/wolt";
+    render(<App />);
+    const banner = await screen.findByTestId("data-scan");
+    expect(banner).toHaveTextContent("Scan #32 (light) đang chạy");
+    expect(banner).toHaveTextContent("số liệu dưới đây vẫn là của scan #28");
+    expect(banner).toHaveTextContent("hoàn tất MỘT PHẦN");
+    expect(banner).toHaveTextContent("716 host khám phá chưa probe");
+  });
+
+  test("log lines carry why a step did not run: by configuration, missing tool or timeout", async () => {
+    vi.stubGlobal("WebSocket", FakeSocket);
+    stubFetch((path) => path.endsWith("/phases") ? { scan_id: 9, slug: "acme", status: "running", depth: "light", phases: [], funnel: null, missing_tools: [] }
+      : path.endsWith("/review") ? baseReview({ scan: { id: 9, depth: "light", status: "running" } }) : path.endsWith("/config") ? baseConfig
+      : { id: 9, depth: "light", status: "running", started_at: "2026-10-15T02:11:56Z" });
+    location.hash = "/scan/9";
+    render(<App />);
+    await screen.findByText("Nhật ký scan");
+    await waitFor(() => expect(FakeSocket.instances.length).toBeGreaterThan(0));
+    act(() => {
+      FakeSocket.instances[0].emit({ id: 1, type: "log", tag: "skipped_config", message: "[!] Dò thư mục (ffuf): bỏ qua theo mức quét — chỉ chạy ở Strong" });
+      FakeSocket.instances[0].emit({ id: 2, type: "log", tag: "timeout", message: "Nguồn web.archive.org quá thời gian sau 45s" });
+      FakeSocket.instances[0].emit({ id: 3, type: "stage", status: "running", message: "▶ Probe host đã khám phá: 5 lệnh, tối đa 270s" });
+    });
+    expect(await screen.findByText("bỏ qua theo mức quét", { selector: "span.chip" })).toBeInTheDocument();
+    expect(screen.getByText("quá thời gian", { selector: "span.chip" })).toBeInTheDocument();
+    expect(screen.getByText(/▶ Probe host đã khám phá/)).toBeInTheDocument();
   });
 });
