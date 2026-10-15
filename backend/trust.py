@@ -1,4 +1,21 @@
 """How far the scope and policy can be trusted — shown wherever they are shown."""
+import re
+
+
+_HEADER_NAME = re.compile(r"\b(X-[A-Za-z0-9]+(?:-[A-Za-z0-9]+){0,4})\b\s*:", re.I)
+_RESEARCH_WORDS = ("hackerone", "research", "bounty", "bugcrowd", "intigriti", "pentest", "bugbounty", "security")
+
+
+def required_headers(policy):
+    """Header names the policy text asks researchers to send (e.g. X-HackerOne-Research). Names only: the value is the
+    researcher's own and is entered in Review. A hint, never a rule: the person reading the policy decides."""
+    text = _policy_text(policy or {}) + "\n" + ((policy or {}).get("user_policy_text") or "")
+    names = []
+    for match in _HEADER_NAME.finditer(text):
+        name = match.group(1)
+        if any(word in name.lower() for word in _RESEARCH_WORDS) and name not in names:
+            names.append(name)
+    return names[:3]
 
 
 AUTO_CATEGORIES = {"web", "wildcard", "ip", "cidr"}

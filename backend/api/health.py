@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/api", tags=["health"])
 EXECUTABLES = (
-    "bash", "subfinder", "httpx", "dnsx", "nuclei", "katana", "gau",
+    "bash", "subfinder", "httpx", "nuclei", "katana", "gau",
     "amass", "ffuf", "nmap", "git", "bbscope", "trufflehog",
 )
 FRAMEWORK_FILES = (
@@ -21,9 +21,11 @@ FRAMEWORK_FILES = (
 # Tools each depth actually needs; a missing one is skipped fail-soft, so Review shows it.
 DEPTH_TOOLS = {
     "passive": ["subfinder", "gau"],
-    "light": ["subfinder", "gau", "httpx", "dnsx", "katana", "nuclei"],
-    "strong": ["subfinder", "gau", "httpx", "dnsx", "katana", "nuclei", "nmap", "ffuf", "amass"],
+    "light": ["subfinder", "gau", "httpx", "katana", "nuclei"],
+    "strong": ["subfinder", "gau", "httpx", "katana", "nuclei", "nmap", "ffuf", "amass"],
 }
+# Nothing in a scan depends on these: a missing one is not a problem and is shown as "optional".
+OPTIONAL_TOOLS = ("bbscope", "git", "trufflehog")
 
 
 class HealthResponse(BaseModel):
@@ -32,6 +34,7 @@ class HealthResponse(BaseModel):
     missing_by_depth: dict[str, list[str]] = {}
     h1_api: bool = False  # H1_USER/H1_TOKEN configured (never expose the values)
     runtime: dict = {}
+    optional_tools: list[str] = []
 
 
 def is_projectdiscovery_httpx(path: str) -> bool:
@@ -63,4 +66,4 @@ def health(request: Request) -> HealthResponse:
     supported = os.name == "posix"
     runtime = {"os": platform.system(), "recon_supported": supported,
                "reason": "" if supported else "Máy chủ chạy trên Windows gốc nên không chạy được recon (cần Linux, WSL2 hoặc Docker)."}
-    return HealthResponse(ok=True, tools=tools, missing_by_depth=missing, h1_api=h1, runtime=runtime)
+    return HealthResponse(ok=True, tools=tools, missing_by_depth=missing, h1_api=h1, runtime=runtime, optional_tools=list(OPTIONAL_TOOLS))

@@ -29,7 +29,7 @@ for i, a in enumerate(args):
     if a in ("--max-time", "-m"): limit = float(args[i + 1])
 url = next((a for a in args if a.startswith("http")), "")
 with open(here + "/../../fakelog/curl.log", "a") as log:
-    log.write(url.split("/")[2] + " max=" + str(limit) + "\n")
+    log.write(url.split("/")[2] + " max=" + str(limit) + (" has_header" if "-H" in args else "") + "\n")
 if "crt.sh" in url:
     print('[{"name_value": "mail.example.com"}]'); sys.exit(0)
 if "web.archive.org" in url:
@@ -47,7 +47,9 @@ while [ $# -gt 0 ]; do case "$1" in -l) list="$2";; -o) out="$2";; esac; shift; 
 n=$(ls "$FAKE_LOG"/httpx.*.argv 2>/dev/null | wc -l); printf '%s\\n' "${args[@]}" > "$FAKE_LOG/httpx.$((n+1)).argv"
 cp "$list" "$FAKE_LOG/httpx.$((n+1)).hosts"
 sleep "${FAKE_HTTPX_DELAY:-0}"
-while read -r h; do echo "https://$h [200] [100] [Title $h] [nginx]"; done < "$list" > "$out"
+while read -r h; do
+  if [ -n "${FAKE_PORT:-}" ]; then echo "http://$h:$FAKE_PORT [200] [100] [Title $h] [nginx]"; else echo "https://$h [200] [100] [Title $h] [nginx]"; fi
+done < "$list" > "$out"
 """
 
 
@@ -68,6 +70,8 @@ def tools(tmp_path, monkeypatch):
 
         def conf(self, **kv):
             (bin_dir / "fake.env").write_text("".join(f"{k}={v}\n" for k, v in kv.items()))
+
+        bin = bin_dir
 
         def glob(self, pattern):
             return log.glob(pattern)
@@ -210,3 +214,73 @@ def test_ingest_reads_the_per_source_files_when_the_engine_never_merged_them(set
     assert stats["partial_inputs"] and stats["partial_inputs"][0]["found"] >= 4 and stats["partial_inputs"][0]["in_scope"] == 3
     with db.connect() as conn:
         assert {r[0] for r in conn.execute("SELECT host FROM asset")} == {"a.example.com", "b.example.com", "c.example.com"}
+
+
+class Recorder:
+    """A localhost HTTP server standing in for the target: remembers the headers of every request it receives."""
+    def __init__(self):
+        import http.server
+        import threading
+        seen = self.seen = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                seen.append((self.path, dict(self.headers)))
+                self.send_response(404)
+                self.end_headers()
+            do_HEAD = do_GET
+
+            def log_message(self, *args):
+                pass
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.port = self.server.server_address[1]
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def close(self):
+        self.server.shutdown()
+
+
+@pytest.mark.integration
+def test_policy_header_reaches_the_http_tools_that_run_but_never_discovery_or_the_logs(settings, tools):
+    """#31 policy: "X-HackerOne-Research: <username>" on every request. Fake httpx + the engine's real curl checks hit a
+    localhost server; discovery/passive traffic (crt.sh, Wayback) must not carry it, and the value must stay out of logs."""
+    recorder = Recorder()
+    (tools.bin / "curl").unlink()           # use the machine's real curl: the engine's exposure check must really reach the server
+    try:
+        header = "X-HackerOne-Research: tester-4711"
+        tools.conf(FAKE_HOSTS="", FAKE_PORT=str(recorder.port), FAKE_WAYBACK_HANG="0")
+        settings.BBASM_SKIP_HISTORICAL = True
+
+        async def scenario():
+            db, resolver, result = environment(settings, ["127.0.0.1"])
+            cfg = result.config.model_copy(update={"depth": "light", "scan_timeout": 60, "skip_nmap": True, "skip_nuclei": True,
+                                                   "skip_active_crawl": False, "request_headers": [header]})
+            settings.BBASM_SCAN_TIMEOUT_LIGHT = 60
+            runner = JobRunner(settings, db)
+            try:
+                await runner.submit(result.scan_id, cfg)
+                await runner.queue.join()
+                events = json.dumps(runner.logs.replay(result.scan_id))
+                return db, result.scan_id, runner.status(result.scan_id), events
+            finally:
+                await runner.close()
+        db, scan_id, row, events = asyncio.run(scenario())
+        assert recorder.seen, "the config-file exposure check should have reached the localhost server"
+        assert all(headers.get("X-HackerOne-Research") == "tester-4711" for _, headers in recorder.seen)   # every request carries it
+        httpx_args = (tools.log / "httpx.1.argv").read_text().splitlines()
+        assert "-H" in httpx_args and header in httpx_args                                                     # httpx got it too
+        assert "tester-4711" not in events and "tester-4711" not in "".join(
+            p.read_text() for p in settings.BBASM_TARGETS.rglob("audit.jsonl"))                                # not in logs or audit
+        stats = json.loads(row["stats_json"])
+        assert stats["request_headers"] == ["X-HackerOne-Research"] and "tester-4711" not in row["stats_json"]  # names only
+    finally:
+        recorder.close()
+
+
+@pytest.mark.integration
+def test_passive_and_discovery_never_get_the_header(settings, tools):
+    tools.conf(FAKE_HOSTS='"a.example.com"', FAKE_WAYBACK_HANG="0")
+    db, scan_id, row, stats = run(settings, tools, ["*.example.com"], "passive", ["a.example.com"], timeout=60,
+                                  config={"request_headers": ["X-HackerOne-Research: tester-4711"]})
+    assert "has_header" not in (tools / "curl.log").read_text()          # crt.sh / Wayback traffic is anonymous
+    assert stats["request_headers"] == ["X-HackerOne-Research"]

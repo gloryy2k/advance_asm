@@ -72,9 +72,12 @@ class ScanConfig(BaseModel):
     # Headers a program's policy requires on every request that reaches the target ("X-HackerOne-Research: <user>").
     # Per program, not part of a profile: a profile is shared across programs, a header value is not.
     request_headers: list[str] = Field(default_factory=list, max_length=5)
+    # Hosts that carry an OUT rule about a *path* get probe-only treatment (crawlers/templates cannot honour a path
+    # exclusion). The user may knowingly allow the active tools on them; OUT URLs are still filtered from every result.
+    allow_active_on_path_rules: bool = False
 
     def options(self) -> dict:
-        return {name: getattr(self, name) for name in (*OPTION_FIELDS, "request_headers")}
+        return {name: getattr(self, name) for name in (*OPTION_FIELDS, "request_headers", "allow_active_on_path_rules")}
 
     @field_validator("request_headers")
     @classmethod

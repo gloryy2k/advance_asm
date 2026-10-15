@@ -1,0 +1,102 @@
+"""Wolt #31: OUT rules written as URLs with a path were turned into "deny the whole host" (4,107 wolt.com URLs lost)."""
+import json
+
+import pytest
+
+from backend.jobs.ingest import Ingester
+from backend.jobs.recon_orch import ReconOrchestrator
+from backend.scope_gate import ScopeGate, url_rule
+from backend.tests.p2_helpers import environment, write_output
+
+# The real Wolt scope (public program page), as exported to .scope by the QA stack.
+IN = ["*.wolt.com", "wolt.com", "merchant.wolt.com", "restaurant-api.wolt.com", "drive.wolt.com"]
+OUT = ["*.pipedrive.com", "gettest.wolt.com", "wolt.typeform.com", "press.wolt.com",
+       "https://wolt.com/en/wolt-for-work-contact-request",
+       "https://merchant.wolt.com/app/partner-with-wolt",
+       "https://restaurant-api.wolt.com/v1/waw-api/corporate-leads",
+       "https://merchant.wolt.com/api/merchant-onboarding/merchant-admin/inbound-merchant"]
+
+
+@pytest.fixture
+def gate(settings, tmp_path):
+    settings.BBASM_BBROOT = __import__("backend.config", fromlist=["PROJECT_ROOT"]).PROJECT_ROOT / "vendor/claude-bug-bounty"
+    return ScopeGate(IN, OUT, tmp_path / "audit.jsonl", settings)
+
+
+def test_a_url_out_rule_blocks_that_path_and_below_but_not_the_host(gate):
+    assert gate.in_scope("wolt.com") and gate.in_scope("https://wolt.com/") and gate.in_scope("https://wolt.com/en/fin/helsinki")
+    for blocked in ("https://wolt.com/en/wolt-for-work-contact-request", "https://wolt.com/en/wolt-for-work-contact-request/",
+                    "https://wolt.com/en/wolt-for-work-contact-request/step2?x=1", "http://WOLT.com/EN/wolt-for-work-contact-request",
+                    "https://wolt.com/en/./wolt-for-work-contact-request", "https://wolt.com/en/x/../wolt-for-work-contact-request",
+                    "https://wolt.com/en/%77olt-for-work-contact-request",
+                    "https://merchant.wolt.com/app/partner-with-wolt", "https://restaurant-api.wolt.com/v1/waw-api/corporate-leads"):
+        assert not gate.in_scope(blocked), blocked
+    for allowed in ("https://wolt.com/en/wolt-for-work", "https://wolt.com/en/wolt-for-work-contact-requests",
+                    "https://merchant.wolt.com/app/menu", "https://drive.wolt.com/en/wolt-for-work-contact-request",
+                    "https://restaurant-api.wolt.com/v1/orders"):
+        assert gate.in_scope(allowed), allowed          # sibling paths and other hosts are untouched: nothing is widened
+    assert not gate.in_scope("press.wolt.com") and not gate.in_scope("gettest.wolt.com")   # host-level OUT rules still deny the host
+
+
+def test_path_rule_hosts_and_audit_name_the_rule(gate, tmp_path):
+    assert gate.path_rule_hosts() == {"wolt.com": ["/en/wolt-for-work-contact-request"], "merchant.wolt.com": [
+        "/app/partner-with-wolt", "/api/merchant-onboarding/merchant-admin/inbound-merchant"],
+        "restaurant-api.wolt.com": ["/v1/waw-api/corporate-leads"]}
+    gate.in_scope("https://wolt.com/en/wolt-for-work-contact-request")
+    records = [json.loads(line) for line in (tmp_path / "audit.jsonl").read_text().splitlines()]
+    assert records[-1]["decision"] == "deny" and records[-1]["rule"] == "url:wolt.com/en/wolt-for-work-contact-request"
+
+
+def test_a_host_only_or_root_url_is_still_a_host_rule():
+    assert url_rule("https://wolt.com/") is None and url_rule("https://wolt.com") is None and url_rule("press.wolt.com") is None
+    assert url_rule("https://wolt.com/a/b?x=1#y") == ("wolt.com", "/a/b")
+
+
+def test_ingest_drops_urls_under_an_out_path_and_keeps_the_rest(settings):
+    db, _, result = environment(settings, ["wolt.com", "# OUT", "https://wolt.com/en/wolt-for-work-contact-request"])
+    plan = ReconOrchestrator(settings, db).build(result.scan_id)
+    command = plan.commands[0]
+    write_output(command.output, "urls/all.txt", "\n".join([
+        "https://wolt.com/en/wolt-for-work-contact-request", "https://wolt.com/en/wolt-for-work-contact-request/x?a=1",
+        "https://wolt.com/en/fin/helsinki", "https://wolt.com/api/v1/orders", "https://other.org/x"]) + "\n")
+    with db.connect() as conn, conn:
+        conn.execute("UPDATE scan_run SET status='running' WHERE id=?", (result.scan_id,))
+    stats = Ingester(settings, db).ingest(plan)
+    funnel = stats["url_funnel"]
+    assert funnel["path_rule_blocked"] == 2 and funnel["by_path_rule"] == [{"rule": "wolt.com/en/wolt-for-work-contact-request", "count": 2}]
+    assert funnel["in_scope"] == 2 and funnel["out_of_scope"] == 1            # the host is NOT counted as out of scope
+    assert {h["host"] for h in funnel["out_of_scope_hosts"]} == {"other.org"}
+    with db.connect() as conn:
+        urls = {r[0] for r in conn.execute("SELECT url FROM url")}
+    assert "https://wolt.com/en/fin/helsinki" in urls and not any("contact-request" in u for u in urls)
+
+
+def test_hosts_with_path_rules_are_probe_only_unless_the_user_opts_in(settings):
+    scope = ["merchant.wolt.com", "drive.wolt.com", "# OUT", "https://merchant.wolt.com/app/partner-with-wolt"]
+    db, resolver, result = environment(settings, scope)
+    plan = ReconOrchestrator(settings, db).build(result.scan_id)
+    by_hosts = {tuple(c.hosts): c for c in plan.commands}
+    restricted, free = by_hosts[("merchant.wolt.com",)], by_hosts[("drive.wolt.com",)]
+    assert restricted.env["BBASM_SKIP_ACTIVE_CRAWL"] == "1" and restricted.env["BBASM_SKIP_NUCLEI"] == "1" and restricted.env["BBASM_SKIP_FFUF"] == "1"
+    assert free.env["BBASM_SKIP_ACTIVE_CRAWL"] == "0"                              # the other host is unaffected
+    assert any("merchant.wolt.com" in w and "chỉ được probe" in w for w in plan.warnings)
+
+    from backend.jobs.runner import JobRunner
+    new = resolver.resolve(__import__("backend.models", fromlist=["ResolveRequest"]).ResolveRequest(input="raw", scope=scope[:2], scope_out=["https://merchant.wolt.com/app/partner-with-wolt"], name="opt-in"))
+    JobRunner(settings, db).config(new.scan_id, new.config.model_copy(update={"allow_active_on_path_rules": True, "skip_active_crawl": False}))
+    plan2 = ReconOrchestrator(settings, db).build(new.scan_id)
+    assert len(plan2.commands) == 1 and plan2.commands[0].env["BBASM_SKIP_ACTIVE_CRAWL"] == "0"
+    assert any("Bạn đã cho phép" in w for w in plan2.warnings)
+
+
+def test_a_restricted_host_never_gets_the_deep_pass(settings):
+    db, _, result = environment(settings, ["*.wolt.com", "# OUT", "https://api.wolt.com/private"])
+    orch = ReconOrchestrator(settings, db)
+    plan = orch.build(result.scan_id)
+    write_output(plan.discoveries[0].output, "subdomains/all.txt", "api.wolt.com\nshop.wolt.com\n")
+    hosts = orch.discovered_hosts(plan)
+    batches = orch.probe_batches(plan, hosts)
+    write_output(batches[0].output, "live/httpx_full.txt", "https://api.wolt.com [200] [1] [t] [x]\nhttps://shop.wolt.com [200] [1] [t] [x]\n")
+    plan.probed_hosts.update(batches[0].hosts)
+    deep = orch.deep_command(plan, batches)
+    assert deep is not None and deep.hosts == ("shop.wolt.com",)                 # api.wolt.com (path rule) is probed only

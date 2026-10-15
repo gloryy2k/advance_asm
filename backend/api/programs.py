@@ -4,7 +4,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import PlainTextResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.jobs.scope_resolver import ScopeError, classify, default_config
 from backend.models import ScanConfig
@@ -133,6 +133,7 @@ def summary(slug: str, request: Request):
     return {"slug": slug, "source": program["source"], "handle": program["handle"],
             "trust": scope_trust(program["source"], program["handle"], json.loads(program.get("policy_json") or "{}")),
             "default_profile_id": program.get("default_profile_id"),
+            "request_headers": json.loads(program.get("request_headers_json") or "[]"),
             "target_path": str((request.app.state.settings.BBASM_TARGETS / slug).resolve()),
             **request.app.state.settings.hunt_target(slug),
             "latest_scan": decoded(latest) if latest else None,
@@ -148,6 +149,25 @@ class ScheduleRequest(BaseModel):
     depth: Literal["passive", "light", "strong"]
     enabled: bool = True
     config: ScanConfig | None = None
+
+
+class RequestHeaders(BaseModel):
+    headers: list[str] = Field(default_factory=list, max_length=5)
+
+
+@router.put("/{slug}/request-headers")
+def set_request_headers(slug: str, body: RequestHeaders, request: Request):
+    """Default headers for every request to this program's targets (e.g. the one its policy requires)."""
+    from backend.models import validate_header
+    database = request.app.state.database
+    program_row(database, slug)
+    try:
+        headers = [validate_header(item) for item in body.headers]
+    except ValueError as exc:
+        raise ScopeError(str(exc), "invalid_header") from None
+    with database.connect() as conn, conn:
+        conn.execute("UPDATE program SET request_headers_json=? WHERE slug=?", (json.dumps(headers) if headers else None, slug))
+    return {"slug": slug, "request_headers": headers}
 
 
 @router.post("/{slug}/schedule")

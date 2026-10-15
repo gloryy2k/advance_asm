@@ -15,7 +15,7 @@ from backend.jobs.recon_orch import AuditedEgress, ClosedEgress, ReconOrchestrat
 from backend.jobs.scope_resolver import ScopeError
 from backend.log_buffer import LogBuffer, ReconLogParser
 from backend.scope_gate import audit, normalize_pattern
-from backend.trust import launch_gate, scope_trust
+from backend.trust import launch_gate, required_headers, scope_trust
 
 
 def store_config(conn, scan_id, config):
@@ -194,6 +194,7 @@ class JobRunner:
             "trust": scope_trust(program["source"], program["handle"], policy),
             # The gate was computed from the data this very draft was resolved with.
             "launch_gate": stats.get("launch_gate") or launch_gate(program["source"], policy),
+            "request_header_hints": required_headers(policy),
             "scope": stats.get("resolved_scope", []), "warnings": stats.get("warnings", []),
             "automation_ack": stats.get("automation_ack"),
             "policy": {"text": text if isinstance(text, str) else "", "source": policy.get("policy_source"),
@@ -322,12 +323,19 @@ class JobRunner:
                 plan = await asyncio.to_thread(self.orchestrator.build, scan_id)
                 if not await asyncio.to_thread(self._transition, scan_id, "running"):
                     return
+                await asyncio.to_thread(self._banner, plan.slug, scan_id, "running", plan.config.depth)
                 await asyncio.to_thread(self.diff_engine.capture, plan)
                 for message in plan.warnings:
                     await self.logs.emit(scan_id, "log", level="warning", message=message)
                 missing = self.orchestrator.missing_tools()
+                from backend.asm.phases import tools_needed
+                needed = tools_needed(plan.config, self.settings)
                 for name in missing:
-                    await self.logs.emit(scan_id, "log", level="warning", message=f"{name} missing; framework will skip unavailable tools")
+                    if name in needed:
+                        await self.logs.emit(scan_id, "log", level="warning", tag="missing_tool",
+                                             message=f"Thiếu công cụ {name}: các bước dùng nó sẽ bị bỏ qua")
+                    else:   # not used by this configuration (e.g. ffuf below Strong): not a problem, only noted
+                        await self.logs.emit(scan_id, "log", tag="not_needed", message=f"{name} chưa cài — không dùng ở cấu hình này")
                 parser = ReconLogParser(self.settings, plan.config)
                 total = min(plan.config.scan_timeout, self.settings.scan_timeout(plan.config.depth))
                 try:
@@ -340,9 +348,11 @@ class JobRunner:
                 # _pipeline guarantees process cleanup before we inspect partial files.
                 stats = await asyncio.to_thread(self.ingester.ingest, plan)
                 stats["missing_tools"] = missing
+                stats["missing_needed"] = sorted(set(missing) & needed)
                 stats["stages"], stats["sources"] = plan.stages, plan.sources
                 plan.coverage["unprobed"] = max(0, plan.coverage["discovered"] - plan.coverage["probed"])
                 stats["coverage"] = plan.coverage
+                stats["path_rule_hosts"] = plan.path_rules
                 stats["request_headers"] = [h.partition(":")[0] for h in plan.config.request_headers]  # names only, never values
                 stats["monitor_findings"] = await asyncio.to_thread(self.monitors.ingest, plan)
                 stats["findings"] = await asyncio.to_thread(self._finding_count, plan)
@@ -367,9 +377,22 @@ class JobRunner:
         else:
             status = "done"
         await asyncio.to_thread(self._transition, scan_id, status, "; ".join(errors)[:2000] or None, stats)
+        if plan and status in {"failed", "cancelled"}:
+            await asyncio.to_thread(self._banner, plan.slug, scan_id, status, plan.config.depth)
         if plan:
             audit(plan.audit_path, plan.slug, status, "scan_finished", scan_id=scan_id)
         await self.logs.emit(scan_id, "done", status=status, stats=stats, error="; ".join(errors)[:2000] or None)
+
+    def _banner(self, slug, scan_id, status, depth):
+        """Tell readers of AGENT_BRIEF.md which scan the file belongs to while a newer one runs or after it failed."""
+        from backend.brief.generator import BriefGenerator
+        text = {"running": f"⏳ Scan #{scan_id} ({depth}) đang chạy. Nội dung bên dưới là của scan TRƯỚC, không phải scan này.",
+                "failed": f"⚠ Scan #{scan_id} ({depth}) thất bại, chưa có brief mới. Nội dung bên dưới là của scan trước.",
+                "cancelled": f"⚠ Scan #{scan_id} ({depth}) đã bị huỷ, chưa có brief mới. Nội dung bên dưới là của scan trước."}[status]
+        try:
+            BriefGenerator(self.settings, self.database).set_banner(slug, text)
+        except Exception:   # a brief problem must never stop or fail the scan itself
+            pass
 
     def _finding_count(self, plan):
         with self.database.connect() as conn:

@@ -92,7 +92,8 @@ class Ingester:
     def ingest(self, plan):
         module = load_module(self.settings, "recon_adapter.py")
         assets, urls, findings = {}, {}, []
-        funnel = {"raw": 0, "in_scope": 0, "out_of_scope": 0, "invalid": 0, "excluded_by_rule": 0}
+        funnel = {"raw": 0, "in_scope": 0, "out_of_scope": 0, "invalid": 0, "excluded_by_rule": 0, "path_rule_blocked": 0}
+        path_blocked = Counter()
         patterns = [p.lower() for p in plan.config.url_exclude_patterns]
         outside = Counter()
         observed_urls, source_of = set(), {}
@@ -181,6 +182,10 @@ class Ingester:
                 if patterns and any(fnmatch.fnmatch(urlsplit(url).path.lower() or "/", p) for p in patterns):
                     funnel["excluded_by_rule"] += 1  # the user's own "do not test /internal"-style rule
                     continue
+                if (rule := plan.gate.url_rule_for(url)):
+                    funnel["path_rule_blocked"] += 1       # an OUT path of the policy: never imported, host stays in scope
+                    path_blocked[rule] += 1
+                    continue
                 if host := asset(url):
                     funnel["in_scope"] += 1
                     urls[url] = (host, source_of.get(url, "recon"))
@@ -214,7 +219,8 @@ class Ingester:
             by_tag.update(tags)
             by_verification[verification] += 1
         funnel.update(by_tag=dict(by_tag), by_verification=dict(by_verification),
-                      out_of_scope_hosts=[{"host": h, "count": c} for h, c in outside.most_common(10)])
+                      out_of_scope_hosts=[{"host": h, "count": c} for h, c in outside.most_common(10)],
+                      by_path_rule=[{"rule": r, "count": c} for r, c in path_blocked.most_common(10)])
         collapsed = self._collapse_ranges(plan, assets, urls, findings)
         observed = len(assets) + len(urls) + len(findings)
         with self.database.connect() as conn, conn:

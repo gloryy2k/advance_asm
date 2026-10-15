@@ -1,13 +1,14 @@
 """Fail-closed domain/IP scope decisions with a mandatory audit trail."""
 
 import fnmatch
+import posixpath
 import importlib.util
 import ipaddress
 import json
 from pathlib import Path
 import re
 from threading import Lock
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from backend.config import Settings
 from backend.db import utc_now
@@ -91,6 +92,28 @@ def normalize_pattern(value: str, *, deny: bool = False) -> str:
     return normalize_host(value)
 
 
+def url_rule(value: str):
+    """(host, path) for an OUT rule written as a URL with a path, e.g. https://wolt.com/en/contact. None for a plain host.
+
+    Such a rule excludes that path (and what is below it), not the whole host: reading it as "deny wolt.com" would
+    silently widen the policy, ignoring it would silently narrow it."""
+    value = value.strip()
+    if "://" not in value or not value.lower().startswith(("http://", "https://")):
+        return None
+    parsed = urlsplit(value)
+    path = posixpath.normpath("/" + unquote(parsed.path).strip("/"))
+    if path in ("/", "."):
+        return None
+    if any(ord(c) < 32 for c in path):
+        raise ValueError("invalid url rule")
+    return normalize_host(value), path.lower()
+
+
+def _url_path(value: str):
+    parsed = urlsplit(value)
+    return posixpath.normpath("/" + unquote(parsed.path).strip("/")).lower() if parsed.path else "/"
+
+
 def _network(value):
     try:
         return ipaddress.ip_network(value, strict=True)
@@ -101,7 +124,8 @@ def _network(value):
 class ScopeGate:
     def __init__(self, allow: list[str], deny: list[str], audit_path: Path, settings: Settings):
         self.allow = [normalize_pattern(value) for value in allow]
-        self.deny = [normalize_pattern(value, deny=True) for value in deny]
+        self.deny_urls = [rule for rule in (url_rule(value) for value in deny) if rule]
+        self.deny = [normalize_pattern(value, deny=True) for value in deny if not url_rule(value)]
         self.audit_path = Path(audit_path)
         path = settings.tool_path("scope_checker.py")
         spec = importlib.util.spec_from_file_location("bbasm_vendor_scope_checker", path)
@@ -132,6 +156,26 @@ class ScopeGate:
             return candidate.overlaps(rule) if deny else candidate.subnet_of(rule)
         return self.checker(domains=[pattern]).is_in_scope(target)
 
+    def url_rule_for(self, url: str):
+        """The OUT path rule ("host/path") that covers this URL, or None. Pure: nothing is audited."""
+        if not self.deny_urls or "://" not in url:
+            return None
+        try:
+            host, path = normalize_host(url), _url_path(url)
+        except (ValueError, UnicodeError):
+            return None
+        for rule_host, rule_path in self.deny_urls:
+            if host == rule_host and (path == rule_path or path.startswith(rule_path + "/")):
+                return rule_host + rule_path
+        return None
+
+    def path_rule_hosts(self) -> dict:
+        """host -> [paths] for every OUT rule that is about a path, not a host."""
+        rules = {}
+        for host, path in self.deny_urls:
+            rules.setdefault(host, []).append(path)
+        return rules
+
     def in_scope(self, target: str) -> bool:
         try:
             if any(char.isspace() or ord(char) < 32 for char in target):
@@ -146,6 +190,9 @@ class ScopeGate:
             if self._matches(host, pattern, deny=True, resource=target):
                 audit(self.audit_path, host, "deny", pattern)
                 return False
+        if (rule := self.url_rule_for(target)):
+            audit(self.audit_path, host, "deny", "url:" + rule)
+            return False
         for pattern in self.allow:
             if self._matches(host, pattern, deny=False, resource=target):
                 audit(self.audit_path, host, "allow", pattern)

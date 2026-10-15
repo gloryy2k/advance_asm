@@ -210,6 +210,8 @@ class ScopeResolver:
                     if saved:
                         from backend.profiles import apply_recipe
                         config = apply_recipe(config, json.loads(saved[0]))  # scope selections stay the draft's own
+                if existing is not None and existing["request_headers_json"]:
+                    config = config.model_copy(update={"request_headers": json.loads(existing["request_headers_json"])})
                 scan_id = conn.execute("INSERT INTO scan_run(program_id,depth,status,trigger,stats_json) VALUES(?,?,'draft','manual',?)", (
                     program_id, config.depth, json.dumps({"resolved_scope": [e.model_dump() for e in entries], "warnings": warnings,
                                 "launch_gate": launch_gate(source, policy)}),

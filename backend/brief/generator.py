@@ -166,7 +166,7 @@ class BriefGenerator:
             self.write(target / "CLAUDE.md", (Path(__file__).parent / "templates/CLAUDE.md").read_text(encoding="utf-8"))
             from backend.trust import scope_trust
             trust = scope_trust(program["source"], program["handle"], json.loads(program["policy_json"] or "{}"))
-            sections = [f"# AGENT BRIEF — {clean(slug)}\nScan {scan['id']} · {scan['depth']} · {scan['status']}\nNguồn scope: {trust['label']}" + ("" if trust["verified"] or trust["level"] == "manual" else " — đọc policy chính thức trước khi hunt") + "\n",
+            sections = [f"# AGENT BRIEF — {clean(slug)}\nScan {scan['id']} · {scan['depth']} · {scan['status']}" + (f" · kết thúc {scan['finished_at']}" if scan.get("finished_at") else "") + "\n" + self.coverage_lines(stats) + f"Nguồn scope: {trust['label']}" + ("" if trust["verified"] or trust["level"] == "manual" else " — đọc policy chính thức trước khi hunt") + "\n",
                         "## SCOPE\n" + scope_text,
                         "## SỐ LIỆU\n" + f"Assets: {len([a for a in assets if a.get('category') != 'cidr'])}" + (f" (+{len([a for a in assets if a.get('category') == 'cidr'])} dải)" if any(a.get('category') == 'cidr' for a in assets) else "") + f" · Live: {stats.get('live', 0)} · URLs: {stats.get('urls', 0)} · Findings: {len(findings)}\n"]
             if scan["depth"] == "passive":
@@ -251,6 +251,38 @@ class BriefGenerator:
             brief = "\n".join(sections)
             self.write(target / "AGENT_BRIEF.md", brief)
             return {"path": str(target / "AGENT_BRIEF.md"), "bytes": len(brief.encode()), "scan_id": scan["id"]}
+
+    @staticmethod
+    def coverage_lines(stats):
+        """What this scan did NOT reach, said up front so an incomplete scan is never read as a complete one."""
+        lines = []
+        coverage = stats.get("coverage") or {}
+        if coverage.get("discovered"):
+            lines.append(f"Phủ host khám phá: {coverage['discovered']} tìm thấy · {coverage.get('probed', 0)} đã probe · "
+                         f"{coverage.get('unprobed', 0)} chưa probe" + (" (scan chưa đầy đủ)" if coverage.get("unprobed") else ""))
+        bad = [f"{s['source']} ({'quá thời gian' if s['status'] == 'timeout' else 'lỗi'})" for s in stats.get("sources") or [] if s.get("status") != "ok"]
+        if bad:
+            lines.append("Nguồn thụ động lỗi: " + ", ".join(dict.fromkeys(bad)))
+        cut = [st["label"] for st in stats.get("stages") or [] if st.get("status") in {"timeout", "skipped_budget"}]
+        if cut:
+            lines.append("Giai đoạn bị cắt: " + ", ".join(cut))
+        if stats.get("path_rule_hosts"):
+            lines.append("OUT theo đường dẫn trên: " + ", ".join(sorted(stats["path_rule_hosts"])[:5]) + " (các host này chỉ probe trừ khi người dùng cho phép)")
+        return "".join(line + "\n" for line in lines)
+
+    BANNER = re.compile(r"<!-- BBASM-RUN -->.*?<!-- /BBASM-RUN -->\n*", re.S)
+
+    def set_banner(self, slug, text):
+        """Mark the existing brief while another scan is running (or ended without producing a new brief).
+        The file keeps the previous scan's data; the banner says so, with the scan ID, so it is never mistaken for current."""
+        path = self.target(slug) / "AGENT_BRIEF.md"
+        with _lock:
+            if not path.is_file() or path.is_symlink():
+                return
+            content = self.BANNER.sub("", path.read_text(encoding="utf-8"))
+            if text:
+                content = f"<!-- BBASM-RUN -->\n{text}\n<!-- /BBASM-RUN -->\n\n" + content
+            self.write(path, content)
 
     def update_program(self, slug, text):
         with _lock:

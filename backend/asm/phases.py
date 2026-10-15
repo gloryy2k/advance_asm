@@ -16,7 +16,7 @@ PHASES = [
     {"key": "subdomain_enum", "title": "Tìm subdomain", "touches": False, "tools": ["subfinder", "amass"],
      "what": "Gom subdomain từ nguồn công khai (subfinder, amass, crt.sh, wayback). Không gửi request tới target.",
      "files": ["subdomains/all.txt"], "count_label": "host", "view": {"kind": "hosts", "label": "Xem danh sách host"}},
-    {"key": "live_probe", "title": "Probe HTTP", "touches": True, "tools": ["httpx", "dnsx"],
+    {"key": "live_probe", "title": "Probe HTTP", "touches": True, "tools": ["httpx"],
      "what": "Hỏi từng host xem có phản hồi web không: mã trạng thái, tiêu đề, công nghệ (tech).",
      "files": ["live/httpx_full.txt", "live/urls.txt"], "count_label": "host phản hồi", "view": {"kind": "hosts", "label": "Xem host + trạng thái"}},
     {"key": "port_scan", "title": "Quét cổng", "touches": True, "tools": ["nmap"],
@@ -101,6 +101,20 @@ def plan_for(config, settings, missing_tools):
                     "status": status, "reason": reason, "view": phase["view"],
                     "forced": disabled_reason(neutral, phase["key"], historical_off=settings.BBASM_SKIP_HISTORICAL) is not None})
     return out
+
+
+def tools_needed(config, settings=None):
+    """Tools of the steps this configuration will actually run: only a missing one of these deserves a warning."""
+    historical_off = bool(settings and settings.BBASM_SKIP_HISTORICAL)
+    needed = set()
+    for phase in PHASES:
+        if disabled_reason(config, phase["key"], historical_off=historical_off) is None:
+            # The first tool of a step is its main one; the rest are alternatives (dnsreaper beside subjack) or only
+            # used in full mode (amass runs below --quick, i.e. at Strong).
+            needed.update(phase["tools"][:1])
+            if phase["key"] == "subdomain_enum" and config.depth == "strong":
+                needed.add("amass")
+    return needed
 
 
 def scan_root(settings, slug, scan_id):

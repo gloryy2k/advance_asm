@@ -1,6 +1,7 @@
 """Bounded per-scan log replay, persisted independently of WebSocket clients."""
 
 import asyncio
+import re
 from collections import deque
 import json
 
@@ -82,9 +83,26 @@ class ReconLogParser:
         self.dashboard = load_module(settings, "dashboard.py")
         self.config = config
 
+    # What a skipped/failed line from the pinned scripts really means. The scripts say "not installed or no live hosts"
+    # for ffuf even when ffuf was never going to run; the dashboard tells the three causes apart.
+    def classify(self, clean):
+        depth = getattr(self.config, "depth", None)
+        if "ffuf not installed or no live hosts" in clean and (depth != "strong" or getattr(self.config, "skip_ffuf", False)):
+            return "skipped_config", "[!] Dò thư mục (ffuf): bỏ qua theo mức quét — chỉ chạy ở Strong"
+        if re.search(r"skipped \(BBASM\)|Skipping .* \(quick mode\)|skipped by BBASM", clean):
+            return "skipped_config", clean.replace("(BBASM)", "theo cấu hình scan")
+        if re.search(r"not installed|command not found|ProjectDiscovery httpx not found", clean, re.I):
+            return "missing_tool", clean
+        if re.search(r"timed out|timeout|exceeded", clean, re.I) and clean.startswith("[!]"):
+            return "timeout", clean
+        if re.search(r"No live hosts|No JS files|No parameterized|No subdomains|nothing to", clean, re.I):
+            return "no_input", clean
+        return None, clean
+
     def parse(self, line):
         clean = self.dashboard._ANSI_RE.sub("", line).strip()
         match = self.dashboard.PHASE_RE.search(clean)
         if match:
             return "phase", {"phase": self.dashboard.RECON_PHASE_BY_NUM.get(match[1], match[1]), "message": match[2]}
-        return "log", {"message": clean}
+        tag, message = self.classify(clean)
+        return "log", ({"message": message, "tag": tag} if tag else {"message": message})

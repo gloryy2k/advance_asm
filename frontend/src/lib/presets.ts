@@ -29,7 +29,7 @@ export const PRESETS: Preset[] = [
       "Probe HTTP + nhận diện tech, crawl nhẹ, nuclei mức low/medium. Không quét cổng, không brute thư mục.",
     touches: true,
     eta: "~5–15 phút",
-    tools: ["subfinder", "gau", "httpx", "dnsx", "katana", "nuclei"],
+    tools: ["subfinder", "gau", "httpx", "katana", "nuclei"],
   },
   {
     depth: "strong",
@@ -39,7 +39,7 @@ export const PRESETS: Preset[] = [
       "Thêm quét cổng nmap, fuzz thư mục ffuf, nuclei tới critical. Dễ chạm rate limit/WAF và bị coi là tấn công nếu program cấm.",
     touches: true,
     eta: "~15–45 phút",
-    tools: ["subfinder", "gau", "httpx", "dnsx", "katana", "nuclei", "nmap", "ffuf", "amass"],
+    tools: ["subfinder", "gau", "httpx", "katana", "nuclei", "nmap", "ffuf", "amass"],
   },
 ];
 

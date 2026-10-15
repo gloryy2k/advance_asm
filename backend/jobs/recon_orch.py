@@ -64,6 +64,7 @@ class ReconPlan:
     stages: list = field(default_factory=list)             # [{key,label,status,budget_s,used_s,commands}]
     coverage: dict = field(default_factory=lambda: {"discovered": 0, "probed": 0, "unprobed": 0, "explicit": 0, "batches": 0, "batches_done": 0})
     probed_hosts: set = field(default_factory=set)         # hosts whose probe batch finished
+    path_rules: dict = field(default_factory=dict)         # host -> OUT paths (rules the crawlers cannot honour)
 
 
 def read_config(row):
@@ -221,11 +222,33 @@ class ReconOrchestrator:
                     self._recon(plan, entry.pattern, target_type="cidr")
                 else:
                     seeds.append(normalize_host(entry.pattern))
+        plan.path_rules = gate.path_rule_hosts()
+        self._path_rule_notes(plan)
         if seeds:
             plan.explicit_hosts = set(seeds)
             plan.coverage["explicit"] = len(seeds)
-            self._host_list(plan, seeds)
+            restricted = [h for h in seeds if self._probe_only_host(plan, h)]
+            free = [h for h in seeds if h not in restricted]
+            if free:
+                self._host_list(plan, free)
+            if restricted:   # same stage, but liveness/fingerprint only
+                self._host_list(plan, restricted, probe_only=True)
         return plan
+
+    @staticmethod
+    def _probe_only_host(plan, host):
+        return host in plan.path_rules and not plan.config.allow_active_on_path_rules
+
+    @staticmethod
+    def _path_rule_notes(plan):
+        for host, paths in sorted(plan.path_rules.items()):
+            sample = ", ".join(paths[:2]) + ("…" if len(paths) > 2 else "")
+            if plan.config.allow_active_on_path_rules:
+                plan.warnings.append(f"{host}: {len(paths)} OUT theo đường dẫn ({sample}). Bạn đã cho phép công cụ chủ động: "
+                                     "URL OUT bị lọc khỏi kết quả nhưng crawler/nuclei có thể đã gửi request tới đó")
+            else:
+                plan.warnings.append(f"{host}: {len(paths)} OUT theo đường dẫn ({sample}). Crawl/nuclei/ffuf không thi hành được "
+                                     "loại trừ theo đường dẫn nên host này chỉ được probe")
 
     def _claim_output(self, scan_id, root):
         # Persist ownership before touching files. A failed build must be retried
@@ -341,7 +364,7 @@ class ReconOrchestrator:
                 if not match:
                     continue
                 host = urlsplit(match.group(1)).hostname
-                if host and host not in plan.explicit_hosts and plan.gate.in_scope(host):
+                if host and host not in plan.explicit_hosts and not self._probe_only_host(plan, host) and plan.gate.in_scope(host):
                     status = int(match.group(2))
                     ranked.append((0 if status == 200 else 1 if status < 400 else 2, host.count("."), normalize_host(host)))
         chosen = []
