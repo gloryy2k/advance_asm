@@ -46,7 +46,10 @@ def test_safe_environment_toggles(settings, enabled):
     ("light", True, "1", "0", "0", "0"),
     ("strong", False, "0", "0", "0", "0"),
 ])
-def test_tc_ro_1_2_3_depth_mapping(settings, depth, quick, nmap, httpx, crawl, nuclei):
+def test_tc_ro_1_2_3_depth_mapping(settings, depth, quick, nmap, httpx, crawl, nuclei, monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))                      # nuclei is only enabled when it has templates to run
+    (tmp_path / "nuclei-templates").mkdir()
+    (tmp_path / "nuclei-templates" / "t.yaml").write_text("id: t\n")
     settings.BBASM_DEFAULT_DEPTH = depth
     db, _, result = environment(settings)
     plan = ReconOrchestrator(settings, db).build(result.scan_id)
@@ -138,3 +141,11 @@ def test_existing_output_of_executed_scan_is_never_moved(settings, status):
         ReconOrchestrator(settings, db).build(result.scan_id)
     assert (stale / "keep.txt").read_text() == "owned"
     assert not list(stale.parent.glob(".orphan-*"))
+
+
+def test_nuclei_is_not_started_at_all_when_it_has_no_templates(settings, monkeypatch, tmp_path):
+    """v1.3.1 host QA: nuclei downloaded 14,036 templates by itself in the middle of a scan."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    settings.BBASM_DEFAULT_DEPTH = "light"
+    db, _, result = environment(settings)
+    assert ReconOrchestrator(settings, db).build(result.scan_id).commands[0].env["BBASM_SKIP_NUCLEI"] == "1"

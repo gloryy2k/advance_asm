@@ -88,7 +88,7 @@ TIMEOUT_FUNCTION = """() {  local a=("$@") i=0
         esac
     done
     i=$((i+1))
-    case "${a[$i]:-}" in katana|curl|subfinder) a[$i]="$BBASM_SHIM_DIR/${a[$i]}" ;; esac
+    case "${a[$i]:-}" in katana|curl|subfinder|nuclei) a[$i]="$BBASM_SHIM_DIR/${a[$i]}" ;; esac
     command timeout "${a[@]}"
 }"""
 
@@ -113,14 +113,15 @@ def recon_env(settings, config, output, *, discovery=False, skip_historical=Fals
         "BBASM_SKIP_NMAP": str(int(passive or config.depth == "light" or config.skip_nmap)),
         "BBASM_SKIP_HTTPX": str(int(passive)),
         "BBASM_SKIP_ACTIVE_CRAWL": str(int(passive or config.skip_active_crawl)),
-        "BBASM_SKIP_NUCLEI": str(int(passive or config.skip_nuclei)),
+        # No templates = nothing to run, and nuclei would download them itself: skip it (the scan reports the missing tool).
+        "BBASM_SKIP_NUCLEI": str(int(passive or config.skip_nuclei or not nuclei_templates_ready(settings))),
         "BBASM_NUC_SEV": config.nuclei_severity,
         "BBASM_SKIP_FFUF": str(int(config.depth != "strong" or config.skip_ffuf)),
         "BBASM_SKIP_CICD": "1",  # No automatic org expansion from discovered links.
         "BBASM_NMAP_CONNECT": "1",  # Portable -sT, including WSL2/no raw capabilities.
     })
     env["BBASM_SHIM_DIR"] = str(SHIM_DIR)
-    for tool in ("curl", "subfinder", "katana"):   # exported shell functions beat the engine's own PATH rewriting
+    for tool in ("curl", "subfinder", "katana", "nuclei"):   # exported shell functions beat the engine's own PATH rewriting
         env[f"BASH_FUNC_{tool}%%"] = f'() {{  {shlex.quote(str(SHIM_DIR / tool))} "$@"\n}}'
     # `timeout 300 katana ...` execs the binary directly, past any function. Resolve the wrapped tool names here.
     env["BASH_FUNC_timeout%%"] = TIMEOUT_FUNCTION

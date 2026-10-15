@@ -61,6 +61,11 @@ def tools(tmp_path, monkeypatch):
         path = bin_dir / name
         path.write_text(body)
         path.chmod(path.stat().st_mode | stat.S_IEXEC)
+    real_katana = os.environ.get("BBASM_TEST_REAL_KATANA")     # host QA: run the pinned katana binary instead of a stub
+    if real_katana:
+        import shutil
+        shutil.copy(real_katana, bin_dir / "katana")
+        (bin_dir / "katana").chmod(0o755)
     (bin_dir / "fake.env").write_text("")
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -225,7 +230,7 @@ class Recorder:
 
         class Handler(http.server.BaseHTTPRequestHandler):
             def do_GET(self):
-                seen.append((self.path, dict(self.headers)))
+                seen.append((self.path, {k.lower(): v for k, v in self.headers.items()}))   # header names are case-insensitive (Go canonicalises them)
                 self.send_response(404)
                 self.end_headers()
             do_HEAD = do_GET
@@ -266,7 +271,7 @@ def test_policy_header_reaches_the_http_tools_that_run_but_never_discovery_or_th
                 await runner.close()
         db, scan_id, row, events = asyncio.run(scenario())
         assert recorder.seen, "the config-file exposure check should have reached the localhost server"
-        assert all(headers.get("X-HackerOne-Research") == "tester-4711" for _, headers in recorder.seen)   # every request carries it
+        assert all(headers.get("x-hackerone-research") == "tester-4711" for _, headers in recorder.seen)   # every request carries it
         httpx_args = (tools.log / "httpx.1.argv").read_text().splitlines()
         assert "-H" in httpx_args and header in httpx_args                                                     # httpx got it too
         assert "tester-4711" not in events and "tester-4711" not in "".join(
@@ -299,9 +304,9 @@ def test_curl_shim_adds_the_policy_header_to_target_calls_only(tmp_path):
         subprocess.run([*curl, "-H", "x-other: mine", f"http://127.0.0.1:{recorder.port}/dup"], env=env, check=True, timeout=20)
         subprocess.run([*curl, f"http://localhost:{recorder.port}/passive"], env={**env, "BBASM_SOURCE_HOSTS": "localhost"}, check=True, timeout=20)
         headers = {path: h for path, h in recorder.seen}
-        assert headers["/app.js"]["X-HackerOne-Research"] == "tester-4711" and headers["/app.js"]["X-Other"] == "1"
-        assert headers["/dup"]["X-HackerOne-Research"] == "tester-4711" and headers["/dup"]["x-other"] == "mine"   # the script's own value wins
-        assert "X-HackerOne-Research" not in headers["/passive"]                                                    # passive source: anonymous
+        assert headers["/app.js"]["x-hackerone-research"] == "tester-4711" and headers["/app.js"]["x-other"] == "1"
+        assert headers["/dup"]["x-hackerone-research"] == "tester-4711" and headers["/dup"]["x-other"] == "mine"   # the script's own value wins
+        assert "x-hackerone-research" not in headers["/passive"]                                                    # passive source: anonymous
     finally:
         recorder.close()
 

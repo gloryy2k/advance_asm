@@ -1,0 +1,22 @@
+#!/bin/bash
+# BBASM wrapper. nuclei downloads ~14,000 templates from the internet by itself when it finds none (and checks for
+# updates on every start). A scan must never do that on its own: it is egress nobody approved, and it eats the
+# stage budget. Without templates nuclei is skipped (the scan reports "thiếu nuclei-templates"); with templates it is
+# started with the update check disabled.
+. "$(dirname "$0")/_common.sh"
+shim_dir="$(cd "$(dirname "$0")" && pwd)"
+real="$(bbasm_real nuclei "$shim_dir")" || { echo "nuclei: not found" >&2; exit 127; }
+
+have_templates=0
+for dir in "${HOME:-/nonexistent}/nuclei-templates" "${HOME:-/nonexistent}/.local/nuclei-templates"; do
+    if [ -d "$dir" ] && [ -n "$(find "$dir" -name '*.yaml' -print -quit 2>/dev/null)" ]; then have_templates=1; fi
+done
+if [ "$have_templates" = 0 ]; then
+    bbasm_note nuclei "không chạy: chưa có bộ template (nuclei sẽ tự tải từ internet nên BBASM chặn; cập nhật template bằng bước setup chủ động)"
+    exit 0
+fi
+
+has_duc=0
+for arg in "$@"; do case "$arg" in -duc|--duc|-disable-update-check) has_duc=1 ;; esac; done
+[ "$has_duc" = 1 ] && exec "$real" "$@"
+exec "$real" -duc "$@"

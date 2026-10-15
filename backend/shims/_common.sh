@@ -5,7 +5,7 @@ bbasm_shim_dir() { cd "$(dirname "${BASH_SOURCE[1]}")" && pwd; }
 # The engine re-exports PATH with ~/go/bin and /usr/local/bin in front, which would hide a PATH shim, so BBASM also
 # exports these wrappers as bash functions (they win over any PATH lookup). Inside a wrapper the function itself
 # must not be found again: use `type -P` (files on PATH only) and an absolute path.
-unset -f curl subfinder katana 2>/dev/null
+unset -f curl subfinder katana nuclei 2>/dev/null
 
 bbasm_real() {  # $1 = tool name, $2 = shim dir: first executable on PATH that is not the shim itself
     local clean="" part parts

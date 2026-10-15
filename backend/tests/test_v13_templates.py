@@ -61,3 +61,36 @@ def test_run_report_does_not_present_a_templateless_nuclei_as_no_findings(home, 
     nuclei = next(p for p in report["phases"] if p["key"] == "nuclei")
     assert nuclei["status"] == "missing_tool" and "không kiểm tra gì" in nuclei["reason"]
     assert next(p for p in PHASES if p["key"] == "nuclei")["all_required"] is True
+
+
+FAKE_NUCLEI = """#!/bin/bash
+printf '%s\\n' "$@" > "$(dirname "$0")/nuclei.argv"
+"""
+
+
+def run_shim(home, *args, extra_env=None):
+    import subprocess
+    from backend.jobs.recon_orch import SHIM_DIR
+    out = home / "out"
+    out.mkdir(exist_ok=True)
+    env = {"PATH": f"{home / 'go' / 'bin'}:/usr/bin:/bin", "HOME": str(home), "RECON_OUT_DIR": str(out), **(extra_env or {})}
+    subprocess.run([str(SHIM_DIR / "nuclei"), *args], env=env, check=True, timeout=20)
+    return out
+
+
+def test_nuclei_wrapper_never_starts_nuclei_without_templates(home):
+    (home / "go" / "bin" / "nuclei").write_text(FAKE_NUCLEI)
+    from backend.jobs.recon_orch import read_tool_notes
+    out = run_shim(home, "-l", "hosts.txt", "-severity", "low")
+    assert not (home / "go" / "bin" / "nuclei.argv").exists()                      # nothing was executed, so nothing was downloaded
+    assert read_tool_notes(out)[0]["tool"] == "nuclei" and "chặn" in read_tool_notes(out)[0]["note"]
+
+
+def test_nuclei_wrapper_starts_nuclei_with_the_update_check_disabled_when_templates_exist(home):
+    (home / "go" / "bin" / "nuclei").write_text(FAKE_NUCLEI)
+    add_template(home)
+    run_shim(home, "-l", "hosts.txt", "-severity", "low")
+    argv = (home / "go" / "bin" / "nuclei.argv").read_text().split()
+    assert argv[0] == "-duc" and argv[1:] == ["-l", "hosts.txt", "-severity", "low"]
+    run_shim(home, "-duc", "-l", "x")
+    assert (home / "go" / "bin" / "nuclei.argv").read_text().split().count("-duc") == 1   # never doubled
