@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
-import type { PhaseReport, ReviewData, ScanPhases, ScanRow } from "../api/types";
+import type { PhaseReport, ReviewData, ScanPhases, ScanRow, Summary } from "../api/types";
 import { ArtifactViewer } from "../components/ArtifactViewer";
 import { HuntCard } from "../components/HuntCard";
 import { PageHead, Panel } from "../components/layout";
@@ -36,6 +36,8 @@ export function Run({ id }: { id: string }) {
   const finished = TERMINAL.has(status || "");
   const info = useData<ReviewData>("/api/scans/" + id + "/review", finished ? 1 : 0);
   const report = useData<ScanPhases>(status === "draft" ? null : "/api/scans/" + id + "/phases", revision, 3000);
+  const slugNow = info.data?.slug;
+  const programSummary = useData<Summary>(slugNow && finished ? "/api/programs/" + encodeURIComponent(slugNow) + "/summary" : null);
   const stream = useScanStream(id, finished, () => setRevision((v) => v + 1));
   const [warningsOnly, setWarningsOnly] = useState(false);
 
@@ -62,6 +64,10 @@ export function Run({ id }: { id: string }) {
   const byKey = new Map((report.data?.phases || []).map((p) => [p.key, p]));
   const funnel = report.data?.funnel;
   const running = !finished && status !== "draft";
+  // Links open the program's data. An older scan is not the program's current view, and the page says so.
+  const currentId = programSummary.data?.last_completed_scan?.id;
+  const older = good && currentId !== undefined && currentId !== Number(id);
+  const urlScan = older ? id : undefined;
 
   return (
     <>
@@ -81,6 +87,11 @@ export function Run({ id }: { id: string }) {
         {slug && <a href={"#" + programPath(slug)}>Mở program →</a>}
       </div>
 
+      {older && (
+        <p className="notice" role="note" data-testid="older-scan-note">
+          Scan #{id} không phải scan mới nhất của program (hiện là #{currentId}). URL mở theo “ghi nhận tới scan #{id}”; Host, Findings và Brief là hiện trạng của program, không riêng scan này.
+        </p>
+      )}
       {status === "done_partial" && <p className="warnbox">Scan hoàn tất một phần: một số giai đoạn hết thời gian, nguồn lỗi hoặc host chưa được probe (xem "Giai đoạn & độ phủ"). Dữ liệu có được vẫn đã nạp; không suy ra host vắng là đã biến mất.</p>}
       {state.data?.error && good && <p className="muted" data-testid="partial-reason">Lý do: {state.data.error}</p>}
       {(status === "failed" || status === "cancelled") && (
@@ -94,7 +105,7 @@ export function Run({ id }: { id: string }) {
         <>
           <HuntCard command={info.data.hunt_command} note={info.data.hunt_note} title="Hoàn tất → bắt đầu hunt" />
           <p className="row">
-            <a className="button" href={"#" + programPath(info.data.slug, "guide", "brief")}>Xem Brief</a>
+            <a className="button" href={"#" + programPath(info.data.slug, "guide", "brief")}>{older ? `Xem Brief hiện hành (scan #${currentId})` : "Xem Brief"}</a>
             <a className="button secondary" href={"#" + programPath(info.data.slug)}>Tổng quan program</a>
           </p>
         </>
@@ -120,7 +131,7 @@ export function Run({ id }: { id: string }) {
                 return (
                   <span className="step-actions">
                     {phase.view.kind !== "file" && (r.status === "ran" || r.status === "empty") && (
-                      <a className="button small" href={dataLink(slug, phase.view)}>{phase.view.label} →</a>
+                      <a className="button small" href={dataLink(slug, phase.view, urlScan)}>{phase.view.label} →</a>
                     )}
                     {hasFiles && (
                       <button className="secondary small" onClick={() => setViewer(phase)}>
@@ -144,7 +155,7 @@ export function Run({ id }: { id: string }) {
             {funnel.out_of_scope > 0 && <>, <Badge tone="medium">{funnel.out_of_scope.toLocaleString("vi-VN")} ngoài scope đã loại</Badge></>}
             {!!funnel.excluded_by_rule && <>, {funnel.excluded_by_rule} loại theo mẫu của bạn</>}
             {!!funnel.path_rule_blocked && <>, <Badge tone="medium">{funnel.path_rule_blocked.toLocaleString("vi-VN")} chặn theo OUT đường dẫn</Badge></>}.{" "}
-            {slug && <a href={dataLink(slug, { kind: "urls" })}>Xem URL →</a>}
+            {slug && <a href={dataLink(slug, { kind: "urls" }, urlScan)}>Xem URL →</a>}
           </p>
         </Panel>
       )}

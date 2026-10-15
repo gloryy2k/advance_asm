@@ -66,7 +66,7 @@ export function Portfolio() {
         {list.length > 0 && (
           <div className="metrics">
             <div><strong>{list.length}</strong>Programs</div>
-            <div><strong>{list.reduce((n, p) => n + p.asset_count, 0)}</strong>Asset đang hoạt động</div>
+            <div><strong>{list.reduce((n, p) => n + p.asset_count, 0)}</strong>Host trong inventory</div>
             <div><strong>{totalNew}</strong>Asset mới (scan gần nhất)</div>
           </div>
         )}
@@ -81,7 +81,7 @@ export function Portfolio() {
                 </div>
                 <h2>{p.slug}</h2>
                 <p>
-                  {p.asset_count} assets {p.new_count > 0 && <span className="accent">+{p.new_count} NEW</span>}
+                  {p.asset_count} host {p.new_count > 0 && <span className="accent">+{p.new_count} NEW</span>}
                   {p.finding_count > 0 && <span className="muted"> · {p.finding_count} findings</span>}
                 </p>
                 <small>
@@ -108,9 +108,10 @@ export function Portfolio() {
           Tình trạng công cụ{health.data && toolsMissing > 0 ? ` — thiếu ${health.data.missing_by_depth.light.join(", ")} cho mức Light` : ""}
         </summary>
         <ErrorBox text={health.error} />
-        {Object.entries(health.data?.tools || {}).map(([name, ok]) => (
-          <Badge key={name} tone={ok ? "done" : "failed"}>{name + ": " + (ok ? "sẵn sàng" : "thiếu")}</Badge>
-        ))}
+        {Object.entries(health.data?.tools || {}).map(([name, ok]) => {
+          const optional = !ok && (health.data?.optional_tools || []).includes(name);   // nothing in a scan depends on it
+          return <Badge key={name} tone={ok ? "done" : optional ? "muted" : "failed"}>{name + ": " + (ok ? "sẵn sàng" : optional ? "tùy chọn, chưa cài" : "thiếu")}</Badge>;
+        })}
       </details>
     </>
   );

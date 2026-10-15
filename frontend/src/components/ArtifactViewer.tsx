@@ -75,6 +75,7 @@ export function ArtifactViewer({
                   setPath(f.path);
                   setOffset(0);
                   setPage(null);
+                  setReveal(false);   // each file starts hidden again
                 }}
               >
                 {f.label} <small className="inline">{f.lines ?? "?"} dòng</small>
@@ -85,14 +86,14 @@ export function ArtifactViewer({
         <div className="filters">
           <input aria-label="Tìm trong file" placeholder="Tìm trong file…" value={q} onChange={(e) => setQ(e.target.value)} />
           <a className="button secondary small" href={`/api/scans/${scanId}/artifact/download?path=${encodeURIComponent(path)}${reveal ? "&reveal=true" : ""}`}>
-            Tải file ↓
+            {reveal ? "Tải file THÔ (có giá trị bí mật) ↓" : "Tải file ↓"}
           </a>
         </div>
-        {page?.redacted && (
-          <p className="warnbox">
-            Giá trị bí mật đang bị ẩn.{" "}
+        {(page?.redacted || reveal) && (
+          <p className="warnbox" role="status">
+            {reveal ? "Đang HIỆN giá trị bí mật thô; nút tải cũng sẽ tải bản thô." : "Giá trị bí mật đang bị ẩn."}{" "}
             <label className="check inline">
-              <input type="checkbox" checked={reveal} onChange={(e) => setReveal(e.target.checked)} />
+              <input type="checkbox" checked={reveal} onChange={(e) => { setReveal(e.target.checked); setPage(null); }} />
               Hiện giá trị (chỉ khi bạn cần xác minh)
             </label>
           </p>

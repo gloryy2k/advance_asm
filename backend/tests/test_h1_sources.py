@@ -254,7 +254,7 @@ def test_passive_stays_available_on_the_dump(cfg):
 def test_schedule_for_a_dump_program_cannot_be_light(cfg):
     with TestClient(app_with(cfg, make_handler(page="missing"))) as client:
         draft = resolve_h1(client)
-        denied = client.post(f"/api/programs/{draft['slug']}/schedule", json={"interval": "daily", "depth": "light"})
+        denied = client.post(f"/api/programs/{draft['slug']}/schedule", json={"interval": "daily", "depth": "light", "automation_ack": True})
         assert denied.status_code == 422 and denied.json()["error"]["code"] == "scope_incomplete"
 
 

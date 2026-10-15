@@ -136,7 +136,7 @@ details > summary { cursor: pointer; }
 .chip.warn, .badge.medium, .badge.done_partial, .badge.changed { border-color: color-mix(in srgb, var(--warn) 55%, transparent); color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
 .chip.bad, .badge.high, .badge.critical, .badge.failed, .badge.gone { border-color: color-mix(in srgb, var(--bad) 55%, transparent); color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); }
 .chip.touch { color: var(--warn); }
-.chip.quiet, .chip.muted, .badge.cancelled, .badge.none, .badge.out { color: var(--muted); }
+.chip.quiet, .chip.muted, .badge.muted, .badge.cancelled, .badge.none, .badge.out { color: var(--muted); }
 .badge.draft, .badge.queued, .badge.running { border-color: color-mix(in srgb, var(--info) 55%, transparent); color: var(--info); background: color-mix(in srgb, var(--info) 12%, transparent); }
 .badge.rank { font-weight: 800; }
 .trust { border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; background: var(--panel); }
@@ -316,3 +316,7 @@ table.stages th { color: var(--muted); font-weight: 600; font-size: 12px; text-t
 .log-stage { font-weight: 700; margin-top: 6px; }
 .headers-editor textarea { font-family: var(--mono); font-size: 12.5px; }
 .pathrules ul { margin: 6px 0 10px 18px; padding: 0; }
+
+.subhead { margin: 12px 0 4px; font-size: 14px; color: var(--muted, #667); }
+.scopebar { align-items: center; gap: 12px; }
+.scopebar label { display: flex; align-items: center; gap: 6px; }

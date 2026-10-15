@@ -58,7 +58,8 @@ export function Profiles() {
             <label>Bắt đầu từ preset
               <select value={editing.based} onChange={(e) => {
                 const b = data?.builtin.find((x) => x.id === "builtin:" + e.target.value);
-                if (b) setEditing({ ...editing, based: e.target.value as Depth, config: toConfig(b.config), base: b.config });
+                const edited = JSON.stringify(recipeOf(editing.config)) !== JSON.stringify(recipeOf(toConfig(editing.base)));
+                if (b && (!edited || confirm("Đổi preset sẽ bỏ các chỉnh sửa chưa lưu của bạn. Tiếp tục?"))) setEditing({ ...editing, based: e.target.value as Depth, config: toConfig(b.config), base: b.config });
               }}>
                 <option value="passive">Passive</option><option value="light">Light</option><option value="strong">Strong</option>
               </select>

@@ -122,6 +122,24 @@ def default_config(settings: Settings, entries: list[ScopeEntry]) -> ScanConfig:
     )
 
 
+def program_config(settings: Settings, conn, program, entries: list[ScopeEntry], depth: str | None = None) -> ScanConfig:
+    """The starting configuration for a program: system defaults, then its default profile, then its saved request
+    headers. Drafts and schedules both start here, so a program behaves the same whichever way it is launched.
+    With `depth` (a schedule's chosen level) a profile of another depth is ignored rather than silently changing it."""
+    config = default_config(settings.model_copy(update={"BBASM_DEFAULT_DEPTH": depth}) if depth else settings, entries)
+    if program is None:
+        return config
+    if program["default_profile_id"]:
+        saved = conn.execute("SELECT config_json FROM profile WHERE id=?", (program["default_profile_id"],)).fetchone()
+        recipe = json.loads(saved[0]) if saved else None
+        if recipe and (depth is None or recipe.get("depth") == depth):
+            from backend.profiles import apply_recipe
+            config = apply_recipe(config, recipe)  # scope selections stay the draft's own
+    if program["request_headers_json"]:
+        config = config.model_copy(update={"request_headers": json.loads(program["request_headers_json"])})
+    return config
+
+
 def safe_slug(value: str) -> str:
     slug = re.sub(r"[^a-z0-9.-]", "-", value.lower()).strip(".-")[:100].rstrip(".") or "raw"
     if slug.split(".")[0] in {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}:
@@ -187,6 +205,11 @@ class ScopeResolver:
                     warnings = parse_warnings
                 if request.policy_text.strip():
                     policy["user_policy_text"] = request.policy_text.strip()
+                elif existing is not None:
+                    # Re-resolving (e.g. "Scan lại") must not erase the policy the user pasted in earlier.
+                    kept = json.loads(existing["policy_json"] or "{}").get("user_policy_text")
+                    if kept:
+                        policy["user_policy_text"] = kept
                 if not any(entry.kind == "in" for entry in entries):
                     raise ScopeError("scope empty", "scope_empty")
                 now = utc_now()
@@ -204,14 +227,7 @@ class ScopeResolver:
                     conn.executemany("INSERT INTO scope_rule(program_id,pattern,kind,asset_type) VALUES(?,?,?,?)", [
                         (program_id, e.pattern, e.kind, e.asset_type) for e in entries
                     ])
-                config = default_config(self.settings, entries)
-                if existing is not None and existing["default_profile_id"]:
-                    saved = conn.execute("SELECT config_json FROM profile WHERE id=?", (existing["default_profile_id"],)).fetchone()
-                    if saved:
-                        from backend.profiles import apply_recipe
-                        config = apply_recipe(config, json.loads(saved[0]))  # scope selections stay the draft's own
-                if existing is not None and existing["request_headers_json"]:
-                    config = config.model_copy(update={"request_headers": json.loads(existing["request_headers_json"])})
+                config = program_config(self.settings, conn, existing, entries)
                 scan_id = conn.execute("INSERT INTO scan_run(program_id,depth,status,trigger,stats_json) VALUES(?,?,'draft','manual',?)", (
                     program_id, config.depth, json.dumps({"resolved_scope": [e.model_dump() for e in entries], "warnings": warnings,
                                 "launch_gate": launch_gate(source, policy)}),

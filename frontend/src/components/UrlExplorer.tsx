@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, apiPage } from "../api/client";
 import type { UrlRow, UrlSummary } from "../api/types";
 import { explain } from "../lib/errors";
+import { when } from "../lib/format";
 import { Chip } from "./layout";
 import { CopyButton, EmptyState, ErrorBox, Pager } from "./ui";
 
@@ -24,11 +25,16 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
   const [shape, setShape] = useState(initial?.shape || "");
   const [minScore, setMinScore] = useState(initial?.min_score || "1");  // default: hide plain content pages
   const [offset, setOffset] = useState(0);
+  // Which scans the list speaks for: the newest completed one, everything on record, or what was known as of scan N.
+  const [scope, setScope] = useState(initial?.scan || "latest");
   const limit = 50;
 
   useEffect(() => {
-    api<UrlSummary>(base + "/summary").then(setSummary).catch((e) => setError(explain(e)));
-  }, [base]);
+    let live = true;
+    setSummary(null);
+    api<UrlSummary>(base + "/summary?scan=" + encodeURIComponent(scope)).then((r) => live && setSummary(r)).catch((e) => live && setError(explain(e)));
+    return () => { live = false; };
+  }, [base, scope]);
   useEffect(() => {
     const t = setTimeout(() => {
       setTerm(q);
@@ -43,8 +49,9 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
     if (verification) p.set("verification", verification);
     if (shape) p.set("shape", shape);
     p.set("min_score", minScore);
+    p.set("scan", scope);
     return p;
-  }, [term, tag, verification, shape, minScore]);
+  }, [term, tag, verification, shape, minScore, scope]);
   useEffect(() => {
     let live = true;
     const p = new URLSearchParams(query);
@@ -63,9 +70,34 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
   const clear = () => {
     setQ(""); setTag(""); setVerification(""); setShape(""); setMinScore("1"); setOffset(0);
   };
+  const latest = summary?.latest;
+  const asOf = /^\d+$/.test(scope);
+  const noneInLatest = scope === "latest" && !!summary && summary.total === 0 && summary.history_total > 0;
   const exportHref = base + "/export?" + query;
   return (
     <div className="urlx">
+      <div className="filters scopebar" role="group" aria-label="Phạm vi URL">
+        <label>Phạm vi
+          <select aria-label="Phạm vi scan" value={asOf ? "asof" : scope} onChange={(e) => { setScope(e.target.value === "asof" ? scope : e.target.value); setOffset(0); }}>
+            <option value="latest">Scan mới nhất{latest ? ` (#${latest.id})` : ""}</option>
+            <option value="all">Tất cả scan (lịch sử)</option>
+            {asOf && <option value="asof">Ghi nhận tới scan #{scope}</option>}
+          </select>
+        </label>
+        {summary && (
+          <span className="muted" data-testid="url-scope-note">
+            {scope === "latest" && (latest ? <>URL do scan #{latest.id} ({latest.depth}{latest.finished_at ? `, ${when(latest.finished_at)}` : ""}) nhìn thấy.</> : "Chưa có scan hoàn tất.")}
+            {scope === "all" && <>Mọi URL đã ghi nhận qua các scan; cột “scan” cho biết lần đầu/gần nhất thấy.</>}
+            {asOf && <>URL đã ghi nhận từ scan #{scope} trở về trước (có thể đã không còn xuất hiện ở scan sau).</>}
+          </span>
+        )}
+      </div>
+      {noneInLatest && (
+        <p className="warnbox" role="status" data-testid="url-history-cta">
+          Scan mới nhất (#{latest?.id}) không thu được URL nào, nhưng chương trình có <strong>{summary!.history_total.toLocaleString("vi-VN")}</strong> URL ghi nhận từ các scan trước.{" "}
+          <button className="linklike" onClick={() => { setScope("all"); setMinScore("0"); setOffset(0); }}>Xem URL lịch sử →</button>
+        </p>
+      )}
       {funnel && (
         <div className="funnel" aria-label="Phễu URL">
           <div><strong>{funnel.raw.toLocaleString("vi-VN")}</strong><span>URL do tool tìm thấy</span></div>
@@ -127,11 +159,11 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
       {active.length > 0 && <p className="muted">Đang lọc: {active.join(" · ")} <button className="linklike" onClick={clear}>✕ Bỏ lọc</button></p>}
       <ErrorBox text={error} />
       {rows === null ? <p className="muted">Đang tải…</p> : rows.items.length === 0 ? (
-        <EmptyState title="Không có URL phù hợp">{summary?.total ? "Thử bỏ bớt bộ lọc." : "Chưa có URL: scan chưa thu thập URL, hoặc chưa có scan hoàn tất."}</EmptyState>
+        <EmptyState title="Không có URL phù hợp">{summary?.total ? "Thử bỏ bớt bộ lọc." : noneInLatest ? "Scan mới nhất không thu được URL; xem phần lịch sử ở trên." : "Chưa có URL: scan chưa thu thập URL, hoặc chưa có scan hoàn tất."}</EmptyState>
       ) : (
         <div className="table-wrap" tabIndex={0} role="region" aria-label="Bảng dữ liệu, cuộn được">
           <table className="urls">
-            <thead><tr><th>Điểm</th><th>URL</th><th>Nhãn</th><th>Nguồn</th></tr></thead>
+            <thead><tr><th>Điểm</th><th>URL</th><th>Nhãn</th><th>Nguồn</th><th>Scan</th></tr></thead>
             <tbody>
               {rows.items.map((r) => (
                 <tr key={r.id}>
@@ -143,6 +175,7 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
                   </td>
                   <td>{r.tags.filter((t) => TAG_LABEL[t]).map((t) => <Chip key={t}>{TAG_LABEL[t]}</Chip>)}</td>
                   <td><Chip tone={r.verification === "historical" ? "muted" : "good"}>{r.verification === "historical" ? "lịch sử" : "đã crawl"}</Chip> <small className="inline">{r.source}</small></td>
+                  <td><small title="Lần đầu → gần nhất thấy">#{r.first_seen_scan}{r.last_seen_scan !== r.first_seen_scan ? `→#${r.last_seen_scan}` : ""}</small></td>
                 </tr>
               ))}
             </tbody>

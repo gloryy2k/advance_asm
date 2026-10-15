@@ -62,8 +62,10 @@ export const programPath = (slug: string, tab = "overview", view = "") =>
 /** Query string of the current hash route, e.g. #/program/x/data?v=urls&tag=api -> {v, tag}. */
 export const routeParams = (path = currentPath()) => new URLSearchParams(path.split("?")[1] || "");
 
-export function dataLink(slug: string, view: { kind: string; filter?: Record<string, string> }): string {
+/** `scan`: for URL views, which scans the list speaks for ("all" or a scan number); omit for the newest completed one. */
+export function dataLink(slug: string, view: { kind: string; filter?: Record<string, string> }, scan?: string | number): string {
   const q = new URLSearchParams(view.filter || {});
+  if (scan !== undefined && view.kind === "urls") q.set("scan", String(scan));
   if (view.kind === "findings") return `#${programPath(slug, "findings")}${q.toString() ? "?" + q : ""}`;
   const v = view.kind === "urls" ? "urls" : "hosts";
   q.set("v", v);

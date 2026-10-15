@@ -511,7 +511,7 @@ describe("Program", () => {
     fireEvent.change(screen.getByLabelText("Interval"), { target: { value: "weekly" } });
     fireEvent.click(enable);
     await waitFor(() => expect(calls(fetch, "/schedule")).toHaveLength(1));
-    expect(JSON.parse(calls(fetch, "/schedule")[0][1]!.body as string)).toEqual({ interval: "weekly", depth: "light", enabled: true });
+    expect(JSON.parse(calls(fetch, "/schedule")[0][1]!.body as string)).toEqual({ interval: "weekly", depth: "light", enabled: true, automation_ack: true, skipped_headers: [] });
   });
 
   test("diff tab: filter, readable change text, pagination total", async () => {
@@ -964,5 +964,129 @@ describe("v1.3: policy header, OUT paths, stages and coverage", () => {
     expect(await screen.findByText("bỏ qua theo mức quét", { selector: "span.chip" })).toBeInTheDocument();
     expect(screen.getByText("quá thời gian", { selector: "span.chip" })).toBeInTheDocument();
     expect(screen.getByText(/▶ Probe host đã khám phá/)).toBeInTheDocument();
+  });
+});
+
+
+describe("UI/logic audit fixes (V134_UI_LOGIC_AUDIT)", () => {
+  const sum = (over: object = {}) => ({ ...programSummary(), request_header_hints: [], request_headers: [], assets_live: 4, assets_gone: 0, ...over });
+
+  test("UI-1: when the newest scan has no URLs but history does, say so and offer the history instead of 'no URLs'", async () => {
+    const fetch = stubFetch((path) => {
+      if (path.includes("/urls/summary")) return { ...urlSummary(), total: path.includes("scan=all") ? 49 : 0, history_total: 49, latest: { id: 59, depth: "passive", status: "done", finished_at: "2026-10-16T01:00:00Z" } };
+      if (path.includes("/urls?")) return path.includes("scan=all") ? { __total: 49, body: [urlRow({ first_seen_scan: 31, last_seen_scan: 31 })] } : { __total: 0, body: [] };
+      return {};
+    });
+    location.hash = "/program/acme/data?v=urls";
+    render(<App />);
+    expect(await screen.findByTestId("url-history-cta")).toHaveTextContent(/#59.*không thu được URL.*49/);
+    expect(screen.queryByText("Chưa có URL: scan chưa thu thập URL, hoặc chưa có scan hoàn tất.")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Xem URL lịch sử/ }));
+    await waitFor(() => expect(fetch.mock.calls.some((c) => String(c[0]).includes("/urls?") && String(c[0]).includes("scan=all"))).toBe(true));
+    expect(await screen.findByText("#31")).toBeInTheDocument();   // each row says which scan saw it
+    expect(screen.getByTestId("url-scope-note")).toHaveTextContent(/Mọi URL đã ghi nhận qua các scan/);
+    expect(screen.getByRole("link", { name: /Tải danh sách/ }).getAttribute("href")).toContain("scan=all");
+  });
+
+  test("UI-2: an older Run links to URLs 'as of that scan' and says it is not the program's current view", async () => {
+    stubFetch((path) => {
+      if (path.endsWith("/summary")) return sum({ last_completed_scan: { id: 59, status: "done", depth: "passive" } });
+      if (path.endsWith("/phases")) return { scan_id: 31, slug: "acme", status: "done", depth: "light", missing_tools: [], funnel: null,
+        phases: [{ key: "url_history", title: "URL lịch sử", what: "x", touches: false, status: "ran", status_label: "Đã chạy", reason: null, count: 4667, count_label: "URL thô", files: [],
+          view: { kind: "urls", label: "Xem URL đã lọc scope" } }] };
+      if (path.endsWith("/review")) return baseReview({ scan: { id: 31, depth: "light", status: "done" } });
+      return { id: 31, program_id: 1, depth: "light", status: "done", started_at: "2026-10-14T01:00:00Z", finished_at: "2026-10-14T01:04:00Z", error: null };
+    });
+    location.hash = "/scan/31";
+    render(<App />);
+    expect(await screen.findByTestId("older-scan-note")).toHaveTextContent(/#31 không phải scan mới nhất.*#59/);
+    expect(screen.getByRole("link", { name: /Xem URL đã lọc scope/ }).getAttribute("href")).toContain("scan=31");
+    expect(screen.getByRole("link", { name: /Xem Brief hiện hành \(scan #59\)/ })).toBeInTheDocument();
+  });
+
+  test("UI-3: scheduling shows what will run, needs the header decision, and sends consent + skipped header", async () => {
+    const fetch = stubFetch((path) => path.endsWith("/summary") ? sum({ request_header_hints: ["X-HackerOne-Research"] }) : path.endsWith("/schedule") ? {} : { scans: [] });
+    location.hash = "/program/acme";
+    render(<App />);
+    const enable = await screen.findByRole("button", { name: "Bật giám sát" });
+    expect(screen.getByTestId("schedule-preview")).toHaveTextContent(/light.*header gửi kèm: không có/);
+    fireEvent.click(screen.getByLabelText(/Program cho phép scan tự động theo lịch/));
+    expect(enable).toBeDisabled();   // consent alone is not enough: the policy names a header nobody configured
+    expect(screen.getAllByRole("status").some((n) => /X-HackerOne-Research.*chưa lưu header mặc định/.test(n.textContent || ""))).toBe(true);
+    fireEvent.click(screen.getByLabelText(/lịch này không gửi header X-HackerOne-Research/));
+    await waitFor(() => expect(enable).toBeEnabled());
+    fireEvent.click(enable);
+    await waitFor(() => expect(calls(fetch, "/schedule")).toHaveLength(1));
+    expect(JSON.parse(calls(fetch, "/schedule")[0][1]!.body as string)).toMatchObject({ depth: "light", automation_ack: true, skipped_headers: ["X-HackerOne-Research"] });
+  });
+
+  test("UI-3: a saved program header means no extra decision and is named in the preview", async () => {
+    stubFetch((path) => path.endsWith("/summary") ? sum({ request_header_hints: ["X-HackerOne-Research"], request_headers: ["X-HackerOne-Research: me"] }) : { scans: [] });
+    location.hash = "/program/acme";
+    render(<App />);
+    await screen.findByRole("button", { name: "Bật giám sát" });
+    expect(screen.getByTestId("schedule-preview")).toHaveTextContent(/header gửi kèm: X-HackerOne-Research/);
+    fireEvent.click(screen.getByLabelText(/Program cho phép scan tự động theo lịch/));
+    expect(screen.getByRole("button", { name: "Bật giám sát" })).toBeEnabled();
+    expect(screen.queryByLabelText(/lịch này không gửi header/)).not.toBeInTheDocument();
+  });
+
+  test("UI-4: 'active' hosts are inventory, not proof of HTTP; unprobed rows say so", async () => {
+    stubFetch((path) => {
+      if (path.endsWith("/summary")) return sum({ assets_active: 944, assets_live: 4 });
+      if (path.includes("/assets?")) return { __total: 1, body: [{ id: 1, host: "a.acme.com", rank_score: 1, status_code: null, tech: [], reasons: [], category: "web" }] };
+      return {};
+    });
+    location.hash = "/program/acme";
+    const { unmount } = render(<App />);
+    const tile = (await screen.findByText("Host", { selector: ".tile-label" })).closest("a")!;
+    expect(tile).toHaveTextContent("944");
+    expect(tile).toHaveTextContent(/trong inventory · 4 có HTTP · 940 chưa probe/);
+    expect(tile).not.toHaveTextContent("đang hoạt động");
+    unmount();
+    location.hash = "/program/acme/data?v=hosts";
+    render(<App />);
+    expect(await screen.findByText("chưa có HTTP")).toBeInTheDocument();
+  });
+
+  test("UI-5: a real comparison with no changes says what was compared", async () => {
+    stubFetch((path) => path.includes("/diff?") ? { __total: 0, body: [] } : path.endsWith("/summary") ? sum() : {});
+    location.hash = "/program/acme/history?v=diff";
+    render(<App />);
+    expect(await screen.findByText("Đã so sánh #2 với #1: không phát hiện thay đổi.")).toBeInTheDocument();
+    expect(screen.queryByText(/sau khi program có từ hai scan/)).not.toBeInTheDocument();
+  });
+
+  test("UI-7: the policy the user pasted is shown next to the source policy", async () => {
+    stubFetch((path) => path.endsWith("/summary") ? sum() : path === "/api/programs/acme" ? { scans: [], scope: [], policy: { policy_text: "Source policy text", policy_source: "api", user_policy_text: "Add X-HackerOne-Research header" } } : {});
+    location.hash = "/program/acme/guide?v=scope";
+    render(<App />);
+    expect(await screen.findByTestId("user-policy")).toHaveTextContent("X-HackerOne-Research");
+    expect(screen.getByText("Source policy text")).toBeInTheDocument();
+    expect(screen.queryByText(/Chưa có nội dung policy/)).not.toBeInTheDocument();
+  });
+
+  test("UI-8: revealing secrets can be turned off again, and the download says when it is raw", async () => {
+    const fetch = stubFetch((path) => {
+      if (path.endsWith("/phases")) return { scan_id: 9, slug: "acme", status: "done", depth: "light", missing_tools: [], funnel: null, phases: [{
+        key: "secrets", title: "Bí mật trong JS", what: "quét", touches: true, status: "ran", status_label: "Đã chạy", reason: null, count: 1, count_label: "dấu vết",
+        files: [{ path: "a.jsonl", name: "a.jsonl", label: "a.jsonl", bytes: 5, lines: 1 }], view: { kind: "file", label: "Đọc" } }] };
+      if (path.includes("/artifact?")) { const reveal = path.includes("reveal=true"); return { total: 1, offset: 0, limit: 100, redacted: !reveal, lines: [reveal ? "H1_TOKEN=FAKE-MARKER" : "H1_TOKEN=[ẩn]"] }; }
+      return path.endsWith("/review") ? baseReview() : { id: 9, status: "done", depth: "light" };
+    });
+    location.hash = "/scan/9";
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /Đọc/ }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(await within(dialog).findByLabelText(/Hiện giá trị/));
+    expect(await within(dialog).findByText(/FAKE-MARKER/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: /Tải file THÔ/ })).toHaveAttribute("href", expect.stringContaining("reveal=true"));
+    const toggle = within(dialog).getByLabelText(/Hiện giá trị/) as HTMLInputElement;
+    expect(toggle.checked).toBe(true);
+    fireEvent.click(toggle);   // still there after reveal: it can be switched back
+    expect(await within(dialog).findByText(/\[ẩn\]/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/FAKE-MARKER/)).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "Tải file ↓" })).toBeInTheDocument();
+    expect(fetch).toBeDefined();
   });
 });

@@ -119,10 +119,15 @@ export type UrlRow = {
   verification: string;
   shape: string | null;
   tags: string[];
+  first_seen_scan: number;
+  last_seen_scan: number;
   is_new: boolean;
 };
 export type UrlSummary = {
   scan_id: number | null;
+  scope?: string;
+  latest?: { id: number; depth: string; status: string; finished_at: string | null } | null;
+  history_total: number;
   total: number;
   funnel: UrlFunnel | null;
   by_tag: Record<string, number>;
@@ -263,6 +268,9 @@ export type Summary = {
   trust?: Trust;
   default_profile_id?: number | null;
   request_headers?: string[];
+  request_header_hints?: string[];
+  assets_live?: number;
+  assets_gone?: number;
   latest_scan: ScanRow | null;
   last_completed_scan: ScanRow | null;
   changes: { new: number; changed: number; gone: number };
@@ -275,5 +283,6 @@ export type Summary = {
     depth: Depth;
     enabled: number;
     next_run_at: string | null;
+    config?: { depth: Depth; threads: number; rate_limit: number; request_header_names: string[]; skipped_headers: string[] };
   } | null;
 };

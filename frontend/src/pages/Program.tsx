@@ -51,7 +51,7 @@ export function AssetTable({ rows }: { rows: Asset[] }) {
             <tr key={r.id}>
               <td><strong>{r.host}</strong>{r.category && r.category !== "web" && <Badge>{r.category}</Badge>}{r.title && <small>{r.title}</small>}</td>
               <td><Badge tone="rank">{r.rank_score ?? 0}</Badge></td>
-              <td>{r.status_code || "—"}</td>
+              <td>{r.status_code || <span className="muted" title="Chưa có phản hồi HTTP nào được ghi nhận (scan Passive không probe)">chưa có HTTP</span>}</td>
               <td>{(r.tech || []).map((t) => <Badge key={t}>{t}</Badge>)}</td>
               <td>{(r.reasons || []).map(reasonText).join(", ")}</td>
             </tr>
@@ -95,14 +95,19 @@ function Overview({ slug, summary, detail, urls, reload }: { slug: string; summa
   const [interval, setInterval] = useState(summary.schedule?.interval || "daily");
   const [depth, setDepth] = useState<Depth>(summary.schedule?.depth || summary.last_completed_scan?.depth || "light");
   const [ack, setAck] = useState(false);
+  const [skipHeader, setSkipHeader] = useState(false);
   const [error, setError] = useState("");
   const enabled = !!summary.schedule?.enabled;
+  // A schedule starts from the program's saved defaults (profile, header), exactly like a new draft does.
+  const savedNames = (summary.request_headers || []).map((h) => h.split(":")[0].trim());
+  const hintsOpen = depth === "passive" ? [] : (summary.request_header_hints || []).filter((n) => !savedNames.some((x) => x.toLowerCase() === n.toLowerCase()));
   const base = "/api/programs/" + encodeURIComponent(slug);
   async function schedule(on: boolean) {
     setError("");
     try {
-      await api(base + "/schedule", { method: "POST", body: JSON.stringify({ interval, depth, enabled: on }) });
+      await api(base + "/schedule", { method: "POST", body: JSON.stringify({ interval, depth, enabled: on, automation_ack: on && depth !== "passive" && ack, skipped_headers: on && skipHeader ? hintsOpen : [] }) });
       setAck(false);
+      setSkipHeader(false);
       reload();
     } catch (e) { setError(explain(e)); }
   }
@@ -136,7 +141,7 @@ function Overview({ slug, summary, detail, urls, reload }: { slug: string; summa
       )}
       {dataScan?.status === "done_partial" && <ScanProgress data={dataStats} partial />}
       <div className="tiles">
-        <Tile label="Host" value={summary.assets_active} sub="đang hoạt động" href={`#/program/${encodeURIComponent(slug)}/data?v=hosts`} />
+        <Tile label="Host" value={summary.assets_active} sub={summary.assets_live !== undefined ? `trong inventory · ${summary.assets_live} có HTTP · ${Math.max(0, summary.assets_active - summary.assets_live)} chưa probe${summary.assets_gone ? ` · ${summary.assets_gone} biến mất` : ""}` : "trong inventory"} href={`#/program/${encodeURIComponent(slug)}/data?v=hosts`} />
         <Tile label="URL" value={(urls?.total ?? 0).toLocaleString("vi-VN")} sub={urls?.funnel ? `${urls.funnel.out_of_scope.toLocaleString("vi-VN")} ngoài scope đã loại` : "trong scope"} href={`#/program/${encodeURIComponent(slug)}/data?v=urls`} />
         <Tile label="Findings" value={total} sub={total ? Object.entries(summary.findings_by_severity).filter(([, n]) => n).map(([s, n]) => `${n} ${s}`).join(" · ") : "chưa có"} href={"#" + programPath(slug, "findings")} tone={total ? "warn" : ""} />
         <Tile label="Thay đổi" value={c.new + c.changed + c.gone} sub={`${c.new} mới · ${c.changed} đổi · ${c.gone} mất`} href={"#" + programPath(slug, "history", "diff")} />
@@ -172,9 +177,25 @@ function Overview({ slug, summary, detail, urls, reload }: { slug: string; summa
                 {PRESETS.map((p) => <option key={p.depth} value={p.depth}>{p.title} — {p.eta}</option>)}
               </select>
             </label>
+            <p className="muted" data-testid="schedule-preview">
+              Mỗi lần chạy: <strong>{depth}</strong>
+              {depth !== "passive" && <> · header gửi kèm: {savedNames.length ? <strong>{savedNames.join(", ")}</strong> : "không có"}</>}
+              {summary.default_profile_id ? " · theo profile mặc định của program (nếu cùng mức quét)" : ""}.
+              {enabled && summary.schedule?.config && <> Lịch đang bật: {summary.schedule.config.depth}, {summary.schedule.config.threads} luồng, {summary.schedule.config.rate_limit} req/s
+                {summary.schedule.config.request_header_names.length > 0 && <>, header {summary.schedule.config.request_header_names.join(", ")}</>}.</>}
+            </p>
+            {depth !== "passive" && hintsOpen.length > 0 && (
+              <p className="warnbox" role="status">
+                Policy nhắc tới header <strong>{hintsOpen.join(", ")}</strong> nhưng program chưa lưu header mặc định.{" "}
+                <button className="linklike" onClick={() => api(base + "/rescan", { method: "POST" }).then((m) => go("/scan/" + m.scan_id + "/review")).catch((e) => setError(explain(e)))}>Mở Review để nhập và lưu →</button>
+              </p>
+            )}
+            {depth !== "passive" && hintsOpen.length > 0 && (
+              <label className="check"><input type="checkbox" checked={skipHeader} onChange={(e) => setSkipHeader(e.target.checked)} />Tôi đã đọc policy và lịch này không gửi header {hintsOpen.join(", ")}.</label>
+            )}
             {depth !== "passive" && <label className="check"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />Program cho phép scan tự động theo lịch ở mức này.</label>}
             <div className="actions">
-              <button disabled={depth !== "passive" && !ack} onClick={() => schedule(true)}>{enabled ? "Cập nhật lịch" : "Bật giám sát"}</button>
+              <button disabled={depth !== "passive" && (!ack || (hintsOpen.length > 0 && !skipHeader))} onClick={() => schedule(true)}>{enabled ? "Cập nhật lịch" : "Bật giám sát"}</button>
               {enabled && <button className="secondary" onClick={() => schedule(false)}>Tắt giám sát</button>}
             </div>
           </div>
@@ -210,7 +231,7 @@ function HostsView({ base, kind }: { base: string; kind: "surface" | "assets" })
             {["web", "wildcard", "ip", "cidr", "source_code"].map((c) => <option key={c}>{c}</option>)}
           </select>
           <select aria-label="Trạng thái" value={state} onChange={(e) => { setState(e.target.value); setOffset(0); }}>
-            <option value="active">Đang hoạt động</option><option value="gone">Đã biến mất</option>
+            <option value="active">Trong inventory (đang theo dõi)</option><option value="gone">Đã biến mất</option>
           </select>
         </div>
       )}
@@ -227,7 +248,7 @@ function DataArea({ slug, view }: { slug: string; view: string }) {
   const current = ["hosts", "urls", "surface"].includes(view) ? view : "urls";
   const params = routeParams();
   const initial: Record<string, string> = {};
-  for (const k of ["tag", "verification", "shape", "min_score"]) if (params.get(k)) initial[k] = params.get(k)!;
+  for (const k of ["tag", "verification", "shape", "min_score", "scan"]) if (params.get(k)) initial[k] = params.get(k)!;
   const info = {
     hosts: ["Danh sách host", "Mọi host/IP thuộc scope mà các bước tìm subdomain và probe HTTP thu được: trạng thái, tiêu đề, công nghệ.", "Từ bước “Tìm subdomain” và “Probe HTTP”."],
     urls: ["URL & endpoint", "URL đã qua scope gate, xếp theo điểm đáng xem. Biết rõ URL lấy từ đâu và đã kiểm chứng chưa.", "Từ bước “URL lịch sử”, “Crawl chủ động” và “Phân tích JavaScript”."],
@@ -326,6 +347,8 @@ function DiffView({ base, summary }: { base: string; summary: Summary }) {
   const result = useAssets(base + "/diff?" + new URLSearchParams({ limit: "50", offset: String(offset), ...(change ? { change } : {}) }));
   const baseline = (summary.last_completed_scan as any)?.baseline_scan_id;
   const latest = summary.last_completed_scan?.id;
+  const emptyText = change ? "Không có thay đổi thuộc loại này." : baseline ? `Đã so sánh #${latest} với #${baseline}: không phát hiện thay đổi.`
+    : "Chưa có scan hoàn tất trước đó để so sánh. Diff xuất hiện từ lần scan hoàn tất thứ hai.";
   return (
     <>
       <p className="viewintro"><strong>So sánh thay đổi.</strong> {latest ? <>Scan #{latest} so với {baseline ? <>scan hoàn tất gần nhất trước đó (#{baseline})</> : "— chưa có scan hoàn tất trước đó để so"}.</> : "Cần ít nhất hai scan hoàn tất."} <span className="muted">Scan bị huỷ hoặc lỗi không dùng làm mốc.</span></p>
@@ -335,7 +358,7 @@ function DiffView({ base, summary }: { base: string; summary: Summary }) {
         ))}
       </div>
       <State data={result.state} error={result.error}>
-        {(result.state?.items.length || 0) === 0 ? <EmptyState title="Không có thay đổi">Diff xuất hiện sau khi program có từ hai scan hoàn tất.</EmptyState> : (
+        {(result.state?.items.length || 0) === 0 ? <EmptyState title="Không có thay đổi">{emptyText}</EmptyState> : (
           <section className="card">
             {(result.state!.items as any[]).map((r) => (
               <div className="finding" key={r.id}>
@@ -415,6 +438,7 @@ function ScopeView({ slug, summary, detail, reload }: { slug: string; summary: S
   const rules: any[] = detail?.scope || [];
   const policy = detail?.policy || {};
   const text = policy.policy_text || policy.program?.policy || "";
+  const userText = (policy.user_policy_text || "").trim();
   async function setDefault(value: string) {
     try {
       await api("/api/programs/" + encodeURIComponent(slug) + "/default-profile", { method: "PUT", body: JSON.stringify({ profile_id: value ? Number(value) : null }) });
@@ -434,7 +458,10 @@ function ScopeView({ slug, summary, detail, reload }: { slug: string; summary: S
         </Panel>
       </div>
       <Panel id="pol-h" title="Policy">
-        {text ? <div className="policy-text open"><ReactMarkdown>{text}</ReactMarkdown></div> : <p className="muted">Chưa có nội dung policy. Dán policy của program ở mục “Hướng dẫn cho agent”.</p>}
+        {text && <><h3 className="subhead">Policy từ nguồn{policy.policy_source ? ` (${policy.policy_source === "api" ? "API HackerOne" : policy.policy_source === "public_page" ? "trang công khai HackerOne" : policy.policy_source})` : ""}</h3>
+          <div className="policy-text open"><ReactMarkdown>{text}</ReactMarkdown></div></>}
+        {userText && <><h3 className="subhead">Policy bạn đã dán thêm</h3><div className="policy-text open" data-testid="user-policy"><ReactMarkdown>{userText}</ReactMarkdown></div></>}
+        {!text && !userText && <p className="muted">Chưa có nội dung policy. Dán policy của program ở bước nhập scope (Thêm program) rồi Resolve lại.</p>}
       </Panel>
       <Panel id="prof-h" title="Profile mặc định" hint="Scan mới của program này sẽ bắt đầu từ profile này thay vì Light. Tạo profile ở trang Profile quét.">
         <ErrorBox text={error} />

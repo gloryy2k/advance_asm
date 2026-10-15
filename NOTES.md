@@ -598,3 +598,20 @@ Còn mở: Strong vẫn cần người dùng tự cân nhắc khi policy cấm b
 - Enforcement: `/launch`, `POST /api/scans`, `/schedule` (`header_required`) và **lúc `dispatch`** (policy có thể đã thêm header từ khi lên lịch).
 - Audit: `request_headers` — `required`, `sent`, `skipped`, chỉ tên, không giá trị; ghi lúc Launch và lúc schedule xếp hàng.
 - Tests: `test_v134_header_gate.py` (5), `test_scheduler.py` (+1), Vitest (+1).
+
+## v1.3.6 — Rà soát UI/logic (V134_UI_LOGIC_AUDIT, 8 finding) + một lượt kiểm lại
+
+| ID | Sửa |
+| --- | --- |
+| UI-1 | Tab URL có bộ chọn **Scan mới nhất / Tất cả scan**; ghi rõ "URL do scan #N nhìn thấy"; khi scan mới nhất có 0 URL mà lịch sử có thì hiện lời nhắn + nút "Xem URL lịch sử" thay cho "chưa có URL". Mỗi dòng có cột Scan (lần đầu→gần nhất). Phễu chỉ hiện khi xem scan mới nhất. Export theo cùng phạm vi. API: `scan=latest|all|<N>` cho `/urls`, `/urls/summary`, `/urls/export`; summary thêm `latest`, `history_total`. |
+| UI-2 | Run của scan cũ: link URL mang `scan=<id>` ("ghi nhận tới scan N" — kho URL chỉ lưu first/last seen nên không khôi phục được "đúng những gì scan N thấy"; UI nói rõ điều này), nút Brief ghi "Brief hiện hành (scan #X)" và có ghi chú Host/Findings/Brief là hiện trạng program. |
+| UI-3 | Lịch giám sát dùng **mặc định của program** (profile nếu cùng mức, header đã lưu) qua `program_config()` (cùng nguồn với draft). Thêm `automation_ack` (server bắt buộc cho light/strong) và `skipped_headers`; policy đòi header mà chưa có → `header_required`. Tắt giám sát giữ nguyên cấu hình đã lưu. UI hiện dòng "Mỗi lần chạy: …header gửi kèm: …", cảnh báo + ô xác nhận bỏ qua. Audit ghi `automation_ack_by_user` cho lịch. Summary trả `schedule.config` (chỉ tên header). |
+| UI-4 | "Host đang hoạt động" → "trong inventory · N có HTTP · M chưa probe · K biến mất" (summary `assets_live`, `assets_gone`); bảng ghi "chưa có HTTP" thay cho "—". Danh mục: "Host trong inventory". |
+| UI-5 | Diff trống: "Đã so sánh #N với #M: không phát hiện thay đổi" khi có baseline; chỉ nói thiếu scan khi thật sự thiếu baseline. |
+| UI-6 | Resolve lại / "Scan lại" giữ `user_policy_text` đã dán (chỉ bản dán mới thay thế). |
+| UI-7 | Tab Scope & policy hiện cả policy từ nguồn và policy người dùng dán, có nhãn. |
+| UI-8 | Công tắc "Hiện giá trị" ở trình xem file còn sau khi bật (tắt lại được), tự tắt khi đổi file; nút tải ghi "Tải file THÔ" khi đang hiện. |
+
+Kiểm lại thêm: Danh mục — công cụ tùy chọn (bbscope…) không còn nhãn đỏ "thiếu"; Profile — đổi preset khi đã chỉnh sửa hỏi xác nhận trước khi bỏ chỉnh sửa.
+Tests: `test_v136_ui_logic.py` (4), `test_scheduler.py`, Vitest +8 (63 tổng). `review_tools/v134_policy_rescan_check.py` nay cho `after_manual_policy: true`; `v134_schedule_ui_check.py` cần gửi `automation_ack` (hành vi mới).
+Chưa kiểm: export mọi chế độ, mobile (không làm), H1 thật, Light/Strong thật, hơn 1.000 hàng, trình duyệt khác.

@@ -16,7 +16,7 @@ def test_portfolio_surface_filters_and_schedule(settings):
         assert client.get(base + "/assets?min_rank=8").json() == []
         assert client.get(base + "/diff").json() == []
         assert len(client.get(base + "/findings?type=takeover&severity=high").json()) == 2
-        response = client.post(base + "/schedule", json={"interval": "6h", "depth": "light", "enabled": True})
+        response = client.post(base + "/schedule", json={"interval": "6h", "depth": "light", "enabled": True, "automation_ack": True})
         assert response.status_code == 200 and response.json()["next_run_at"]
         assert client.get(base).json()["schedule"]["enabled"] == 1
         assert client.post(base + "/schedule", json={"interval": "daily", "depth": "passive", "enabled": False}).status_code == 200

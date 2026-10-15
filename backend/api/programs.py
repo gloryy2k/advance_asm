@@ -115,6 +115,21 @@ def findings(slug: str, request: Request, response: Response, type: Literal["nuc
         return [decoded(r) for r in conn.execute("SELECT f.*,a.host AS host " + source + " ORDER BY " + order + " LIMIT ? OFFSET ?", (*args, limit, offset))]
 
 
+def _schedule_view(row):
+    """The schedule as the page shows it: what will actually run, so enabling it is never a blind click. Header *names* only."""
+    if not row:
+        return None
+    view = dict(row)
+    try:
+        config = ScanConfig.model_validate_json(view.pop("config_json") or "{}")
+    except ValueError:
+        return view
+    view["config"] = {"depth": config.depth, "threads": config.threads, "rate_limit": config.rate_limit,
+                      "request_header_names": [h.split(":", 1)[0].strip() for h in config.request_headers],
+                      "skipped_headers": config.skipped_headers}
+    return view
+
+
 @router.get("/{slug}/summary")
 def summary(slug: str, request: Request):
     """Everything the Program overview needs in one call (no list endpoints scraped by the UI)."""
@@ -127,13 +142,16 @@ def summary(slug: str, request: Request):
         severities = {r[0]: r[1] for r in conn.execute("SELECT severity,count(*) FROM finding WHERE program_id=? GROUP BY severity", (program["id"],))}
         top = [decoded(r) for r in conn.execute("SELECT * FROM asset WHERE program_id=? AND state='active' AND category!='cidr' ORDER BY rank_score DESC,host LIMIT 5", (program["id"],))]
         assets_total = conn.execute("SELECT count(*) FROM asset WHERE program_id=? AND state='active'", (program["id"],)).fetchone()[0]
+        assets_live = conn.execute("SELECT count(*) FROM asset WHERE program_id=? AND state='active' AND status_code IS NOT NULL", (program["id"],)).fetchone()[0]
+        assets_gone = conn.execute("SELECT count(*) FROM asset WHERE program_id=? AND state='gone'", (program["id"],)).fetchone()[0]
         schedule = conn.execute("SELECT * FROM schedule WHERE program_id=?", (program["id"],)).fetchone()
         drafts = conn.execute("SELECT count(*) FROM scan_run WHERE program_id=? AND status='draft'", (program["id"],)).fetchone()[0]
-    from backend.trust import scope_trust
+    from backend.trust import required_headers, scope_trust
     return {"slug": slug, "source": program["source"], "handle": program["handle"],
             "trust": scope_trust(program["source"], program["handle"], json.loads(program.get("policy_json") or "{}")),
             "default_profile_id": program.get("default_profile_id"),
             "request_headers": json.loads(program.get("request_headers_json") or "[]"),
+            "request_header_hints": required_headers(json.loads(program.get("policy_json") or "{}")),
             "target_path": str((request.app.state.settings.BBASM_TARGETS / slug).resolve()),
             **request.app.state.settings.hunt_target(slug),
             "latest_scan": decoded(latest) if latest else None,
@@ -141,7 +159,7 @@ def summary(slug: str, request: Request):
             "changes": {k: counts.get(k, 0) for k in ("new", "changed", "gone")},
             "findings_by_severity": {k: severities.get(k, 0) for k in ("critical", "high", "medium", "low", "info")},
             "assets_active": assets_total, "top_surface": top, "draft_count": drafts,
-            "schedule": dict(schedule) if schedule else None}
+            "schedule": _schedule_view(schedule), "assets_live": assets_live, "assets_gone": assets_gone}
 
 
 class ScheduleRequest(BaseModel):
@@ -149,6 +167,9 @@ class ScheduleRequest(BaseModel):
     depth: Literal["passive", "light", "strong"]
     enabled: bool = True
     config: ScanConfig | None = None
+    # Policy headers the user read about and knowingly does not send, and the consent to scan automatically.
+    skipped_headers: list[str] = Field(default_factory=list, max_length=5)
+    automation_ack: bool = False
 
 
 class RequestHeaders(BaseModel):
@@ -176,15 +197,34 @@ async def schedule(slug: str, body: ScheduleRequest, request: Request):
     program = program_row(state.database, slug)
     with state.database.connect() as conn:
         entries = [classify(r["pattern"], r["kind"], r["asset_type"]) for r in conn.execute("SELECT * FROM scope_rule WHERE program_id=?", (program["id"],))]
-    config = body.config or default_config(state.settings.model_copy(update={"BBASM_DEFAULT_DEPTH": body.depth}), entries)
+    policy = json.loads(program.get("policy_json") or "{}")
+    from backend.api.scans import require_ack, require_gate, require_headers
+    from backend.jobs.scope_resolver import program_config
+    from backend.trust import launch_gate, required_headers
+    with state.database.connect() as conn:
+        entries = [classify(r["pattern"], r["kind"], r["asset_type"]) for r in conn.execute("SELECT * FROM scope_rule WHERE program_id=?", (program["id"],))]
+        config = body.config or program_config(state.settings, conn, program, entries, body.depth)
+    if body.skipped_headers and not body.config:
+        config = ScanConfig.model_validate({**config.model_dump(), "skipped_headers": body.skipped_headers})
     if config.depth != body.depth:
         raise ScopeError("depth must match config.depth")
-    from backend.api.scans import require_gate, require_headers
-    from backend.trust import launch_gate, required_headers
-    policy = json.loads(program.get("policy_json") or "{}")
-    require_gate(config.depth, launch_gate(program["source"], policy))
-    require_headers(config, required_headers(policy))
-    return state.scheduler.configure(program["id"], body.interval, config, body.enabled)
+    if not body.enabled:
+        # Switching monitoring off keeps the stored configuration; it needs neither consent nor a header.
+        with state.database.connect() as conn:
+            row = conn.execute("SELECT interval,config_json FROM schedule WHERE program_id=?", (program["id"],)).fetchone()
+        if row:
+            return state.scheduler.configure(program["id"], row["interval"], ScanConfig.model_validate_json(row["config_json"]), False)
+    else:
+        require_ack(config.depth, body.automation_ack)
+        require_gate(config.depth, launch_gate(program["source"], policy))
+        require_headers(config, required_headers(policy))
+    saved = state.scheduler.configure(program["id"], body.interval, config, body.enabled)
+    if body.enabled and config.depth != "passive":
+        from backend.scope_gate import audit
+        sent = [h.split(":", 1)[0].strip() for h in config.request_headers]
+        audit(state.settings.BBASM_TARGETS / slug / "audit.jsonl", slug, "ack", "automation_ack_by_user", schedule=body.interval,
+              depth=config.depth, headers_sent=sent, headers_skipped=config.skipped_headers)
+    return saved
 
 
 @router.post("/{slug}/rescan")
@@ -214,11 +254,24 @@ def _latest_completed(conn, program_id):
     return (row["id"], json.loads(row["stats_json"] or "{}")) if row else (None, {})
 
 
-def _url_filter(program_id, scan, q, host, tag, verification, source, shape, min_score, include_static):
+def _url_scope(scan, latest):
+    """Which scans a URL list speaks for. 'latest': URLs the newest completed scan saw. 'all': everything on record
+    (history across scans). A number N: URLs recorded by scan N or earlier -- the store keeps first/last seen, not a
+    per-scan membership, so this is 'known as of scan N', never 'exactly what scan N found'."""
+    if scan == "all":
+        return None
+    if scan == "latest":
+        return ("u.last_seen_scan=?", latest)
+    if scan.isdigit() and int(scan) < 2**31:
+        return ("u.first_seen_scan<=?", int(scan))
+    raise ScopeError("scan phải là latest, all hoặc số scan", "invalid_scan")
+
+
+def _url_filter(program_id, scope, q, host, tag, verification, source, shape, min_score, include_static):
     clauses, args = ["u.program_id=?"], [program_id]
-    if scan is not None:
-        clauses.append("u.last_seen_scan=?")
-        args.append(scan)
+    if scope is not None:
+        clauses.append(scope[0])
+        args.append(scope[1])
     if q:
         clauses.append("u.url LIKE ? ESCAPE '\\'")
         args.append("%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%")
@@ -245,52 +298,57 @@ def urls(slug: str, request: Request, response: Response, q: str = Query("", max
          tag: str | None = Query(None, max_length=20), verification: Literal["historical", "observed", "live"] | None = None,
          source: str | None = Query(None, max_length=20), shape: str | None = Query(None, max_length=200),
          min_score: float = Query(0, ge=0, le=10), include_static: bool = False,
-         scan: Literal["latest", "all"] = "latest",
+         scan: str = Query("latest", max_length=12),
          limit: int = Query(50, ge=1, le=500), offset: int = Query(0, ge=0)):
     """URLs that passed the scope gate, best first. Every row says how it was learned."""
     database = request.app.state.database
     program = program_row(database, slug)
     with database.connect() as conn:
         latest, _ = _latest_completed(conn, program["id"])
-        where, args = _url_filter(program["id"], latest if scan == "latest" else None, q, host, tag, verification, source, shape, min_score, include_static)
+        where, args = _url_filter(program["id"], _url_scope(scan, latest), q, host, tag, verification, source, shape, min_score, include_static)
         source_sql = "FROM url u LEFT JOIN asset a ON a.id=u.asset_id WHERE " + where
         response.headers["X-Total-Count"] = str(conn.execute("SELECT count(*) " + source_sql, args).fetchone()[0])
         rows = conn.execute("SELECT u.id,u.url,u.source,u.score,u.verification,u.shape,u.tags_json,u.first_seen_scan,u.last_seen_scan,a.host AS host " + source_sql
                             + " ORDER BY COALESCE(u.score,0) DESC,u.url LIMIT ? OFFSET ?", (*args, limit, offset)).fetchall()
     return [{"id": r["id"], "url": r["url"], "host": r["host"], "source": r["source"], "score": r["score"] or 0,
              "verification": r["verification"] or "historical", "shape": r["shape"],
-             "tags": json.loads(r["tags_json"] or "[]"), "first_seen_scan": r["first_seen_scan"],
+             "tags": json.loads(r["tags_json"] or "[]"), "first_seen_scan": r["first_seen_scan"], "last_seen_scan": r["last_seen_scan"],
              "is_new": r["first_seen_scan"] == latest} for r in rows]
 
 
 @router.get("/{slug}/urls/summary")
-def urls_summary(slug: str, request: Request, shapes: int = Query(25, ge=1, le=100)):
+def urls_summary(slug: str, request: Request, shapes: int = Query(25, ge=1, le=100), scan: str = Query("latest", max_length=12)):
     """The funnel (what the tools produced -> what survived the scope gate) and the shape of the site."""
     database = request.app.state.database
     program = program_row(database, slug)
     with database.connect() as conn:
         latest, stats = _latest_completed(conn, program["id"])
-        base = "program_id=? AND last_seen_scan=?"
-        counts = {tag: conn.execute(f"SELECT count(*) FROM url WHERE {base} AND tags_json LIKE ?", (program["id"], latest, '%"' + tag + '"%')).fetchone()[0] for tag in TAGS}
-        total = conn.execute(f"SELECT count(*) FROM url WHERE {base}", (program["id"], latest)).fetchone()[0]
+        scope = _url_scope(scan, latest)
+        base = "program_id=?" + (" AND " + scope[0].replace("u.", "") if scope else "")
+        base_args = (program["id"], *([scope[1]] if scope else []))
+        counts = {tag: conn.execute(f"SELECT count(*) FROM url WHERE {base} AND tags_json LIKE ?", (*base_args, '%"' + tag + '"%')).fetchone()[0] for tag in TAGS}
+        total = conn.execute(f"SELECT count(*) FROM url WHERE {base}", base_args).fetchone()[0]
+        history_total = conn.execute("SELECT count(*) FROM url WHERE program_id=?", (program["id"],)).fetchone()[0]
+        latest_row = conn.execute("SELECT id,depth,status,finished_at FROM scan_run WHERE id=?", (latest,)).fetchone() if latest else None
         top_shapes = [{"shape": r["shape"], "count": r["n"], "max_score": r["top"], "example": r["example"]}
-                      for r in conn.execute(f"SELECT shape,count(*) n,max(COALESCE(score,0)) top,min(url) example FROM url WHERE {base} AND (tags_json IS NULL OR tags_json NOT LIKE '%\"static\"%') GROUP BY shape ORDER BY top DESC,n DESC LIMIT ?", (program["id"], latest, shapes))]
+                      for r in conn.execute(f"SELECT shape,count(*) n,max(COALESCE(score,0)) top,min(url) example FROM url WHERE {base} AND (tags_json IS NULL OR tags_json NOT LIKE '%\"static\"%') GROUP BY shape ORDER BY top DESC,n DESC LIMIT ?", (*base_args, shapes))]
         hosts = [{"host": r["host"], "count": r["n"]} for r in conn.execute(
-            "SELECT a.host host,count(*) n FROM url u JOIN asset a ON a.id=u.asset_id WHERE u.program_id=? AND u.last_seen_scan=? GROUP BY a.host ORDER BY n DESC LIMIT 20",
-            (program["id"], latest))]
-    return {"scan_id": latest, "total": total, "funnel": stats.get("url_funnel"), "by_tag": counts, "top_shapes": top_shapes, "hosts": hosts}
+            "SELECT a.host host,count(*) n FROM url u JOIN asset a ON a.id=u.asset_id WHERE " + base.replace("program_id", "u.program_id").replace("last_seen_scan", "u.last_seen_scan").replace("first_seen_scan", "u.first_seen_scan")
+            + " GROUP BY a.host ORDER BY n DESC LIMIT 20", base_args)]
+    return {"scan_id": latest, "scope": scan, "latest": dict(latest_row) if latest_row else None, "history_total": history_total, "total": total, "funnel": stats.get("url_funnel") if scan == "latest" else None, "by_tag": counts, "top_shapes": top_shapes, "hosts": hosts}
 
 
 @router.get("/{slug}/urls/export")
 def urls_export(slug: str, request: Request, q: str = Query("", max_length=500), host: str | None = None, tag: str | None = Query(None, max_length=20),
                 verification: Literal["historical", "observed", "live"] | None = None, shape: str | None = Query(None, max_length=200),
-                min_score: float = Query(0, ge=0, le=10), include_static: bool = False, limit: int = Query(20000, ge=1, le=100000)):
+                min_score: float = Query(0, ge=0, le=10), include_static: bool = False, limit: int = Query(20000, ge=1, le=100000),
+                scan: str = Query("latest", max_length=12)):
     """Plain text, one URL per line — feed it to another tool or grep it."""
     database = request.app.state.database
     program = program_row(database, slug)
     with database.connect() as conn:
         latest, _ = _latest_completed(conn, program["id"])
-        where, args = _url_filter(program["id"], latest, q, host, tag, verification, None, shape, min_score, include_static)
+        where, args = _url_filter(program["id"], _url_scope(scan, latest), q, host, tag, verification, None, shape, min_score, include_static)
         rows = conn.execute("SELECT u.url FROM url u LEFT JOIN asset a ON a.id=u.asset_id WHERE " + where + " ORDER BY COALESCE(u.score,0) DESC,u.url LIMIT ?", (*args, limit)).fetchall()
-    name = f"{slug}-urls" + (f"-{tag}" if tag else "") + ".txt"
+    name = f"{slug}-urls" + ("" if scan == "latest" else f"-{scan}") + (f"-{tag}" if tag else "") + ".txt"
     return PlainTextResponse("\n".join(r[0] for r in rows) + "\n", headers={"Content-Disposition": f'attachment; filename="{name}"'})
