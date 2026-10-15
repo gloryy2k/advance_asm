@@ -26,9 +26,28 @@ with tempfile.TemporaryDirectory(prefix="bbasm-schedule-ui-") as temp:
         summary = client.get("/api/programs/qa-schedule-header/summary").json()
         # Exact body emitted by frontend Program.tsx; no scan is launched.
         schedule = client.post("/api/programs/qa-schedule-header/schedule", json={
-            "interval": "weekly", "depth": "light", "enabled": True})
+            "interval": "weekly", "depth": "light", "enabled": True,
+            "automation_ack": True})
+        schedule.raise_for_status()
+        scheduled_config = json.loads(schedule.json()["config_json"])
+        assert "X-HackerOne-Research" in scheduled_config["request_headers"][0]
+        missing = client.put("/api/programs/qa-schedule-header/request-headers", json={"headers": []})
+        missing.raise_for_status()
+        refused = client.post("/api/programs/qa-schedule-header/schedule", json={
+            "interval": "weekly", "depth": "light", "enabled": True,
+            "automation_ack": True})
+        skipped = client.post("/api/programs/qa-schedule-header/schedule", json={
+            "interval": "weekly", "depth": "light", "enabled": True,
+            "automation_ack": True, "skipped_headers": ["X-HackerOne-Research"]})
+        skipped.raise_for_status()
+        skipped_config = json.loads(skipped.json()["config_json"])
+        assert skipped_config["skipped_headers"] == ["X-HackerOne-Research"]
         print(json.dumps({
             "saved_header_names": [h.split(":", 1)[0] for h in summary["request_headers"]],
             "schedule_http": schedule.status_code,
-            "schedule_response": schedule.json(),
+            "schedule_header_names": [h.split(":", 1)[0] for h in scheduled_config["request_headers"]],
+            "no_header_http": refused.status_code,
+            "no_header_error": refused.json().get("error"),
+            "skipped_http": skipped.status_code,
+            "skipped_names": skipped_config["skipped_headers"],
         }, ensure_ascii=True))
