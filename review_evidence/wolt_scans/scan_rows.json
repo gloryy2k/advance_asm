@@ -1,0 +1,162 @@
+{
+  "source_commit": "59d752a",
+  "scans": [
+    {
+      "scan": {
+        "id": 29,
+        "depth": "passive",
+        "status": "failed",
+        "trigger": "manual",
+        "started_at": "2026-10-14T19:23:52.329Z",
+        "finished_at": "2026-10-14T19:28:53.195Z",
+        "error": "Scan hard timeout exceeded"
+      },
+      "config": {
+        "depth": "passive",
+        "threads": 50,
+        "rate_limit": 150,
+        "scan_timeout": 300,
+        "nuclei_severity": "",
+        "skip_nmap": 1,
+        "skip_nuclei": 1,
+        "skip_active_crawl": 1,
+        "categories_enabled": [
+          "web",
+          "wildcard"
+        ],
+        "excluded_hosts": [],
+        "options": {
+          "skip_ffuf": false,
+          "skip_historical": false,
+          "skip_takeover": false,
+          "skip_secrets": false,
+          "max_js_files": 100,
+          "url_exclude_patterns": [],
+          "brief_budget_kb": 12,
+          "brief_top_assets": 25,
+          "brief_top_urls": 12
+        }
+      },
+      "stats": {
+        "observed": 0,
+        "subs": 0,
+        "live": 0,
+        "urls": 0,
+        "findings": 0,
+        "monitor_findings": 0,
+        "diff": {
+          "new": 0,
+          "changed": 0,
+          "gone": 0
+        },
+        "baseline_scan_id": null,
+        "url_funnel": {
+          "raw": 0,
+          "in_scope": 0,
+          "out_of_scope": 0,
+          "invalid": 0,
+          "excluded_by_rule": 0,
+          "by_tag": {},
+          "by_verification": {},
+          "out_of_scope_hosts": []
+        },
+        "brief": null
+      }
+    },
+    {
+      "scan": {
+        "id": 31,
+        "depth": "light",
+        "status": "done_partial",
+        "trigger": "manual",
+        "started_at": "2026-10-15T02:11:56.730Z",
+        "finished_at": "2026-10-15T02:27:45.457Z",
+        "error": "Scan hard timeout exceeded"
+      },
+      "config": {
+        "depth": "light",
+        "threads": 50,
+        "rate_limit": 150,
+        "scan_timeout": 900,
+        "nuclei_severity": "low,medium",
+        "skip_nmap": 1,
+        "skip_nuclei": 0,
+        "skip_active_crawl": 0,
+        "categories_enabled": [
+          "web",
+          "wildcard"
+        ],
+        "excluded_hosts": [],
+        "options": {
+          "skip_ffuf": false,
+          "skip_historical": false,
+          "skip_takeover": false,
+          "skip_secrets": false,
+          "max_js_files": 100,
+          "url_exclude_patterns": [],
+          "brief_budget_kb": 12,
+          "brief_top_assets": 25,
+          "brief_top_urls": 12
+        }
+      },
+      "stats": {
+        "observed": 980,
+        "subs": 753,
+        "live": 4,
+        "urls": 227,
+        "findings": 0,
+        "monitor_findings": 0,
+        "diff": {
+          "new": 753,
+          "changed": 0,
+          "gone": 0
+        },
+        "baseline_scan_id": null,
+        "url_funnel": {
+          "raw": 4422,
+          "in_scope": 223,
+          "out_of_scope": 4182,
+          "invalid": 17,
+          "excluded_by_rule": 0,
+          "by_tag": {
+            "auth": 20,
+            "api": 8,
+            "static": 9,
+            "js": 5
+          },
+          "by_verification": {
+            "historical": 223,
+            "observed": 4
+          },
+          "out_of_scope_hosts": [
+            {
+              "host": "wolt.com",
+              "count": 4107
+            },
+            {
+              "host": "links.wolt.com",
+              "count": 61
+            },
+            {
+              "host": "restaurant-api.wolt.com",
+              "count": 6
+            },
+            {
+              "host": "merchant.wolt.com",
+              "count": 5
+            },
+            {
+              "host": "press.wolt.com",
+              "count": 3
+            }
+          ]
+        },
+        "brief": {
+          "path": "/app/targets/wolt/AGENT_BRIEF.md",
+          "bytes": 9304,
+          "scan_id": 31
+        }
+      }
+    }
+  ]
+}

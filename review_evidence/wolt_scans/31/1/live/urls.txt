@@ -1,0 +1,4 @@
+https://authentication.wolt.com
+https://drive.wolt.com
+https://ops.wolt.com
+https://corporate.wolt.com

@@ -1,0 +1,14 @@
+https://corporate.wolt.com/oauth2/
+https://authentication.wolt.com/
+https://authentication.wolt.com/v2/wauth2/me/request_number_verification
+https://authentication.wolt.com/v1/wauth2/consumer
+https://authentication.wolt.com/v1/wauth2/me/request_number_verification
+https://ops.wolt.com/purchases/69e63328f801ff045fdd1496
+https://ops.wolt.com/purchases/69e631e32902cfa18f39c640
+https://ops.wolt.com/purchases/69e63087db337986cd30efd6
+https://ops.wolt.com/
+https://drive.wolt.com/en
+https://corporate.wolt.com/
+https://drive.wolt.com/cs
+https://drive.wolt.com/en
+https://drive.wolt.com/robots.txt

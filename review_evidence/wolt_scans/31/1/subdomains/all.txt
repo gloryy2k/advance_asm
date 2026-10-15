@@ -1,0 +1,4 @@
+authentication.wolt.com
+corporate.wolt.com
+drive.wolt.com
+ops.wolt.com

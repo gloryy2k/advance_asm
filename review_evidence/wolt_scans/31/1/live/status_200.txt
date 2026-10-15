@@ -1,0 +1,2 @@
+https://ops.wolt.com [200] [1210] [OpsTools] [Amazon CloudFront,Amazon Web Services,HSTS]
+https://corporate.wolt.com [200] [3999] [Admin] [Amazon CloudFront,Amazon S3,Amazon Web Services,Express,Google Maps,HSTS,Mapbox GL JS,Node.js]
