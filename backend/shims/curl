@@ -1,0 +1,30 @@
+#!/bin/bash
+# BBASM wrapper, first on PATH for recon commands. The pinned recon scripts call curl without any time limit
+# (Wayback once held a whole scan for 11 minutes). Every call now gets an upper bound unless the caller set one.
+# Calls to the known passive sources are also recorded (host + outcome only, never the URL or the response).
+. "$(dirname "$0")/_common.sh"
+shim_dir="$(cd "$(dirname "$0")" && pwd)"
+real="$(bbasm_real curl "$shim_dir")" || { echo "curl: not found" >&2; exit 127; }
+
+has_max=0; url=""
+for arg in "$@"; do
+    case "$arg" in
+        --max-time|--max-time=*|-m|-m[0-9]*) has_max=1 ;;
+        http://*|https://*) [ -z "$url" ] && url="$arg" ;;
+    esac
+done
+args=("$@")
+[ "$has_max" = 0 ] && args=(--max-time "${BBASM_SOURCE_TIMEOUT:-45}" --connect-timeout 15 "$@")
+
+start=$SECONDS
+"$real" "${args[@]}"
+code=$?
+
+host="${url#*://}"; host="${host%%/*}"; host="${host%%\?*}"; host="${host%%:*}"
+for known in ${BBASM_SOURCE_HOSTS:-crt.sh web.archive.org}; do
+    if [ "$host" = "$known" ]; then
+        status=ok; [ "$code" = 28 ] && status=timeout; { [ "$code" != 0 ] && [ "$code" != 28 ]; } && status=error
+        bbasm_record "$host" "$status" "$((SECONDS - start))" "$code"
+    fi
+done
+exit "$code"

@@ -77,9 +77,11 @@ def test_wildcard_discovery_is_filtered_before_active_and_apex_is_not_granted(se
     plan = orch.build(result.scan_id)
     assert plan.discoveries[0].env["BBASM_SKIP_HTTPX"] == "1"
     write_output(plan.discoveries[0].output, "subdomains/all.txt", "api.example.com\nexample.com\nprivate.example.com\nevil.com\n")
-    followup = orch.discovered_commands(plan)
-    assert len(followup) == 1
-    assert Path(followup[0].argv[2]).read_text().splitlines() == ["api.example.com"]
+    hosts = orch.discovered_hosts(plan)
+    assert hosts == ["api.example.com"]
+    batches = orch.probe_batches(plan, hosts)
+    assert len(batches) == 1 and batches[0].stage == "probe" and batches[0].env["BBASM_SKIP_ACTIVE_CRAWL"] == "1"
+    assert Path(batches[0].argv[2]).read_text().splitlines() == ["api.example.com"]
 
 
 def test_tc_cat_2_and_lc_3_source_routing_and_disabled_category(settings):

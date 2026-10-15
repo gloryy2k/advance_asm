@@ -26,6 +26,10 @@ MIGRATIONS: dict[int, list[str]] = {
         )""",
         "ALTER TABLE program ADD COLUMN default_profile_id INTEGER",
     ],
+    3: [
+        # Headers the program's policy requires on requests to the target (per program default).
+        "ALTER TABLE program ADD COLUMN request_headers_json TEXT",
+    ],
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 

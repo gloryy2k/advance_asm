@@ -78,8 +78,9 @@ class LogBuffer:
 
 
 class ReconLogParser:
-    def __init__(self, settings):
+    def __init__(self, settings, config=None):
         self.dashboard = load_module(settings, "dashboard.py")
+        self.config = config
 
     def parse(self, line):
         clean = self.dashboard._ANSI_RE.sub("", line).strip()

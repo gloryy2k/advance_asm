@@ -82,4 +82,5 @@ def test_health_and_runner_find_go_bin_tool(monkeypatch, settings, tmp_path):
     with TestClient(create_app(settings)) as client:
         assert client.get("/api/health").json()["tools"]["gau"] is True
     assert "gau" not in ReconOrchestrator(settings, None).missing_tools()
-    assert recon_env(settings, default_config(settings, []), tmp_path)["PATH"] == settings.tool_search_path()
+    path = recon_env(settings, default_config(settings, []), tmp_path)["PATH"]
+    assert path.endswith(settings.tool_search_path()) and path.split(os.pathsep)[0].endswith("shims")  # bounded curl/subfinder first, real PATH after

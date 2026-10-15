@@ -1,0 +1,25 @@
+#!/bin/bash
+# BBASM wrapper: subfinder gets an overall time bound (its own -max-time, in minutes) so one slow provider
+# cannot hold the whole discovery stage; results found so far are kept by subfinder itself.
+. "$(dirname "$0")/_common.sh"
+shim_dir="$(cd "$(dirname "$0")" && pwd)"
+real="$(bbasm_real subfinder "$shim_dir")" || { echo "subfinder: not found" >&2; exit 127; }
+
+has_max=0
+for arg in "$@"; do
+    case "$arg" in -max-time|--max-time|-max-time=*|--max-time=*) has_max=1 ;; esac
+done
+limit="${BBASM_SUBFINDER_TIMEOUT:-120}"
+minutes=$(( (limit + 59) / 60 ))
+args=("$@")
+[ "$has_max" = 0 ] && args=(-max-time "$minutes" "$@")
+
+start=$SECONDS
+"$real" "${args[@]}"
+code=$?
+elapsed=$((SECONDS - start))
+status=ok
+[ "$code" != 0 ] && status=error
+[ "$has_max" = 0 ] && [ "$elapsed" -ge $((minutes * 60 - 2)) ] && status=timeout
+bbasm_record subfinder "$status" "$elapsed" "$code"
+exit "$code"

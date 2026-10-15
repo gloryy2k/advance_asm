@@ -8,6 +8,7 @@ import re
 from urllib.parse import urlsplit
 
 from backend.asm.urlintel import classify_url, url_shape
+from backend.jobs.recon_orch import SOURCE_FILES, subdomain_candidates
 from backend.framework import load_module
 from backend.scope_gate import normalize_host
 
@@ -95,6 +96,7 @@ class Ingester:
         patterns = [p.lower() for p in plan.config.url_exclude_patterns]
         outside = Counter()
         observed_urls, source_of = set(), {}
+        partial_inputs = []
 
         def asset(resource, category="web", **details):
             if not isinstance(resource, str) or not plan.gate.in_scope(resource):
@@ -140,6 +142,14 @@ class Ingester:
             nested = module.ReconAdapter(root)
             for host in set(canonical.subdomains + nested.get_subdomains()):
                 asset(host, "ip" if ":" in host or re.fullmatch(r"[0-9.]+", host) else "web")
+            if command.stage == "discovery":
+                # A discovery stopped before the engine merged its sources leaves per-source files and no all.txt.
+                # Their contents are real results (each host still passes the scope gate in asset()).
+                names, merged = subdomain_candidates(root)
+                if not merged and names:
+                    kept = sum(1 for name in names if asset(name))
+                    partial_inputs.append({"command": command.resource, "found": len(names), "in_scope": kept,
+                                           "files": [f for f in SOURCE_FILES if (root / "subdomains" / f).is_file()]})
             for url in set(canonical.live_hosts + nested.get_live_hosts()):
                 if host := asset(url, http_live=True):
                     urls[url] = (host, "httpx")
@@ -224,4 +234,4 @@ class Ingester:
                     plan.program_id, ids[host], kind, severity, name, json.dumps(details), plan.scan_id, plan.scan_id))
         return {"observed": observed, "collapsed_ips": collapsed, "subs": len(assets), "live": sum("status_code" in row for row in assets.values()),
                 "urls": len(urls), "url_funnel": funnel, "findings": len({(item[0], item[1], item[3]) for item in findings}),
-                "observations": assets}
+                "partial_inputs": partial_inputs, "observations": assets}

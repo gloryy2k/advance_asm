@@ -27,6 +27,26 @@ class ResolveRequest(BaseModel):
     name: str = Field(default="", max_length=100)  # optional human program name for raw scope (slug base)
 
 
+# Hop-by-hop, framing and credential headers are never injected by the dashboard.
+_FORBIDDEN_HEADERS = {"host", "content-length", "transfer-encoding", "connection", "cookie", "authorization", "te", "upgrade",
+                      "proxy-authorization", "proxy-connection", "keep-alive", "trailer", "expect"}
+
+
+def validate_header(item: str) -> str:
+    """"Name: value" for a header the program's policy asks for. Plain text only: no control characters, no secrets class."""
+    if not isinstance(item, str) or ":" not in item:
+        raise ValueError("Header phải có dạng 'Tên: giá trị'")
+    name, _, value = item.partition(":")
+    name, value = name.strip(), value.strip()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,59}", name):
+        raise ValueError(f"Tên header không hợp lệ: {name[:40]!r}")
+    if name.lower() in _FORBIDDEN_HEADERS or name.lower().startswith(("proxy-", "sec-")):
+        raise ValueError(f"Không cho phép header {name}: dùng cho khung giao thức hoặc thông tin xác thực")
+    if not value or len(value) > 200 or not re.fullmatch(r"[\x20-\x7e]+", value):
+        raise ValueError(f"Giá trị header {name} phải là 1–200 ký tự in được, không có xuống dòng")
+    return f"{name}: {value}"
+
+
 class ScanConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     depth: Depth
@@ -49,9 +69,17 @@ class ScanConfig(BaseModel):
     brief_budget_kb: int = Field(default=12, ge=4, le=12)
     brief_top_assets: int = Field(default=25, ge=5, le=50)
     brief_top_urls: int = Field(default=12, ge=0, le=30)
+    # Headers a program's policy requires on every request that reaches the target ("X-HackerOne-Research: <user>").
+    # Per program, not part of a profile: a profile is shared across programs, a header value is not.
+    request_headers: list[str] = Field(default_factory=list, max_length=5)
 
     def options(self) -> dict:
-        return {name: getattr(self, name) for name in OPTION_FIELDS}
+        return {name: getattr(self, name) for name in (*OPTION_FIELDS, "request_headers")}
+
+    @field_validator("request_headers")
+    @classmethod
+    def safe_headers(cls, value):
+        return [validate_header(item) for item in value]
 
     @field_validator("url_exclude_patterns")
     @classmethod

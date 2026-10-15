@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     BBASM_TARGETS: Path = PROJECT_ROOT / "targets"
     BBASM_STATIC: Path = PROJECT_ROOT / "frontend" / "dist"
     BBASM_HOST_TARGETS: str | None = None  # verbatim: a WSL/POSIX path must not be rewritten by Windows Path semantics
+    BBASM_SOURCE_TIMEOUT: int = Field(default=45, ge=5, le=600)       # per curl call to a passive source (crt.sh, Wayback)
+    BBASM_SUBFINDER_TIMEOUT: int = Field(default=120, ge=30, le=1800)  # whole subfinder run
+    BBASM_PROBE_BATCH: int = Field(default=150, ge=10, le=1000)       # discovered hosts probed per batch
+    BBASM_DEEP_HOSTS: int = Field(default=50, ge=1, le=500)            # live discovered hosts given the full Light/Strong pass
     BBASM_BIND: str = "127.0.0.1"
     BBASM_PORT: int = Field(default=8000, ge=1, le=65535)
     BB_THREADS: int = Field(default=50, ge=1, le=200)

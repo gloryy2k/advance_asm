@@ -1,6 +1,7 @@
 """Bounded asyncio job queue; subprocess groups, cancellation and partial output."""
 
 import asyncio
+import time
 import codecs
 from datetime import datetime, timedelta, timezone
 import json
@@ -327,19 +328,26 @@ class JobRunner:
                 missing = self.orchestrator.missing_tools()
                 for name in missing:
                     await self.logs.emit(scan_id, "log", level="warning", message=f"{name} missing; framework will skip unavailable tools")
-                parser = ReconLogParser(self.settings)
+                parser = ReconLogParser(self.settings, plan.config)
+                total = min(plan.config.scan_timeout, self.settings.scan_timeout(plan.config.depth))
                 try:
-                    await asyncio.wait_for(self._pipeline(plan, parser, errors),
-                        min(plan.config.scan_timeout, self.settings.scan_timeout(plan.config.depth)))
+                    await asyncio.wait_for(self._pipeline(plan, parser, errors, total), total)
                 except asyncio.TimeoutError:
                     errors.append("Scan hard timeout exceeded")
+                    for stage in plan.stages:
+                        if stage["status"] == "running":
+                            stage["status"] = "timeout"
                 # _pipeline guarantees process cleanup before we inspect partial files.
                 stats = await asyncio.to_thread(self.ingester.ingest, plan)
                 stats["missing_tools"] = missing
+                stats["stages"], stats["sources"] = plan.stages, plan.sources
+                plan.coverage["unprobed"] = max(0, plan.coverage["discovered"] - plan.coverage["probed"])
+                stats["coverage"] = plan.coverage
+                stats["request_headers"] = [h.partition(":")[0] for h in plan.config.request_headers]  # names only, never values
                 stats["monitor_findings"] = await asyncio.to_thread(self.monitors.ingest, plan)
                 stats["findings"] = await asyncio.to_thread(self._finding_count, plan)
                 stats["diff"] = await asyncio.to_thread(self.diff_engine.apply, plan,
-                    stats.get("observations", {}), complete=not errors and bool(plan.commands))
+                    stats.get("observations", {}), complete=not errors and bool(plan.commands) and plan.coverage["unprobed"] == 0)
                 from backend.asm.ranking import rank_program
                 await asyncio.to_thread(rank_program, self.database, plan.program_id, scan_id)
                 await self._intel(plan, stats, parser)
@@ -368,16 +376,72 @@ class JobRunner:
             return conn.execute("SELECT count(*) FROM finding WHERE program_id=? AND last_seen_scan=?",
                                 (plan.program_id, plan.scan_id)).fetchone()[0]
 
-    async def _pipeline(self, plan, parser, errors):
+    # Cumulative share of the scan budget by which each stage must be finished. Unused time rolls forward, an overrun
+    # is cut at its deadline so later stages (probing what discovery found) always get their turn.
+    STAGES = {"passive": (("discovery", 0.90),),
+              "active": (("discovery", 0.30), ("main", 0.55), ("probe", 0.85), ("deep", 0.97))}
+    STAGE_LABELS = {"discovery": "Khám phá subdomain/URL", "main": "Host nêu trong scope", "probe": "Probe host đã khám phá",
+                    "deep": "Quét sâu host đang sống", "monitor": "Theo dõi JS/secret"}
+
+    async def _stage(self, plan, key, commands, deadline, parser, errors, on_success=None):
+        label = self.STAGE_LABELS[key]
+        record = {"key": key, "label": label, "status": "running", "budget_s": 0, "used_s": 0, "commands": len(commands)}
+        plan.stages.append(record)
+        if not commands:
+            record["status"] = "empty"
+            return
+        started = time.monotonic()
+        remaining = deadline - started
+        record["budget_s"] = max(0, int(remaining))
+        if remaining <= 0:
+            record["status"] = "skipped_budget"
+            errors.append(f"Giai đoạn '{label}' không chạy: hết ngân sách thời gian")
+            await self.logs.emit(plan.scan_id, "stage", key=key, label=label, status="skipped_budget",
+                                 message=f"▶ {label}: bỏ qua vì hết ngân sách thời gian")
+            return
+        await self.logs.emit(plan.scan_id, "stage", key=key, label=label, status="running", commands=len(commands),
+                             budget_s=record["budget_s"], message=f"▶ {label}: {len(commands)} lệnh, tối đa {record['budget_s']}s")
+        failures = len(errors)
+
+        async def run():
+            for command in commands:
+                if await self._command(plan, command, parser, errors) and on_success:
+                    on_success(command)
+
+        try:
+            await asyncio.wait_for(run(), remaining)
+            record["status"] = "error" if len(errors) > failures else "ok"
+        except asyncio.TimeoutError:
+            record["status"] = "timeout"
+            errors.append(f"Giai đoạn '{label}' hết ngân sách {record['budget_s']}s (timeout); dữ liệu dở dang vẫn được nhập")
+        record["used_s"] = int(time.monotonic() - started)
+        await self.logs.emit(plan.scan_id, "stage", key=key, label=label, status=record["status"], used_s=record["used_s"],
+                             message=f"■ {label}: {record['status']} sau {record['used_s']}s")
+
+    async def _pipeline(self, plan, parser, errors, total=None):
+        total = total or plan.config.scan_timeout
+        started = time.monotonic()
+        shares = dict(self.STAGES["passive" if plan.config.depth == "passive" else "active"])
         initial = list(plan.commands)
         if not initial and not plan.warnings:
             errors.append("No eligible recon commands")
-        for command in initial:
-            await self._command(plan, command, parser, errors)
-        for command in self.orchestrator.discovered_commands(plan):
-            await self._command(plan, command, parser, errors)
-        for command in await asyncio.to_thread(self.monitors.commands, plan):
-            await self._command(plan, command, parser, errors)
+        def deadline(key):
+            return started + total * shares.get(key, 1.0)
+
+        def done(command):
+            plan.probed_hosts.update(command.hosts)
+            plan.coverage["batches_done"] += 1
+            plan.coverage["probed"] = len(plan.probed_hosts)
+
+        await self._stage(plan, "discovery", [c for c in initial if c.stage == "discovery"], deadline("discovery"), parser, errors)
+        await self._stage(plan, "main", [c for c in initial if c.stage != "discovery"], deadline("main"), parser, errors)
+        if plan.config.depth != "passive":
+            hosts = await asyncio.to_thread(self.orchestrator.discovered_hosts, plan)
+            batches = await asyncio.to_thread(self.orchestrator.probe_batches, plan, hosts)
+            await self._stage(plan, "probe", batches, deadline("probe"), parser, errors, on_success=done)
+            deep = await asyncio.to_thread(self.orchestrator.deep_command, plan, batches)
+            await self._stage(plan, "deep", [deep] if deep else [], deadline("deep"), parser, errors)
+        await self._stage(plan, "monitor", await asyncio.to_thread(self.monitors.commands, plan), started + total, parser, errors)
 
     async def _intel(self, plan, stats, parser):
         from backend.jobs.recon_orch import Command, recon_env
@@ -396,7 +460,7 @@ class JobRunner:
             await self.logs.emit(plan.scan_id, "log", level="warning", message=error)
 
     async def _command(self, plan, command, parser, errors, capture_path=None):
-        process, capture, captured = None, None, 0
+        process, capture, captured, ok = None, None, 0, False
         try:
             self.egress.check(plan, command)
             if capture_path:
@@ -424,16 +488,33 @@ class JobRunner:
             code = await process.wait()
             if code != 0:
                 errors.append(f"{command.category} subprocess exited {code}")
+            else:
+                ok = True
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             errors.append(f"{type(exc).__name__}: {exc}")
         finally:
+            errors.extend(await self._collect_sources(plan, command))
             if capture is not None:
                 capture.close()
             if process is not None:
                 # Shield teardown so cancellation cannot leave grandchildren running.
                 await asyncio.shield(self.stopper(process))
+        return ok
+
+    async def _collect_sources(self, plan, command):
+        """Say which passive source failed or timed out; the data it already produced is still imported."""
+        from backend.jobs.recon_orch import read_source_status
+        names = {"timeout": "quá thời gian", "error": "lỗi"}
+        problems = []
+        for row in await asyncio.to_thread(read_source_status, command.output):
+            plan.sources.append({**row, "stage": command.stage})
+            if row["status"] != "ok":
+                text = f"Nguồn {row['source']} {names[row['status']]} sau {row['seconds']}s"
+                problems.append(text + " (kết quả dở dang vẫn được dùng)")
+                await self.logs.emit(plan.scan_id, "log", level="warning", message=text + " — vẫn dùng kết quả dở dang đã có")
+        return problems
 
     async def cancel(self, scan_id):
         row = await asyncio.to_thread(self.status, scan_id)
