@@ -332,7 +332,7 @@ class JobRunner:
                 needed = tools_needed(plan.config, self.settings)
                 for name in missing:
                     if name in needed:
-                        hint = " (nuclei chạy nhưng không kiểm tra gì; chạy `nuclei -update-templates` hoặc đặt BBASM_UPDATE_TEMPLATES=1)" if name == "nuclei-templates" else ""
+                        hint = " (nuclei KHÔNG được chạy và BBASM chặn tự tải template; chạy `nuclei -update-templates` hoặc đặt BBASM_UPDATE_TEMPLATES=1 rồi khởi động lại)" if name == "nuclei-templates" else ""
                         await self.logs.emit(scan_id, "log", level="warning", tag="missing_tool",
                                              message=f"Thiếu {name}: các bước dùng nó sẽ bị bỏ qua{hint}")
                     else:   # not used by this configuration (e.g. ffuf below Strong): not a problem, only noted

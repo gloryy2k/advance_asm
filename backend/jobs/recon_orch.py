@@ -182,6 +182,10 @@ def read_tool_notes(root):
     return notes
 
 
+NUCLEI_BLOCKED_NOTE = ("KHÔNG được chạy: chưa có bộ template nuclei và BBASM chặn việc nuclei tự tải template từ internet "
+                       "trong lúc scan. Cài template bằng bước setup chủ động rồi scan lại.")
+
+
 def nuclei_templates_ready(settings):
     """True when nuclei has at least one template to run. A present binary without templates tests nothing."""
     home = Path(os.environ.get("HOME") or Path.home())
@@ -262,6 +266,9 @@ class ReconOrchestrator:
                     self._recon(plan, entry.pattern, target_type="cidr")
                 else:
                     seeds.append(normalize_host(entry.pattern))
+        if (config.depth != "passive" and not config.skip_nuclei and shutil.which("nuclei", path=self.settings.tool_search_path())
+                and not nuclei_templates_ready(self.settings)):
+            plan.tool_notes.append({"tool": "nuclei", "note": NUCLEI_BLOCKED_NOTE})
         plan.path_rules = gate.path_rule_hosts()
         self._path_rule_notes(plan)
         if seeds:

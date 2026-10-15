@@ -186,7 +186,7 @@ def build_report(settings, database, scan_id, tools_missing=None):
         elif mine:
             status, label, reason = "empty", "Chạy — 0 kết quả", "Có chạy nhưng không tìm thấy gì (không có nghĩa là an toàn)."
         elif phase["tools"] and (tools_out if phase.get("all_required") else len(tools_out) == len(phase["tools"])):
-            status, label, reason = "missing_tool", "Thiếu công cụ", "Thiếu " + ", ".join(tools_out) + " nên bước này không kiểm tra gì."
+            status, label, reason = "missing_tool", "Thiếu công cụ", "Thiếu " + ", ".join(tools_out) + " nên bước này không được chạy."
         elif over:
             cut = any(st.get("status") in {"timeout", "skipped_budget"} for st in stats.get("stages") or [])
             status, label = ("timeout", "Hết thời gian") if cut else ("no_output", "Không có dữ liệu")

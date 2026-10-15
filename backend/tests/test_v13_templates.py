@@ -59,7 +59,7 @@ def test_run_report_does_not_present_a_templateless_nuclei_as_no_findings(home, 
         conn.execute("UPDATE scan_config SET depth='light', skip_nuclei=0 WHERE scan_run_id=?", (result.scan_id,))
     report = build_report(settings, db, result.scan_id)
     nuclei = next(p for p in report["phases"] if p["key"] == "nuclei")
-    assert nuclei["status"] == "missing_tool" and "không kiểm tra gì" in nuclei["reason"]
+    assert nuclei["status"] == "missing_tool" and "không được chạy" in nuclei["reason"]
     assert next(p for p in PHASES if p["key"] == "nuclei")["all_required"] is True
 
 
@@ -94,3 +94,21 @@ def test_nuclei_wrapper_starts_nuclei_with_the_update_check_disabled_when_templa
     assert argv[0] == "-duc" and argv[1:] == ["-l", "hosts.txt", "-severity", "low"]
     run_shim(home, "-duc", "-l", "x")
     assert (home / "go" / "bin" / "nuclei.argv").read_text().split().count("-duc") == 1   # never doubled
+
+
+def test_the_scan_says_plainly_that_nuclei_was_blocked_not_that_it_ran(home, settings):
+    """v1.3.2 host QA (P2): the run page must not read as if nuclei ran and found nothing."""
+    from backend.jobs.recon_orch import NUCLEI_BLOCKED_NOTE
+    db, _, result = environment(settings, ["example.com"])
+    from backend.jobs.runner import JobRunner
+    JobRunner(settings, db).config(result.scan_id, result.config.model_copy(update={"depth": "light", "skip_nuclei": False}))
+    plan = ReconOrchestrator(settings, db).build(result.scan_id)
+    assert plan.tool_notes == [{"tool": "nuclei", "note": NUCLEI_BLOCKED_NOTE}]
+    assert "KHÔNG được chạy" in NUCLEI_BLOCKED_NOTE and "chặn" in NUCLEI_BLOCKED_NOTE
+    assert plan.commands[0].env["BBASM_SKIP_NUCLEI"] == "1"
+    # With templates, or with nuclei switched off, there is nothing to explain.
+    add_template(home)
+    new = __import__("backend.jobs.scope_resolver", fromlist=["ScopeResolver"]).ScopeResolver(settings, db, __import__("unittest.mock", fromlist=["Mock"]).Mock()).resolve(
+        __import__("backend.models", fromlist=["ResolveRequest"]).ResolveRequest(input="raw", scope=["example.com"], name="second"))
+    JobRunner(settings, db).config(new.scan_id, new.config.model_copy(update={"depth": "light", "skip_nuclei": False}))
+    assert ReconOrchestrator(settings, db).build(new.scan_id).tool_notes == []
