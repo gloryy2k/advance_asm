@@ -6,6 +6,26 @@ Ngày: 2026-10-16. Base: `2d540fd` (`fix/path-out-safe-scan`). Đây là review 
 
 Review chọn scope và cấu hình; API Resolve/Review/Launch/Rescan/Schedule; lưu snapshot và policy; scope gate và dựng lệnh recon; ingest URL/asset; xuất ZIP. Chưa chạy scan thật để xác nhận tác động vận hành của mọi finding. Các kết luận ghi rõ khi mới dựa trên đường code.
 
+## Đánh giá logic IN/OUT theo đường dẫn đã sửa ở `2d540fd`
+
+Trường hợp gốc: `wolt.com` là IN, còn URL như `https://wolt.com/en/wolt-for-work-contact-request` là OUT. OUT này phải chặn chính đường dẫn và các đường dẫn con, không biến cả `wolt.com` thành OUT. Đồng thời các công cụ active không được truy cập OUT trước khi kết quả bị lọc.
+
+Thay đổi ở `2d540fd` nhìn chung giải quyết đúng hướng:
+
+1. `scope_gate.py` lưu OUT dạng `(host, path)`, so khớp path đã chuẩn hóa, giữ host và path khác trong IN. `ingest.py` loại URL thuộc path OUT khỏi DB và ghi số `path_rule_blocked`.
+2. `recon_orch.py` chuyển host có path OUT sang probe-only, tắt crawl/nuclei/ffuf/nmap cho host đó, không đưa host vào deep pass; tùy chọn legacy `allow_active_on_path_rules=true` không mở lại các bước này. Probe root không theo redirect.
+3. `safe_path_probe.py` chỉ GET tối đa 50 URL đơn giản đã biết, qua scope gate, không query/fragment, không theo redirect, không lấy body; `monitors.py` loại host có path OUT khỏi các tác vụ có thể gửi request ngoài kiểm soát.
+
+Kiểm thử hiện có: `.venv/Scripts/python.exe -m pytest -q backend/tests/test_v13_path_rules.py backend/tests/test_monitors.py --basetemp .pytest-audit-path-escalated --tb=short` → **15 passed** trên Windows với fixture HTTP `127.0.0.1` (chạy ngoài sandbox socket; lần chạy trong sandbox có 14 passed, 1 failed vì fixture không nhận request). Không scan Wolt hoặc host ngoài.
+
+**Cần Claude review độc lập trước khi coi là đóng lỗi:**
+
+- Truy vết mọi lệnh có thể chạm target (httpx/curl/katana/nuclei/ffuf/nmap, JS/secrets, takeover và tool con) để xác nhận probe-only và cờ no-redirect được tuân thủ thực tế, không chỉ trong plan/env.
+- Test fixture localhost ghi mọi request đến path OUT, kể cả redirect, path mã hóa, khác hoa/thường, slash kép, dấu chấm, query, port và URL lấy từ lịch sử. Phân biệt lọc output với chặn request thực tế.
+- Xác minh path OUT trên host IN không bị mất toàn bộ URL IN cùng host ở ingest, Diff, Brief, ZIP; ZIP filtered có F2 nên chưa thể xem là an toàn.
+- Đối chiếu UI Review/Run: người dùng phải thấy rõ host đó chỉ probe và các bước active bị bỏ qua; `safe_path_probe` chỉ kiểm URL IN đã biết, không tương đương crawl đầy đủ.
+- Kiểm tình huống F1: một path hoặc host bị người dùng bỏ chọn có được đưa trở lại khi Rescan/schedule hay không. Đây là vấn đề khác với việc parser hiểu đúng URL OUT.
+
 | Mã | Ưu tiên | Finding | Bằng chứng | Trạng thái |
 | --- | --- | --- | --- | --- |
 | F1 | P1 | Asset bỏ chọn ở Review không được giữ cho lần Scan lại/lịch chạy | `Review.tsx:183` ghi vào `config.excluded_hosts`; `runner.py:192` lưu toàn bộ `resolved_scope` vào `scope_rule`; `scope_resolver.py:125` tạo config mới không kế thừa `excluded_hosts`; `programs.py:231` rescan từ toàn bộ `scope_rule`. | Tái hiện bằng DB tạm; tác động lên scheduler suy ra từ code. |
