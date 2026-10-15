@@ -1,0 +1,13 @@
+https://api.wolt.com/v1/fetch
+https://authentication.wolt.com/v1/wauth2/consumer
+https://authentication.wolt.com/v1/wauth2/me/request_number_verification
+https://authentication.wolt.com/v2/wauth2/me/request_number_verification
+https://consumer-api.wolt.com/consumer-api/consumer-assortment/v1/venues/slug/$
+https://developer.wolt.com/docs/api/order
+https://gatekeeper.wolt.com/v1/merchant_admin
+https://restaurant-api.wolt.com/v1/pages/WoltAwards24/novo-mesto
+https://restaurant-api.wolt.com/v1/pages/searchapplication/x-www-form-urlencoded;charset=UTF-8reflec
+https://restaurant-api.wolt.com/v1/user/me
+https://restaurant-api.wolt.com/v1/waw-api/download-report-document/0bbd40ec4f60f547768984e45b992b7217ef0d57458655896f84d2af12d5c752/628ee10c7b7f448f9f12a95be5df08ad/documents/0f911edf35a84758bc99368620244e3b
+https://restaurant-api.wolt.com/v2/user
+https://restaurant-api.wolt.com/v3/venues/slug/$

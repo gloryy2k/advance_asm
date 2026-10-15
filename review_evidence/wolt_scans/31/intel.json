@@ -1,0 +1,473 @@
+  [96m[Amazon CloudFront][0m GitHub Advisory DB...
+  [96m[Amazon CloudFront][0m NVD CVE API...
+  [96m[Amazon S3][0m GitHub Advisory DB...
+  [96m[Amazon S3][0m NVD CVE API...
+  [96m[Amazon Web Services][0m GitHub Advisory DB...
+  [96m[Amazon Web Services][0m NVD CVE API...
+  [96m[Express][0m GitHub Advisory DB...
+  [96m[Express][0m NVD CVE API...
+  [96m[Google Maps][0m GitHub Advisory DB...
+  [96m[Google Maps][0m NVD CVE API...
+  [96m[HSTS][0m GitHub Advisory DB...
+  [96m[HSTS][0m NVD CVE API...
+  [96m[Mapbox GL JS][0m GitHub Advisory DB...
+  [96m[Mapbox GL JS][0m NVD CVE API...
+  [96m[Node.js][0m GitHub Advisory DB...
+  [96m[Node.js][0m NVD CVE API...
+  [96m[H1 MCP][0m Searching disclosed reports...
+  [93mHackerOne MCP error: GraphQL errors: [{'message': "Field 'hacktivity_items' doesn't exist on type 'Query'", 'locations': [{'line': 2, 'column': 7}], 'path': ['query', 'hacktivity_items'], 'extensions': {'code': 'undefinedField', 'typeName': 'Query', 'fieldName': 'hacktivity_items'}}][0m
+{
+  "critical": [
+    {
+      "id": "CVE-2020-36363",
+      "source": "NVD",
+      "tech": "Amazon CloudFront",
+      "severity": "CRITICAL",
+      "summary": "Amazon AWS CloudFront TLSv1.2_2019 allows TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256 and TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA38",
+      "published": "2021-08-12",
+      "score": 9.8,
+      "grep": [],
+      "already_tested": false,
+      "note": "Untested critical vulnerability. Hunt candidate."
+    },
+    {
+      "id": "CVE-2026-13762",
+      "source": "NVD",
+      "tech": "Amazon CloudFront",
+      "severity": "CRITICAL",
+      "summary": "Inconsistent interpretation of HTTP/2 requests in Amazon CloudFront with AWS WAF enabled might allow remote actors to by",
+      "published": "2026-06-29",
+      "score": 9.8,
+      "grep": [],
+      "already_tested": false,
+      "note": "Untested critical vulnerability. Hunt candidate."
+    },
+    {
+      "id": "CVE-2018-9057",
+      "source": "NVD",
+      "tech": "Amazon Web Services",
+      "severity": "CRITICAL",
+      "summary": "aws/resource_aws_iam_user_login_profile.go in the HashiCorp Terraform Amazon Web Services (AWS) provider through v1.12.0",
+      "published": "2018-03-27",
+      "score": 9.8,
+      "grep": [],
+      "already_tested": false,
+      "note": "Untested critical vulnerability. Hunt candidate."
+    },
+    {
+      "id": "CVE-2010-4042",
+      "source": "NVD",
+      "tech": "Google Maps",
+      "severity": "CRITICAL",
+      "summary": "Google Chrome before 7.0.517.41 does not properly handle element maps, which allows remote attackers to cause a denial o",
+      "published": "2010-10-21",
+      "score": 9.8,
+      "grep": [],
+      "already_tested": false,
+      "note": "Untested critical vulnerability. Hunt candidate."
+    }
+  ],
+  "high": [
+    {
+      "id": "CVE-2021-21362",
+      "source": "NVD",
+      "tech": "Amazon S3",
+      "severity": "HIGH",
+      "summary": "MinIO is an open-source high performance object storage service and it is API compatible with Amazon S3 cloud storage se",
+      "published": "2021-03-08",
+      "score": 7.7,
+      "grep": [],
+      "already_tested": false,
+      "note": "Untested high-severity finding. Priority target."
+    },
+    {
+      "id": "CVE-2016-2084",
+      "source": "NVD",
+      "tech": "Amazon Web Services",
+      "severity": "HIGH",
+      "summary": "F5 BIG-IP LTM, AFM, Analytics, APM, ASM, Link Controller, and PEM 11.3.x, 11.4.x before 11.4.1 build 685-HF10, 11.5.1 be",
+      "published": "2016-04-13",
+      "score": 7.4,
+      "grep": [],
+      "already_tested": false,
+      "note": "Untested high-severity finding. Priority target."
+    },
+    {
+      "id": "CVE-2017-9450",
+      "source": "NVD",
+      "tech": "Amazon Web Services",
+      "severity": "HIGH",
+      "summary": "The Amazon Web Services (AWS) CloudFormation bootstrap tools package (aka aws-cfn-bootstrap) before 1.4-19.10 allows loc",
+      "published": "2017-10-30",
+      "score": 7.8,
+      "grep": [],
+      "already_tested": false,
+      "note": "Untested high-severity finding. Priority target."
+    }
+  ],
+  "info": [
+    {
+      "id": "CVE-2012-6087",
+      "source": "NVD",
+      "tech": "Amazon S3",
+      "severity": "UNKNOWN",
+      "summary": "repository/s3/S3.php in the Amazon S3 library in Moodle through 2.2.11, 2.3.x before 2.3.9, 2.4.x before 2.4.6, and 2.5.",
+      "published": "2013-09-16",
+      "score": 5.8,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2015-9506",
+      "source": "NVD",
+      "tech": "Amazon S3",
+      "severity": "MEDIUM",
+      "summary": "The Easy Digital Downloads (EDD) Amazon S3 extension for WordPress, as used with EDD 1.8.x before 1.8.7, 1.9.x before 1.",
+      "published": "2019-10-23",
+      "score": 6.1,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2019-14652",
+      "source": "NVD",
+      "tech": "Amazon S3",
+      "severity": "MEDIUM",
+      "summary": "explorer.js in Amazon AWS JavaScript S3 Explorer (aka aws-js-s3-explorer) v2 alpha before 2019-08-02 allows XSS in certa",
+      "published": "2020-02-13",
+      "score": 6.1,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2020-1760",
+      "source": "NVD",
+      "tech": "Amazon S3",
+      "severity": "MEDIUM",
+      "summary": "A flaw was found in the Ceph Object Gateway, where it supports request sent by an anonymous user in Amazon S3. This flaw",
+      "published": "2020-04-23",
+      "score": 5.8,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2012-3427",
+      "source": "NVD",
+      "tech": "Amazon Web Services",
+      "severity": "UNKNOWN",
+      "summary": "EC2 Amazon Machine Image (AMI) in JBoss Enterprise Application Platform (EAP) 5.1.2 uses 755 permissions for /var/cache/",
+      "published": "2014-02-02",
+      "score": 2.1,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2018-15869",
+      "source": "NVD",
+      "tech": "Amazon Web Services",
+      "severity": "MEDIUM",
+      "summary": "An Amazon Web Services (AWS) developer who does not specify the --owners flag when describing images via AWS CLI, and th",
+      "published": "2018-08-25",
+      "score": 5.3,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2024-51999",
+      "source": "GitHub Advisory",
+      "tech": "Express",
+      "severity": "LOW",
+      "summary": "Withdrawn Advisory: express improperly controls modification of query properties",
+      "published": "2025-12-01",
+      "grep": [
+        "(see tech grep patterns above)"
+      ],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2024-10491",
+      "source": "GitHub Advisory",
+      "tech": "Express",
+      "severity": "MEDIUM",
+      "summary": "Express ressource injection",
+      "published": "2024-10-29",
+      "grep": [
+        "(see tech grep patterns above)"
+      ],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2024-9266",
+      "source": "GitHub Advisory",
+      "tech": "Express",
+      "severity": "LOW",
+      "summary": "Express Open Redirect vulnerability",
+      "published": "2024-10-03",
+      "grep": [
+        "(see tech grep patterns above)"
+      ],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2024-43796",
+      "source": "GitHub Advisory",
+      "tech": "Express",
+      "severity": "LOW",
+      "summary": "express vulnerable to XSS via response.redirect()",
+      "published": "2024-09-10",
+      "grep": [
+        "(see tech grep patterns above)"
+      ],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2024-29041",
+      "source": "GitHub Advisory",
+      "tech": "Express",
+      "severity": "MEDIUM",
+      "summary": "Express.js Open Redirect in malformed URLs",
+      "published": "2024-03-25",
+      "grep": [
+        "(see tech grep patterns above)"
+      ],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2014-6393",
+      "source": "GitHub Advisory",
+      "tech": "Express",
+      "severity": "MEDIUM",
+      "summary": "No Charset in Content-Type Header in express",
+      "published": "2018-10-23",
+      "grep": [
+        "(see tech grep patterns above)"
+      ],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-1999-0967",
+      "source": "NVD",
+      "tech": "Express",
+      "severity": "UNKNOWN",
+      "summary": "Buffer overflow in the HTML library used by Internet Explorer, Outlook Express, and Windows Explorer via the res: local ",
+      "published": "1997-11-01",
+      "score": 10.0,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-1999-1033",
+      "source": "NVD",
+      "tech": "Express",
+      "severity": "UNKNOWN",
+      "summary": "Microsoft Outlook Express before 4.72.3612.1700 allows a malicious user to send a message that contains a .., which can ",
+      "published": "1999-05-11",
+      "score": 5.0,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-1999-1016",
+      "source": "NVD",
+      "tech": "Express",
+      "severity": "UNKNOWN",
+      "summary": "Microsoft HTML control as used in (1) Internet Explorer 5.0, (2) FrontPage Express, (3) Outlook Express 5, and (4) Eudor",
+      "published": "1999-08-27",
+      "score": 5.0,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-1999-1009",
+      "source": "NVD",
+      "tech": "Express",
+      "severity": "UNKNOWN",
+      "summary": "The Disney Go Express Search allows remote attackers to access and modify search information for users by connecting to ",
+      "published": "1999-12-12",
+      "score": 2.6,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2000-0036",
+      "source": "NVD",
+      "tech": "Express",
+      "severity": "UNKNOWN",
+      "summary": "Outlook Express 5 for Macintosh downloads attachments to HTML mail without prompting the user, aka the \"HTML Mail Attach",
+      "published": "1999-12-22",
+      "score": 5.0,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2011-1451",
+      "source": "NVD",
+      "tech": "Google Maps",
+      "severity": "UNKNOWN",
+      "summary": "Google Chrome before 11.0.696.57 does not properly handle DOM id maps, which allows remote attackers to cause a denial o",
+      "published": "2011-05-03",
+      "score": 7.5,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2014-6239",
+      "source": "NVD",
+      "tech": "Google Maps",
+      "severity": "UNKNOWN",
+      "summary": "SQL injection vulnerability in the Address visualization with Google Maps (st_address_map) extension before 0.3.6 allows",
+      "published": "2014-09-11",
+      "score": 7.5,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2014-7182",
+      "source": "NVD",
+      "tech": "Google Maps",
+      "severity": "UNKNOWN",
+      "summary": "Multiple cross-site scripting (XSS) vulnerabilities in the WP Google Maps plugin before 6.0.27 for WordPress allow remot",
+      "published": "2014-10-22",
+      "score": 4.3,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2017-2171",
+      "source": "NVD",
+      "tech": "Google Maps",
+      "severity": "MEDIUM",
+      "summary": "Cross-site scripting vulnerability in Captcha prior to version 4.3.0, Car Rental prior to version 1.0.5, Contact Form Mu",
+      "published": "2017-05-22",
+      "score": 6.1,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2013-3046",
+      "source": "NVD",
+      "tech": "HSTS",
+      "severity": "UNKNOWN",
+      "summary": "The Meeting Server in IBM Sametime 8.x through 8.5.2.1 and 9.x through 9.0.0.1 does not send the HSTS Strict-Transport-S",
+      "published": "2014-05-26",
+      "score": 4.3,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2015-0832",
+      "source": "NVD",
+      "tech": "HSTS",
+      "severity": "UNKNOWN",
+      "summary": "Mozilla Firefox before 36.0 does not properly recognize the equivalence of domain names with and without a trailing . (d",
+      "published": "2015-02-25",
+      "score": 5.0,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2015-1244",
+      "source": "NVD",
+      "tech": "HSTS",
+      "severity": "UNKNOWN",
+      "summary": "The URLRequest::GetHSTSRedirect function in url_request/url_request.cc in Google Chrome before 42.0.2311.90 does not rep",
+      "published": "2015-04-19",
+      "score": 5.0,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2015-1269",
+      "source": "NVD",
+      "tech": "HSTS",
+      "severity": "UNKNOWN",
+      "summary": "The DecodeHSTSPreloadRaw function in net/http/transport_security_state.cc in Google Chrome before 43.0.2357.130 does not",
+      "published": "2015-06-26",
+      "score": 4.3,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2015-5505",
+      "source": "NVD",
+      "tech": "HSTS",
+      "severity": "UNKNOWN",
+      "summary": "The HTTP Strict Transport Security (HSTS) module 6.x-1.x before 6.x-1.1 and 7.x-1.x before 7.x-1.2 for Drupal does not p",
+      "published": "2015-08-18",
+      "score": 6.8,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2025-62942",
+      "source": "NVD",
+      "tech": "Mapbox GL JS",
+      "severity": "MEDIUM",
+      "summary": "Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting') vulnerability in tempranova WP Mapb",
+      "published": "2025-10-27",
+      "score": 6.5,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2011-5037",
+      "source": "NVD",
+      "tech": "Node.js",
+      "severity": "UNKNOWN",
+      "summary": "Google V8 computes hash values for form parameters without restricting the ability to trigger hash collisions predictabl",
+      "published": "2011-12-30",
+      "score": 5.0,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2012-2330",
+      "source": "NVD",
+      "tech": "Node.js",
+      "severity": "UNKNOWN",
+      "summary": "The Update method in src/node_http_parser.cc in Node.js before 0.6.17 and 0.7 before 0.7.8 does not properly check the l",
+      "published": "2012-08-13",
+      "score": 6.4,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2013-4660",
+      "source": "NVD",
+      "tech": "Node.js",
+      "severity": "UNKNOWN",
+      "summary": "The JS-YAML module before 2.0.5 for Node.js parses input without properly considering the unsafe !!js/function tag, whic",
+      "published": "2013-06-28",
+      "score": 6.8,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2013-4450",
+      "source": "NVD",
+      "tech": "Node.js",
+      "severity": "UNKNOWN",
+      "summary": "The HTTP server in Node.js 0.10.x before 0.10.21 and 0.8.x before 0.8.26 allows remote attackers to cause a denial of se",
+      "published": "2013-10-21",
+      "score": 5.0,
+      "grep": [],
+      "already_tested": false
+    },
+    {
+      "id": "CVE-2013-7379",
+      "source": "NVD",
+      "tech": "Node.js",
+      "severity": "UNKNOWN",
+      "summary": "The admin API in the tomato module before 0.0.6 for Node.js does not properly check the access key when it is set to a s",
+      "published": "2014-05-16",
+      "score": 6.8,
+      "grep": [],
+      "already_tested": false
+    }
+  ],
+  "memory_context": {
+    "tested_endpoints_count": 0,
+    "tested_cves_count": 0
+  },
+  "total": 39
+}

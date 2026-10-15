@@ -1,0 +1,26 @@
+# IN
+*.wolt.com
+authentication.wolt.com
+corporate.wolt.com
+drive.wolt.com
+merchant.wolt.com
+ops.wolt.com
+restaurant-api.wolt.com
+wolt.com
+com.wolt.android
+com.wolt.courierapp
+1477299281
+943905271
+# OUT
+*.pipedrive.com
+gettest.wolt.com
+https://merchant.wolt.com/api/merchant-onboarding/merchant-admin/inbound-merchant
+https://restaurant-api.wolt.com/v1/waw-api/corporate-leads
+https://merchant-onboarding-service.wolt.com/merchant-admin/inbound-merchant
+https://wolt.com/en/wolt-for-work-contact-request
+https://merchant.wolt.com/app/partner-with-wolt
+https://wolt.typeform.com
+wolt.atlassian.net
+press.wolt.com
+links.wolt.com
+blog.wolt.com

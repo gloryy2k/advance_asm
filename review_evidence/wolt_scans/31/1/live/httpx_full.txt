@@ -1,0 +1,4 @@
+https://authentication.wolt.com [404] [207] [404 Not Found] [Amazon CloudFront,Amazon Web Services]
+https://drive.wolt.com [307] [3] [Amazon CloudFront,Amazon Web Services]
+https://ops.wolt.com [200] [1210] [OpsTools] [Amazon CloudFront,Amazon Web Services,HSTS]
+https://corporate.wolt.com [200] [3999] [Admin] [Amazon CloudFront,Amazon S3,Amazon Web Services,Express,Google Maps,HSTS,Mapbox GL JS,Node.js]
