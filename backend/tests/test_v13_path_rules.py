@@ -1,10 +1,13 @@
 """Wolt #31: OUT rules written as URLs with a path were turned into "deny the whole host" (4,107 wolt.com URLs lost)."""
 import json
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
 
 import pytest
 
 from backend.jobs.ingest import Ingester
 from backend.jobs.recon_orch import ReconOrchestrator
+from backend.jobs.safe_path_probe import run as run_path_probe, simple_candidate
 from backend.scope_gate import ScopeGate, url_rule
 from backend.tests.p2_helpers import environment, write_output
 
@@ -71,7 +74,7 @@ def test_ingest_drops_urls_under_an_out_path_and_keeps_the_rest(settings):
     assert "https://wolt.com/en/fin/helsinki" in urls and not any("contact-request" in u for u in urls)
 
 
-def test_hosts_with_path_rules_are_probe_only_unless_the_user_opts_in(settings):
+def test_hosts_with_path_rules_remain_probe_only_even_with_legacy_opt_in(settings):
     scope = ["merchant.wolt.com", "drive.wolt.com", "# OUT", "https://merchant.wolt.com/app/partner-with-wolt"]
     db, resolver, result = environment(settings, scope)
     plan = ReconOrchestrator(settings, db).build(result.scan_id)
@@ -85,8 +88,11 @@ def test_hosts_with_path_rules_are_probe_only_unless_the_user_opts_in(settings):
     new = resolver.resolve(__import__("backend.models", fromlist=["ResolveRequest"]).ResolveRequest(input="raw", scope=scope[:2], scope_out=["https://merchant.wolt.com/app/partner-with-wolt"], name="opt-in"))
     JobRunner(settings, db).config(new.scan_id, new.config.model_copy(update={"allow_active_on_path_rules": True, "skip_active_crawl": False}))
     plan2 = ReconOrchestrator(settings, db).build(new.scan_id)
-    assert len(plan2.commands) == 1 and plan2.commands[0].env["BBASM_SKIP_ACTIVE_CRAWL"] == "0"
-    assert any("Bạn đã cho phép" in w for w in plan2.warnings)
+    restricted2 = next(c for c in plan2.commands if c.hosts == ("merchant.wolt.com",))
+    assert restricted2.env["BBASM_SKIP_ACTIVE_CRAWL"] == "1"
+    assert restricted2.env["BBASM_SKIP_NUCLEI"] == "1"
+    assert restricted2.env["BBASM_NO_REDIRECT"] == "1"
+    assert any("ngừng dùng" in w for w in plan2.warnings)
 
 
 def test_a_restricted_host_never_gets_the_deep_pass(settings):
@@ -100,3 +106,61 @@ def test_a_restricted_host_never_gets_the_deep_pass(settings):
     plan.probed_hosts.update(batches[0].hosts)
     deep = orch.deep_command(plan, batches)
     assert deep is not None and deep.hosts == ("shop.wolt.com",)                 # api.wolt.com (path rule) is probed only
+
+
+def test_path_probe_candidates_are_gated_before_command(settings):
+    db, _, result = environment(settings, ["127.0.0.1", "# OUT", "http://127.0.0.1/admin"])
+    orch = ReconOrchestrator(settings, db)
+    plan = orch.build(result.scan_id)
+    restricted = next(c for c in plan.commands if c.path_restricted)
+    write_output(restricted.output, "urls/gau.txt", "\n".join([
+        "http://127.0.0.1/admin", "http://127.0.0.1/admin/x", "http://127.0.0.1/public",
+        "http://127.0.0.1/public?token=x", "http://127.0.0.1/%61dmin", "http://evil.example/public"])+"\n")
+    commands = orch.path_probe_commands(plan)
+    assert len(commands) == 1
+    payload = json.loads((plan.root.parent.parent.parent / ".inputs" / str(plan.scan_id) / "path-probe-0.json").read_text())
+    assert payload["urls"] == ["http://127.0.0.1/public"]
+    assert commands[0].env["BBASM_NO_REDIRECT"] == "1"
+
+
+def test_path_probe_never_follows_redirect_or_requests_out(tmp_path, monkeypatch):
+    seen = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            seen.append((self.path, self.headers.get("X-Research")))
+            if self.path == "/redirect":
+                self.send_response(302)
+                self.send_header("Location", "/admin")
+            else:
+                self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *_):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = server.server_port
+        base = f"http://127.0.0.1:{port}"
+        source = tmp_path / "input.json"
+        source.write_text(json.dumps({"host": "127.0.0.1", "deny_paths": ["/admin"], "rate_limit": 20,
+                                      "urls": [base + "/safe", base + "/redirect", base + "/admin",
+                                               base + "/admin/x", base + "/%61dmin"]}))
+        monkeypatch.setenv("BBHUNT_AUTH_HEADERS", "X-Research: fixture")
+        monkeypatch.delenv("SSLKEYLOGFILE", raising=False)
+        assert run_path_probe(source, tmp_path / "out") == 0
+        assert seen == [("/safe", "fixture"), ("/redirect", "fixture")]
+        assert (tmp_path / "out/urls/path_probe.txt").read_text().splitlines() == [base + "/safe", base + "/redirect"]
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+
+
+def test_ambiguous_paths_are_not_active_candidates():
+    for url in ("https://h.example/a/../admin", "https://h.example//admin", "https://h.example/%61dmin",
+                "https://h.example/a?x=1", "https://h.example/", "https://other.example/safe"):
+        assert not simple_candidate(url, "h.example"), url
+    assert simple_candidate("https://h.example/safe/path", "h.example")

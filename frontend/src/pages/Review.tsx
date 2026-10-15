@@ -266,12 +266,8 @@ export function Review({ id }: { id: string }) {
             <ul>{pathRules.map((e) => <li key={e.pattern}><Badge tone="out">OUT</Badge> <code>{e.pattern}</code></li>)}</ul>
             <p>
               Crawler (katana), nuclei và ffuf không có cách nhận loại trừ theo đường dẫn, nên với <strong>{pathHosts.join(", ")}</strong> BBASM chỉ probe (liveness + tech),
-              không crawl/quét mẫu/dò thư mục. URL OUT luôn bị lọc khỏi kết quả và không bị tải về.
+              không crawl/quét mẫu/dò thư mục. Với Light/Strong, các URL IN đã biết được kiểm tra riêng, từng URL một, không theo redirect. URL OUT không được gửi request ở bước này.
             </p>
-            <label className="check">
-              <input type="checkbox" checked={!!config.allow_active_on_path_rules} onChange={(e) => edit({ allow_active_on_path_rules: e.target.checked })} />
-              Cho phép quét chủ động các host này. Tôi hiểu công cụ có thể đã gửi request tới đường dẫn OUT (kết quả vẫn bị lọc).
-            </label>
           </div>
         </Panel>
       )}

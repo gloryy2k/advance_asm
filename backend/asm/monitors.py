@@ -26,9 +26,11 @@ class Monitors:
                 continue
             if any(p.is_symlink() for p in command.output.rglob("*")) or command.output.is_symlink():
                 raise ValueError("Symlinks are not accepted in monitor input")
-            hosts.update(h for h in lines(command.output / "subdomains/all.txt") if plan.gate.in_scope(h))
+            hosts.update(h for h in lines(command.output / "subdomains/all.txt")
+                         if h not in plan.path_rules and plan.gate.in_scope(h))
             bundles.update(u for u in lines(command.output / "urls/js_files.txt")
-                           if urlsplit(u).scheme in {"http", "https"} and plan.gate.in_scope(u))
+                           if urlsplit(u).scheme in {"http", "https"}
+                           and urlsplit(u).hostname not in plan.path_rules and plan.gate.in_scope(u))
         root = plan.root / "monitors"
         commands = []
         # User choices: skip a monitor entirely, or cap how many JS bundles get downloaded.

@@ -483,9 +483,10 @@ class JobRunner:
     # Cumulative share of the scan budget by which each stage must be finished. Unused time rolls forward, an overrun
     # is cut at its deadline so later stages (probing what discovery found) always get their turn.
     STAGES = {"passive": (("discovery", 0.90),),
-              "active": (("discovery", 0.30), ("main", 0.55), ("probe", 0.85), ("deep", 0.97))}
+              "active": (("discovery", 0.28), ("main", 0.53), ("probe", 0.76),
+                         ("path_probe", 0.90), ("deep", 0.97))}
     STAGE_LABELS = {"discovery": "Khám phá subdomain/URL", "main": "Host nêu trong scope", "probe": "Probe host đã khám phá",
-                    "deep": "Quét sâu host đang sống", "monitor": "Theo dõi JS/secret"}
+                    "path_probe": "Kiểm tra URL IN đã biết", "deep": "Quét sâu host đang sống", "monitor": "Theo dõi JS/secret"}
 
     async def _stage(self, plan, key, commands, deadline, parser, errors, on_success=None):
         label = self.STAGE_LABELS[key]
@@ -543,6 +544,8 @@ class JobRunner:
             hosts = await self._thread(self.orchestrator.discovered_hosts, plan)
             batches = await self._thread(self.orchestrator.probe_batches, plan, hosts)
             await self._stage(plan, "probe", batches, deadline("probe"), parser, errors, on_success=done)
+            safe_commands = await self._thread(self.orchestrator.path_probe_commands, plan)
+            await self._stage(plan, "path_probe", safe_commands, deadline("path_probe"), parser, errors)
             deep = await self._thread(self.orchestrator.deep_command, plan, batches)
             await self._stage(plan, "deep", [deep] if deep else [], deadline("deep"), parser, errors)
         await self._stage(plan, "monitor", await self._thread(self.monitors.commands, plan), started + total, parser, errors)
@@ -609,6 +612,8 @@ class JobRunner:
 
     async def _collect_sources(self, plan, command):
         """Say which passive source failed or timed out; the data it already produced is still imported."""
+        if command.category == "path_probe":
+            return []
         from backend.jobs.recon_orch import read_source_status
         names = {"timeout": "quá thời gian", "error": "lỗi"}
         problems = []

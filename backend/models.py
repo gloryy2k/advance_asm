@@ -72,8 +72,8 @@ class ScanConfig(BaseModel):
     # Headers a program's policy requires on every request that reaches the target ("X-HackerOne-Research: <user>").
     # Per program, not part of a profile: a profile is shared across programs, a header value is not.
     request_headers: list[str] = Field(default_factory=list, max_length=5)
-    # Hosts that carry an OUT rule about a *path* get probe-only treatment (crawlers/templates cannot honour a path
-    # exclusion). The user may knowingly allow the active tools on them; OUT URLs are still filtered from every result.
+    # Legacy setting kept for stored configs. Active tools cannot safely honor path OUT rules;
+    # it is ignored because filtering results cannot undo a request already sent.
     allow_active_on_path_rules: bool = False
     # Header names from the policy that the user read and knowingly does not send ("X-HackerOne-Research"). Names, not
     # values; stored with the draft/schedule so every screen reads one answer. A header that is sent needs no entry.

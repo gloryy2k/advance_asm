@@ -57,6 +57,19 @@ def test_monitor_commands_use_only_gated_inputs(settings, monkeypatch):
     assert commands[0].argv[1] == str(settings.tool_path("takeover_scanner.sh"))
 
 
+def test_monitors_do_not_run_on_a_host_with_path_out(settings, monkeypatch):
+    db, _, result = environment(settings, ["*.example.com", "# OUT", "https://api.example.com/admin"])
+    plan = ReconOrchestrator(settings, db).build(result.scan_id)
+    output = plan.commands[0].output
+    write_output(output, "subdomains/all.txt", "api.example.com\nshop.example.com\n")
+    write_output(output, "urls/js_files.txt", "https://api.example.com/app.js\nhttps://shop.example.com/app.js\n")
+    monitors = Monitors(settings, db)
+    monkeypatch.setattr(monitors, "available", lambda *names: True)
+    monitors.commands(plan)
+    assert (plan.root / "monitors/input/subdomains/all.txt").read_text().splitlines() == ["shop.example.com"]
+    assert (plan.root / "monitors/input/urls/js_files.txt").read_text().splitlines() == ["https://shop.example.com/app.js"]
+
+
 def test_monitor_subjack_and_regex_outputs(settings):
     db, plan, monitors = setup(settings)
     write_output(plan.root, "monitors/takeover/subjack.txt", "[S3] api.example.com\ninvalid\n")

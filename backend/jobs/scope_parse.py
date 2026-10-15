@@ -98,7 +98,7 @@ def _token(raw, token, kind, box, line, results):
         if "://" in value and not value.lower().startswith("repo:"):
             path = urlsplit(value).path
             if path not in ("", "/"):
-                notes.append("OUT theo đường dẫn: chỉ chặn đường dẫn này; host đó chỉ được probe, không crawl/nuclei (trừ khi bạn bật ở Review)"
+                notes.append("OUT theo đường dẫn: Light/Strong chỉ probe host và kiểm tra URL IN đã biết; không crawl/nuclei/ffuf"
                              if kind == "out" else "URL có đường dẫn: recon vẫn chạy trên cả host")
         if not re.search(r"[./:*]", value) and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", value):
             raise ScopeError("Ký tự không hợp lệ trong scope")

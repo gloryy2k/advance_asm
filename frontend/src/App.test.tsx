@@ -890,19 +890,20 @@ describe("v1.3: policy header, OUT paths, stages and coverage", () => {
     await waitFor(() => expect(JSON.parse(calls(fetch, "/config", "PUT")[0][1]!.body as string).skipped_headers).toEqual([]));
   });
 
-  test("OUT URLs with a path are listed as path rules, hosts are probe-only unless the user opts in", async () => {
+  test("OUT URLs with a path are listed and unsafe active opt-in is unavailable", async () => {
     const fetch = reviewStub(withHint());
     location.hash = "/scan/4/review";
     render(<App />);
     const panel = (await screen.findByText("OUT theo đường dẫn", { selector: "h2" })).closest("section")!;
     expect(within(panel).getByText("https://wolt.com/en/wolt-for-work-contact-request")).toBeInTheDocument();
     expect(within(panel).getByText(/chỉ probe/)).toHaveTextContent("wolt.com");
-    fireEvent.click(within(panel).getByLabelText(/Cho phép quét chủ động các host này/));
+    expect(within(panel).getByText(/các URL IN đã biết được kiểm tra riêng/i)).toBeInTheDocument();
+    expect(within(panel).queryByLabelText(/Cho phép quét chủ động các host này/)).not.toBeInTheDocument();
     fireEvent.click(await screen.findByLabelText(/Tôi đã đọc policy và program cho phép/));
     fireEvent.click(screen.getByLabelText(/không dùng header X-HackerOne-Research/));
     fireEvent.click(screen.getByRole("button", { name: "Launch scan" }));
     await waitFor(() => expect(location.hash).toBe("#/scan/4"));
-    expect(JSON.parse(calls(fetch, "/launch")[0][1]!.body as string).config.allow_active_on_path_rules).toBe(true);
+    expect(JSON.parse(calls(fetch, "/launch")[0][1]!.body as string).config.allow_active_on_path_rules).toBeFalsy();
   });
 
   test("Run shows stages, discovered/probed/unprobed, failed sources and why, and says unprobed hosts are not 'gone'", async () => {

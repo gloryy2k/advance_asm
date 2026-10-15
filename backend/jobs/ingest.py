@@ -185,16 +185,16 @@ class Ingester:
                     and (root / "live" / "urls.txt").is_file()):
                 for resource in lines(root / "subdomains" / "all.txt"):
                     asset(resource, http_probed=True)
-            # Which tool produced a URL decides how much it proves: crawled by katana = observed on a
-            # live host; archive/history sources only say "this URL existed once".
-            for filename, label in (("gau.txt", "gau"), ("wayback.txt", "wayback"), ("katana.txt", "katana")):
+            # Crawled or individually checked URLs were observed live; archives only prove past existence.
+            for filename, label in (("gau.txt", "gau"), ("wayback.txt", "wayback"),
+                                    ("katana.txt", "katana"), ("path_probe.txt", "path_probe")):
                 for line in lines(root / "urls" / filename):
-                    if label == "katana":
-                        source_of[line] = label  # crawled on a live host: stronger evidence than any archive
+                    if label in {"katana", "path_probe"}:
+                        source_of[line] = label
                         observed_urls.add(line)
                     else:
                         source_of.setdefault(line, label)
-            for url in set(canonical.urls + nested.get_urls()):
+            for url in set(canonical.urls + nested.get_urls()) | set(lines(root / "urls" / "path_probe.txt")):
                 funnel["raw"] += 1
                 if patterns and any(fnmatch.fnmatch(urlsplit(url).path.lower() or "/", p) for p in patterns):
                     funnel["excluded_by_rule"] += 1  # the user's own "do not test /internal"-style rule

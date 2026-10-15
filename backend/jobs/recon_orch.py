@@ -8,12 +8,14 @@ from pathlib import Path
 import re
 import shlex
 import shutil
+import sys
 from uuid import uuid4
 from urllib.parse import urlsplit
 
 from backend.framework import load_module
 from backend.models import ScanConfig, ScopeEntry
 from backend.scope_gate import ScopeGate, audit, normalize_host, normalize_pattern
+from backend.jobs.safe_path_probe import simple_candidate
 
 
 class EgressUnavailable(RuntimeError):
@@ -43,8 +45,9 @@ class Command:
     output: Path
     category: str = "web"
     resource: str | None = None
-    stage: str = "main"            # discovery | probe | main | deep | source | monitor
+    stage: str = "main"            # discovery | main | probe | path_probe | deep | source | monitor
     hosts: tuple = ()               # hosts this command is responsible for (probe/deep batches)
+    path_restricted: bool = False
 
 
 @dataclass
@@ -93,7 +96,8 @@ TIMEOUT_FUNCTION = """() {  local a=("$@") i=0
 }"""
 
 
-def recon_env(settings, config, output, *, discovery=False, skip_historical=False, probe_only=False):
+def recon_env(settings, config, output, *, discovery=False, skip_historical=False, probe_only=False,
+              path_restricted=False):
     passive = config.depth == "passive" or discovery
     # Inherited tool toggles, auth sessions, shell init and proxies must not override review.
     env = {k: v for k, v in os.environ.items() if k in {"PATH", "HOME", "SYSTEMROOT", "SystemRoot", "TMP", "TEMP", "LANG"}}
@@ -126,8 +130,11 @@ def recon_env(settings, config, output, *, discovery=False, skip_historical=Fals
     # `timeout 300 katana ...` execs the binary directly, past any function. Resolve the wrapped tool names here.
     env["BASH_FUNC_timeout%%"] = TIMEOUT_FUNCTION
     if probe_only:
-        # Probe stage: liveness and fingerprint only. No archives, crawling, config-file checks, templates or fuzzing.
-        env.update(BBASM_SKIP_HISTORICAL="1", BBASM_SKIP_ACTIVE_CRAWL="1", BBASM_SKIP_NUCLEI="1", BBASM_SKIP_FFUF="1")
+        # Probe stage: liveness/fingerprint. Path-restricted host-only batches may collect passive URL history,
+        # which the bounded safe_path_probe stage filters before any URL request.
+        env.update(BBASM_SKIP_HISTORICAL="0" if path_restricted and not config.skip_historical else "1",
+                   BBASM_SKIP_ACTIVE_CRAWL="1", BBASM_SKIP_NUCLEI="1", BBASM_SKIP_FFUF="1",
+                   BBASM_SKIP_NMAP="1")
     if config.request_headers and not passive:
         # Only commands that actually reach the target carry the policy header; discovery and passive never do.
         env["BBHUNT_AUTH_HEADERS"] = "\n".join(config.request_headers)
@@ -136,6 +143,8 @@ def recon_env(settings, config, output, *, discovery=False, skip_historical=Fals
             env[key] = getattr(settings, key).get_secret_value()
     for key in ("BBASM_NO_INTERACTSH", "BBASM_NO_REDIRECT", "BBASM_SCOPE_CRAWL", "BBASM_NO_VERIFY"):
         env[key] = str(int(getattr(settings, key)))
+    if probe_only:
+        env["BBASM_NO_REDIRECT"] = "1"  # Root probes must not follow redirects into an OUT path.
     return env
 
 
@@ -284,18 +293,19 @@ class ReconOrchestrator:
 
     @staticmethod
     def _probe_only_host(plan, host):
-        return host in plan.path_rules and not plan.config.allow_active_on_path_rules
+        return host in plan.path_rules
 
     @staticmethod
     def _path_rule_notes(plan):
         for host, paths in sorted(plan.path_rules.items()):
             sample = ", ".join(paths[:2]) + ("…" if len(paths) > 2 else "")
+            detail = ("Passive chỉ thu thập dữ liệu công khai" if plan.config.depth == "passive" else
+                      "host này chỉ được probe; URL IN đã biết được kiểm tra riêng")
+            plan.warnings.append(f"{host}: {len(paths)} OUT theo đường dẫn ({sample}). Crawl/nuclei/ffuf không thi hành được "
+                                 f"loại trừ theo đường dẫn nên {detail}")
             if plan.config.allow_active_on_path_rules:
-                plan.warnings.append(f"{host}: {len(paths)} OUT theo đường dẫn ({sample}). Bạn đã cho phép công cụ chủ động: "
-                                     "URL OUT bị lọc khỏi kết quả nhưng crawler/nuclei có thể đã gửi request tới đó")
-            else:
-                plan.warnings.append(f"{host}: {len(paths)} OUT theo đường dẫn ({sample}). Crawl/nuclei/ffuf không thi hành được "
-                                     "loại trừ theo đường dẫn nên host này chỉ được probe")
+                plan.warnings.append(f"{host}: tùy chọn quét chủ động trên host có OUT theo đường dẫn đã ngừng dùng "
+                                     "vì có thể gửi request tới OUT; chỉ kiểm tra URL IN đã biết")
 
     def _claim_output(self, scan_id, root):
         # Persist ownership before touching files. A failed build must be retried
@@ -330,7 +340,10 @@ class ReconOrchestrator:
             plan.warnings.append("recon_engine.sh missing; skipping")
             return None
         output = plan.root / str(len(plan.commands))
+        path_restricted = probe_only and any(host in plan.path_rules for host in hosts)
+        path_only_batch = path_restricted and all(host in plan.path_rules for host in hosts)
         env = recon_env(self.settings, plan.config, output, discovery=discovery, probe_only=probe_only,
+                        path_restricted=path_only_batch,
                         skip_historical=skip_historical or target_type in {"ip", "cidr"})
         if target_type:
             env["TARGET_TYPE"] = target_type
@@ -338,9 +351,48 @@ class ReconOrchestrator:
         if discovery or plan.config.depth != "strong":
             argv.append("--quick")
         command = Command(argv, env, output, resource=str(target),
-                          stage=stage or ("discovery" if discovery else "main"), hosts=tuple(hosts))
+                          stage=stage or ("discovery" if discovery else "main"), hosts=tuple(hosts),
+                          path_restricted=path_restricted)
         plan.commands.append(command)
         return command
+
+    def path_probe_commands(self, plan):
+        """Build bounded URL checks only after historical output is available."""
+        if plan.config.depth == "passive":
+            return []
+        commands = []
+        for original in [c for c in plan.commands if c.path_restricted]:
+            for host in original.hosts:
+                if host not in plan.path_rules:
+                    continue
+                candidates = set()
+                for filename in ("gau.txt", "wayback.txt"):
+                    for url in lines_of(original.output / "urls" / filename):
+                        if simple_candidate(url, host):
+                            candidates.add(url)
+                        if len(candidates) >= 1000:
+                            break
+                with self.database.connect() as conn:
+                    rows = conn.execute("SELECT url FROM url WHERE program_id=? AND url LIKE ? ORDER BY score DESC LIMIT 500",
+                                        (plan.program_id, f"%://{host}/%"))
+                    for row in rows:
+                        if simple_candidate(row[0], host):
+                            candidates.add(row[0])
+                approved = [url for url in sorted(candidates) if plan.gate.in_scope(url)][:50]
+                if not approved:
+                    continue
+                input_dir = plan.root.parent.parent.parent / ".inputs" / str(plan.scan_id)
+                input_dir.mkdir(parents=True, exist_ok=True)
+                input_path = input_dir / f"path-probe-{len(commands)}.json"
+                input_path.write_text(json.dumps({"host": host, "urls": approved,
+                                                  "deny_paths": plan.path_rules[host],
+                                                  "rate_limit": plan.config.rate_limit}), encoding="utf-8")
+                env = recon_env(self.settings, plan.config, original.output, probe_only=True, path_restricted=True)
+                env["PYTHONPATH"] = str(Path(__file__).resolve().parents[2])
+                commands.append(Command([sys.executable, "-m", "backend.jobs.safe_path_probe", str(input_path),
+                                         str(original.output)], env, original.output, "path_probe", host,
+                                        stage="path_probe", hosts=(host,)))
+        return commands
 
     def _host_list(self, plan, hosts, stage="main", probe_only=False):
         input_dir = plan.root.parent.parent.parent / ".inputs" / str(plan.scan_id)
