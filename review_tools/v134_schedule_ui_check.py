@@ -1,0 +1,34 @@
+"""Read-only target QA: isolated temporary DB, no scan, no external network."""
+import json
+import tempfile
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from backend.config import Settings
+from backend.main import create_app
+
+with tempfile.TemporaryDirectory(prefix="bbasm-schedule-ui-") as temp:
+    settings = Settings(_env_file=None, BBASM_DATA=Path(temp) / "data",
+                        BBASM_TARGETS=Path(temp) / "targets",
+                        BBASM_BBROOT=Path("/opt/claude-bug-bounty"),
+                        BBASM_SKIP_HISTORICAL=True)
+    app = create_app(settings)
+    with TestClient(app) as client:
+        draft = client.post("/api/scope/resolve", json={
+            "input": "raw", "name": "qa-schedule-header", "scope": ["127.0.0.1"],
+            "policy_text": "Add X-HackerOne-Research: <username> to requests.",
+        })
+        draft.raise_for_status()
+        saved = client.put("/api/programs/qa-schedule-header/request-headers", json={
+            "headers": ["X-HackerOne-Research: local-tester"]})
+        saved.raise_for_status()
+        summary = client.get("/api/programs/qa-schedule-header/summary").json()
+        # Exact body emitted by frontend Program.tsx; no scan is launched.
+        schedule = client.post("/api/programs/qa-schedule-header/schedule", json={
+            "interval": "weekly", "depth": "light", "enabled": True})
+        print(json.dumps({
+            "saved_header_names": [h.split(":", 1)[0] for h in summary["request_headers"]],
+            "schedule_http": schedule.status_code,
+            "schedule_response": schedule.json(),
+        }, ensure_ascii=True))
