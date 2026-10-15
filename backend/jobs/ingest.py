@@ -99,10 +99,27 @@ class Ingester:
         observed_urls, source_of = set(), {}
         partial_inputs = []
 
+        decisions = {}   # host -> allowed. The scope decision is about the host; deciding it once per host (and auditing it
+                         # once) instead of once per URL is what keeps a 13k-URL scan from spending minutes in the gate.
+
         def asset(resource, category="web", **details):
-            if not isinstance(resource, str) or not plan.gate.in_scope(resource):
+            if not isinstance(resource, str):
                 return None
-            host = resource if category == "source_code" else normalize_host(resource)
+            if category == "source_code":
+                if not plan.gate.in_scope(resource):
+                    return None
+                host = resource
+            else:
+                try:
+                    host = normalize_host(resource)
+                except (ValueError, UnicodeError):
+                    return None
+                if plan.gate.url_rule_for(resource):       # an OUT path of the policy
+                    return None
+                if host not in decisions:
+                    decisions[host] = plan.gate.in_scope(host)
+                if not decisions[host]:
+                    return None
             row = assets.setdefault(host, {"category": category})
             row.update({key: value for key, value in details.items() if value is not None})
             return host

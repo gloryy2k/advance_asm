@@ -560,3 +560,30 @@ Không sửa vendor (submodule pin). Mọi thay đổi nằm ở BBASM; kiểm b
 ### v1.3.3 — sau QA host v1.3.2 (V132_HOST_RESULTS.md)
 - Đạt: nuclei không được spawn khi thiếu template (scan 18,79s, 0 YAML sau scan, 0 kết nối ESTABLISHED, `top`/log không có nuclei), template có mặt ⇒ nuclei chạy `-duc` và gửi header; katana thật pass. 
 - P2 đã sửa: Run giờ ghi rõ "nuclei KHÔNG được chạy … BBASM chặn việc tự tải template" ngay từ lúc dựng kế hoạch (`plan.tool_notes`, không phụ thuộc wrapper vì engine đã bỏ qua nuclei), và cảnh báo/phase/log dùng cùng một câu ("không được chạy"), không còn "chạy nhưng không kiểm tra gì".
+
+## v1.3.4 — Wolt Passive #43: kẹt `running`, Cancel không phản hồi (P1), header bắt buộc (P2)
+
+**Nguyên nhân gốc chưa được xác định.** Không tái hiện được cục bộ (dữ liệu cỡ Wolt, mock + 127.0.0.1); bằng chứng
+cho thấy dữ liệu đã nhập (log cuối "stage main: ok") rồi dừng, trước khi có `done`. Các biện pháp dưới đây loại bỏ
+những nguyên nhân khả dĩ và làm cho lần kẹt sau **lộ ra bước nào** thay vì im lặng.
+
+P1
+- `runner.py`: scan có threadpool riêng (`bbasm-run`, 6 luồng) và Cancel có pool điều khiển riêng (2 luồng) — Cancel
+  không còn xếp hàng sau threadpool mặc định của asyncio.
+- Các bước sau pipeline (ingest, monitors, diff, rank, brief) chạy qua `_post`: có giới hạn thời gian
+  (`POST_LIMITS`), phát sự kiện `stage` (running/ok/timeout/error + `used_s`). Bước thiết yếu quá hạn → scan `failed`
+  có lý do; bước phụ → ghi cảnh báo và đi tiếp. Scan luôn tới trạng thái cuối.
+- `_finalize`: ghi trạng thái cuối thử lại tối đa 4 lần khi DB bị khoá.
+- `cancel()`: mọi thao tác chờ đều có hạn (≤ ~8 s), tự ghi `cancelled` + `done`.
+- `ingest.py`: quyết định scope một lần cho mỗi host (trước: mỗi URL một lần + một dòng audit) — profile 13k URL
+  22 s → ~4.7 s; `normalize_host` dùng regex đơn. Tránh hàng chục nghìn lần ghi audit trên bind mount chậm.
+- `/phases` single-flight + cache ngắn khi tính toán chậm; `count_lines` bỏ qua file > 50 MB — UI polling không chồng chất.
+- Test: `test_v133_hang.py` (6 test).
+
+P2
+- Backend chặn Light/Strong khi policy nhắc header (`required_headers`) mà cấu hình không có header đó:
+  lỗi `header_required` ở `/launch`, `POST /api/scans`, `/schedule`. Chỉ `skip_required_headers=true` (người dùng
+  xác nhận đã đọc policy) mới cho qua. Passive không bị ảnh hưởng. Không bao giờ tự điền giá trị.
+- Review gửi `skip_required_headers` theo ô xác nhận hiện có. Test: `test_v134_header_gate.py`.
+
+Còn mở: Strong vẫn cần người dùng tự cân nhắc khi policy cấm brute-force (ffuf); chưa có xác nhận theo từng bước.

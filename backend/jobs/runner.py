@@ -1,7 +1,9 @@
 """Bounded asyncio job queue; subprocess groups, cancellation and partial output."""
 
 import asyncio
+import functools
 import time
+from concurrent.futures import ThreadPoolExecutor
 import codecs
 from datetime import datetime, timedelta, timezone
 import json
@@ -100,9 +102,21 @@ class JobRunner:
         self.diff_engine = DiffEngine(database)
         self.monitors = Monitors(settings, database)
         self.logs = LogBuffer(settings.BBASM_DATA / "logs")
+        # Scan work and control actions get their own threads: web requests share the default pool, and a backlog of slow
+        # report requests must never be able to queue a Cancel behind itself.
+        self.executor = ThreadPoolExecutor(max_workers=6, thread_name_prefix="bbasm-run")
+        self.control_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="bbasm-ctl")
         self.queue, self.workers, self.tasks = asyncio.Queue(), [], {}
         self.submitted, self.program_locks = set(), {}
         self.closing = False
+
+    async def _thread(self, func, *args):
+        return await asyncio.get_running_loop().run_in_executor(self.executor, functools.partial(func, *args))
+
+    async def _ctl(self, func, *args, timeout=8):
+        """Control-plane call (status/cancel): its own threads and a hard bound, so it cannot hang behind scan work."""
+        return await asyncio.wait_for(
+            asyncio.get_running_loop().run_in_executor(self.control_executor, functools.partial(func, *args)), timeout)
 
     def recover(self):
         """Never silently relaunch a scan after an interrupted dashboard process."""
@@ -256,7 +270,7 @@ class JobRunner:
     async def submit(self, scan_id, config=None, ack=False):
         if self.closing:
             raise ScopeError("Runner is shutting down")
-        await asyncio.to_thread(self._enqueue, scan_id, config, ack)
+        await self._thread(self._enqueue, scan_id, config, ack)
         await self.adopt_queued(scan_id)
 
     async def adopt_queued(self, scan_id):
@@ -265,7 +279,7 @@ class JobRunner:
             raise ScopeError("Runner is shutting down")
         if scan_id in self.submitted:
             return
-        if (await asyncio.to_thread(self.status, scan_id))["status"] != "queued":
+        if (await self._thread(self.status, scan_id))["status"] != "queued":
             raise ScopeError("Only queued scans can enter the runner")
         self.submitted.add(scan_id)
         await self.logs.emit(scan_id, "log", message="Scan queued")
@@ -306,7 +320,7 @@ class JobRunner:
                     return
             except Exception as exc:
                 # An audit/log I/O error must not silently remove a queue worker.
-                await asyncio.to_thread(self._transition, scan_id, "failed", f"Worker error: {type(exc).__name__}")
+                await self._thread(self._transition, scan_id, "failed", f"Worker error: {type(exc).__name__}")
             finally:
                 self.tasks.pop(scan_id, None)
                 self.submitted.discard(scan_id)
@@ -315,16 +329,16 @@ class JobRunner:
     async def _execute(self, scan_id):
         plan, stats, errors, cancelled = None, {}, [], False
         try:
-            row = await asyncio.to_thread(self.status, scan_id)
+            row = await self._thread(self.status, scan_id)
             lock = self.program_locks.setdefault(row["program_id"], asyncio.Lock())
             async with lock:
-                if (await asyncio.to_thread(self.status, scan_id))["status"] != "queued":
+                if (await self._thread(self.status, scan_id))["status"] != "queued":
                     return
-                plan = await asyncio.to_thread(self.orchestrator.build, scan_id)
-                if not await asyncio.to_thread(self._transition, scan_id, "running"):
+                plan = await self._thread(self.orchestrator.build, scan_id)
+                if not await self._thread(self._transition, scan_id, "running"):
                     return
-                await asyncio.to_thread(self._banner, plan.slug, scan_id, "running", plan.config.depth)
-                await asyncio.to_thread(self.diff_engine.capture, plan)
+                await self._thread(self._banner, plan.slug, scan_id, "running", plan.config.depth)
+                await self._thread(self.diff_engine.capture, plan)
                 for message in plan.warnings:
                     await self.logs.emit(scan_id, "log", level="warning", message=message)
                 missing = self.orchestrator.missing_tools()
@@ -347,7 +361,8 @@ class JobRunner:
                         if stage["status"] == "running":
                             stage["status"] = "timeout"
                 # _pipeline guarantees process cleanup before we inspect partial files.
-                stats = await asyncio.to_thread(self.ingester.ingest, plan)
+                # Everything after the pipeline is announced and bounded: a silent step used to look exactly like a hang.
+                stats = await self._post(plan, "ingest", "Nạp dữ liệu vào DB", self.ingester.ingest, plan, timeout=self.POST_LIMITS["ingest"])
                 stats["missing_tools"] = missing
                 stats["missing_needed"] = sorted(set(missing) & needed)
                 stats["stages"], stats["sources"], stats["tool_notes"] = plan.stages, plan.sources, plan.tool_notes
@@ -355,18 +370,20 @@ class JobRunner:
                 stats["coverage"] = plan.coverage
                 stats["path_rule_hosts"] = plan.path_rules
                 stats["request_headers"] = [h.partition(":")[0] for h in plan.config.request_headers]  # names only, never values
-                stats["monitor_findings"] = await asyncio.to_thread(self.monitors.ingest, plan)
-                stats["findings"] = await asyncio.to_thread(self._finding_count, plan)
-                stats["diff"] = await asyncio.to_thread(self.diff_engine.apply, plan,
-                    stats.get("observations", {}), complete=not errors and bool(plan.commands) and plan.coverage["unprobed"] == 0)
+                stats["monitor_findings"] = await self._post(plan, "monitors", "Nạp kết quả monitor", self.monitors.ingest, plan, timeout=self.POST_LIMITS["monitors"], soft=errors, default=0)
+                stats["findings"] = await self._thread(self._finding_count, plan)
+                complete = not errors and bool(plan.commands) and plan.coverage["unprobed"] == 0
+                stats["diff"] = await self._post(plan, "diff", "So sánh với scan trước", self._diff, plan, stats.get("observations", {}), complete,
+                                                 timeout=self.POST_LIMITS["diff"], soft=errors, default={"new": 0, "changed": 0, "gone": 0})
                 from backend.asm.ranking import rank_program
-                await asyncio.to_thread(rank_program, self.database, plan.program_id, scan_id)
+                await self._post(plan, "rank", "Xếp hạng bề mặt", rank_program, self.database, plan.program_id, scan_id, timeout=self.POST_LIMITS["rank"], soft=errors)
                 await self._intel(plan, stats, parser)
                 preview = "done_partial" if errors and stats.get("observed") else "failed" if errors else "done"
                 if preview in {"done", "done_partial"}:
-                    await asyncio.to_thread(self._transition, scan_id, preview, "; ".join(errors) or None, stats)
+                    await self._thread(self._transition, scan_id, preview, "; ".join(errors) or None, stats)
                     from backend.brief.generator import BriefGenerator
-                    stats["brief"] = await asyncio.to_thread(BriefGenerator(self.settings, self.database).generate, plan.slug, scan_id)
+                    stats["brief"] = await self._post(plan, "brief", "Tạo AGENT_BRIEF.md", BriefGenerator(self.settings, self.database).generate, plan.slug, scan_id,
+                                                      timeout=self.POST_LIMITS["brief"], soft=errors, default=None)
         except asyncio.CancelledError:
             cancelled = True
         except Exception as exc:
@@ -377,12 +394,60 @@ class JobRunner:
             status = "done_partial" if stats.get("observed", 0) else "failed"
         else:
             status = "done"
-        await asyncio.to_thread(self._transition, scan_id, status, "; ".join(errors)[:2000] or None, stats)
+        await self._finalize(scan_id, status, "; ".join(errors)[:2000] or None, stats)
         if plan and status in {"failed", "cancelled"}:
-            await asyncio.to_thread(self._banner, plan.slug, scan_id, status, plan.config.depth)
+            await self._thread(self._banner, plan.slug, scan_id, status, plan.config.depth)
         if plan:
             audit(plan.audit_path, plan.slug, status, "scan_finished", scan_id=scan_id)
         await self.logs.emit(scan_id, "done", status=status, stats=stats, error="; ".join(errors)[:2000] or None)
+
+    # Upper bound (seconds) for each step after the pipeline. A step that exceeds it stops being waited for: the scan
+    # reaches a terminal state with the reason in its error instead of staying "running" forever.
+    POST_LIMITS = {"ingest": 900, "monitors": 120, "diff": 300, "rank": 300, "brief": 120}
+
+    def _diff(self, plan, observations, complete):
+        return self.diff_engine.apply(plan, observations, complete=complete)
+
+    async def _post(self, plan, key, label, func, *args, timeout, soft=None, default=None):
+        """Run one blocking step off the event loop with a progress event, timing and a hard bound.
+
+        soft=None: the step is essential, a timeout aborts the scan (status failed with the reason).
+        soft=<errors list>: the scan continues without this step and says so in its errors."""
+        scan_id = plan.scan_id
+        await self.logs.emit(scan_id, "stage", key=key, label=label, status="running", message=f"▶ {label}")
+        started = time.monotonic()
+        try:
+            result = await asyncio.wait_for(self._thread(func, *args), timeout)
+        except asyncio.TimeoutError:
+            reason = f"Bước '{label}' quá {timeout}s (timeout); không chờ thêm"
+            await self.logs.emit(scan_id, "stage", key=key, label=label, status="timeout", message=f"■ {label}: timeout sau {timeout}s")
+            if soft is None:
+                raise RuntimeError(reason) from None
+            soft.append(reason)
+            return default
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            if soft is None:
+                raise
+            soft.append(f"Bước '{label}' lỗi: {type(exc).__name__}: {str(exc)[:200]}")
+            await self.logs.emit(scan_id, "stage", key=key, label=label, status="error", message=f"■ {label}: lỗi {type(exc).__name__}")
+            return default
+        await self.logs.emit(scan_id, "stage", key=key, label=label, status="ok", used_s=round(time.monotonic() - started, 1),
+                             message=f"■ {label}: xong sau {time.monotonic() - started:.1f}s")
+        return result
+
+    async def _finalize(self, scan_id, status, error, stats):
+        """The last write of a scan. A busy database must never leave it "running": retry, then give up loudly."""
+        for attempt in range(4):
+            try:
+                await self._thread(self._transition, scan_id, status, error, stats)
+                return
+            except Exception as exc:
+                if attempt == 3:
+                    await self.logs.emit(scan_id, "log", level="error", message=f"Không ghi được trạng thái cuối ({type(exc).__name__})")
+                    raise
+                await asyncio.sleep(1 + attempt)
 
     def _banner(self, slug, scan_id, status, depth):
         """Tell readers of AGENT_BRIEF.md which scan the file belongs to while a newer one runs or after it failed."""
@@ -460,12 +525,12 @@ class JobRunner:
         await self._stage(plan, "discovery", [c for c in initial if c.stage == "discovery"], deadline("discovery"), parser, errors)
         await self._stage(plan, "main", [c for c in initial if c.stage != "discovery"], deadline("main"), parser, errors)
         if plan.config.depth != "passive":
-            hosts = await asyncio.to_thread(self.orchestrator.discovered_hosts, plan)
-            batches = await asyncio.to_thread(self.orchestrator.probe_batches, plan, hosts)
+            hosts = await self._thread(self.orchestrator.discovered_hosts, plan)
+            batches = await self._thread(self.orchestrator.probe_batches, plan, hosts)
             await self._stage(plan, "probe", batches, deadline("probe"), parser, errors, on_success=done)
-            deep = await asyncio.to_thread(self.orchestrator.deep_command, plan, batches)
+            deep = await self._thread(self.orchestrator.deep_command, plan, batches)
             await self._stage(plan, "deep", [deep] if deep else [], deadline("deep"), parser, errors)
-        await self._stage(plan, "monitor", await asyncio.to_thread(self.monitors.commands, plan), started + total, parser, errors)
+        await self._stage(plan, "monitor", await self._thread(self.monitors.commands, plan), started + total, parser, errors)
 
     async def _intel(self, plan, stats, parser):
         from backend.jobs.recon_orch import Command, recon_env
@@ -533,11 +598,11 @@ class JobRunner:
         names = {"timeout": "quá thời gian", "error": "lỗi"}
         problems = []
         from backend.jobs.recon_orch import read_tool_notes
-        for note in await asyncio.to_thread(read_tool_notes, command.output):
+        for note in await self._thread(read_tool_notes, command.output):
             if note not in plan.tool_notes:
                 plan.tool_notes.append(note)
                 await self.logs.emit(plan.scan_id, "log", level="warning", tag="skipped_config", message=f"{note['tool']}: {note['note']}")
-        for row in await asyncio.to_thread(read_source_status, command.output):
+        for row in await self._thread(read_source_status, command.output):
             plan.sources.append({**row, "stage": command.stage})
             if row["status"] != "ok":
                 text = f"Nguồn {row['source']} {names[row['status']]} sau {row['seconds']}s"
@@ -546,22 +611,27 @@ class JobRunner:
         return problems
 
     async def cancel(self, scan_id):
-        row = await asyncio.to_thread(self.status, scan_id)
+        """Always returns promptly: it uses the control threads, bounds every wait, and writes the terminal state itself
+        when the scan's own coroutine cannot (blocked on a slow disk or a locked database)."""
+        row = await self._ctl(self.status, scan_id)
         if row["status"] in {"done", "done_partial", "failed", "cancelled"}:
             return
         task = self.tasks.get(scan_id)
         if task is not None:
             if not task.cancelling():
                 task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
-            # A Task cancelled before its coroutine starts never enters _execute's
-            # exception handler. Persist cancellation in that race as well.
-            if (await asyncio.to_thread(self.status, scan_id))["status"] in {"queued", "running"}:
-                await asyncio.to_thread(self._transition, scan_id, "cancelled")
+            try:   # the task normally ends within a moment; if it is stuck in a worker thread we stop waiting
+                await asyncio.wait_for(asyncio.gather(task, return_exceptions=True), 5)
+            except asyncio.TimeoutError:
+                pass
+            # A Task cancelled before its coroutine starts never enters _execute's exception handler, and one stuck in a
+            # thread may not get to its final write. Persist cancellation here as well.
+            if (await self._ctl(self.status, scan_id))["status"] in {"queued", "running"}:
+                await self._ctl(self._transition, scan_id, "cancelled")
                 await self.logs.emit(scan_id, "done", status="cancelled")
         else:
             self.submitted.discard(scan_id)
-            await asyncio.to_thread(self._transition, scan_id, "cancelled")
+            await self._ctl(self._transition, scan_id, "cancelled")
             await self.logs.emit(scan_id, "done", status="cancelled")
 
     async def close(self):
@@ -572,3 +642,5 @@ class JobRunner:
             worker.cancel()
         await asyncio.gather(*self.workers, return_exceptions=True)
         self.workers.clear()
+        self.executor.shutdown(wait=False, cancel_futures=True)
+        self.control_executor.shutdown(wait=False, cancel_futures=True)

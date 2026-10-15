@@ -75,9 +75,11 @@ class ScanConfig(BaseModel):
     # Hosts that carry an OUT rule about a *path* get probe-only treatment (crawlers/templates cannot honour a path
     # exclusion). The user may knowingly allow the active tools on them; OUT URLs are still filtered from every result.
     allow_active_on_path_rules: bool = False
+    # The user read the policy and knowingly runs Light/Strong without the header it names. Never implied.
+    skip_required_headers: bool = False
 
     def options(self) -> dict:
-        return {name: getattr(self, name) for name in (*OPTION_FIELDS, "request_headers", "allow_active_on_path_rules")}
+        return {name: getattr(self, name) for name in (*OPTION_FIELDS, "request_headers", "allow_active_on_path_rules", "skip_required_headers")}
 
     @field_validator("request_headers")
     @classmethod

@@ -21,6 +21,18 @@ def require_gate(depth: str, gate: dict):
         raise ScopeError("Chưa đủ dữ liệu scope/policy để chạy " + depth + ": " + " ".join(gate.get("reasons", [])), "scope_incomplete")
 
 
+def require_headers(config, hints):
+    """Policy names a header (e.g. X-HackerOne-Research) and the config sends none of them: Light/Strong stop here.
+    Only an explicit skip_required_headers lets it through; the value itself is never invented."""
+    if config.depth == "passive" or config.skip_required_headers:
+        return
+    have = {h.split(":", 1)[0].strip().lower() for h in config.request_headers}
+    missing = [name for name in hints or [] if name.lower() not in have]
+    if missing:
+        raise ScopeError("Policy yêu cầu header " + ", ".join(missing) + " nhưng scan chưa cấu hình. Điền giá trị ở bước Review, "
+                         "hoặc xác nhận đã đọc policy và bỏ qua (skip_required_headers=true).", "header_required")
+
+
 class AutoScanRequest(BaseModel):
     input: str
     scope: list[str] = []
@@ -49,7 +61,9 @@ async def auto_scan(body: AutoScanRequest, request: Request):
     config = body.config or default_config(state.settings.model_copy(update={"BBASM_DEFAULT_DEPTH": body.depth}),
         [entry for group in result.assets_by_category.values() for entry in group])
     try:
-        require_gate(config.depth, (await asyncio.to_thread(state.runner.review, result.scan_id))["launch_gate"])
+        review = await asyncio.to_thread(state.runner.review, result.scan_id)
+        require_gate(config.depth, review["launch_gate"])
+        require_headers(config, review["request_header_hints"])
     except ScopeError:
         await asyncio.to_thread(state.runner.delete_draft, result.scan_id)  # do not leave a draft nobody asked to keep
         raise
@@ -86,14 +100,33 @@ async def plan_preview(config: ScanConfig, request: Request):
     return {"phases": plan_for(config, state.settings, state.runner.orchestrator.missing_tools())}
 
 
+_REPORT_CACHE: dict = {}
+_REPORT_LOCKS: dict = {}
+
+
 @router.get("/api/scans/{scan_id}/phases")
 async def scan_phases(scan_id: int, request: Request):
+    """Per-step report. Building it walks the scan's output directory; on a slow disk (Docker bind mounts) the Run page
+    polling it every few seconds used to pile up requests and starve everything else. One build at a time per scan, and a
+    slow result is reused for a short while (a fast one is never cached, so tests and quick disks always see fresh data)."""
+    import time
     from backend.asm.phases import build_report
     state = request.app.state
-    report = await asyncio.to_thread(build_report, state.settings, state.database, scan_id, state.runner.orchestrator.missing_tools())
-    if report is None:
-        raise ScopeError("Scan not found", "scan_not_found")
-    return report
+    hit = _REPORT_CACHE.get(scan_id)
+    if hit and time.monotonic() < hit[0]:
+        return hit[1]
+    async with _REPORT_LOCKS.setdefault(scan_id, asyncio.Lock()):
+        hit = _REPORT_CACHE.get(scan_id)
+        if hit and time.monotonic() < hit[0]:
+            return hit[1]
+        started = time.monotonic()
+        report = await asyncio.to_thread(build_report, state.settings, state.database, scan_id, state.runner.orchestrator.missing_tools())
+        took = time.monotonic() - started
+        if report is None:
+            raise ScopeError("Scan not found", "scan_not_found")
+        if took > 0.5:
+            _REPORT_CACHE[scan_id] = (time.monotonic() + min(10.0, 3 * took), report)
+        return report
 
 
 @router.get("/api/scans/{scan_id}/artifact")
@@ -139,9 +172,12 @@ async def delete_draft(scan_id: int, request: Request):
 @router.post("/api/scans/{scan_id}/launch")
 async def launch(scan_id: int, body: LaunchRequest, request: Request):
     runner = request.app.state.runner
-    depth = body.config.depth if body.config else (await asyncio.to_thread(runner.config, scan_id)).depth
+    config = body.config or await asyncio.to_thread(runner.config, scan_id)
+    depth = config.depth
     require_ack(depth, body.automation_ack)
-    require_gate(depth, (await asyncio.to_thread(runner.review, scan_id))["launch_gate"])
+    review = await asyncio.to_thread(runner.review, scan_id)
+    require_gate(depth, review["launch_gate"])
+    require_headers(config, review["request_header_hints"])
     await runner.submit(scan_id, body.config, ack=body.automation_ack)
     return {"scan_id": scan_id, "status": "queued"}
 

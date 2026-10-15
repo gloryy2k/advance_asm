@@ -56,6 +56,7 @@ SECRET_FILES = {"trufflehog.jsonl", "noseyparker.jsonl", "gitleaks.json", "poten
 SECRET_KEYS = {"Raw", "RawV2", "Secret", "Match", "Redacted", "raw", "secret", "match"}
 MAX_LINE = 2000
 MAX_SCAN_BYTES = 300 * 1024 * 1024
+MAX_COUNT_BYTES = 50 * 1024 * 1024
 
 
 def disabled_reason(config, key, *, historical_off=False):
@@ -138,7 +139,7 @@ def _safe_files(root):
 
 def count_lines(path):
     try:
-        if path.stat().st_size > MAX_SCAN_BYTES:
+        if path.stat().st_size > MAX_COUNT_BYTES:   # counting lines of a huge file just to show a number is not worth the I/O
             return None
         total, last = 0, b""
         with path.open("rb") as stream:

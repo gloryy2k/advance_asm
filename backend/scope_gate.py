@@ -24,8 +24,11 @@ def audit(path: Path, host: str, decision: str, rule: str, **extra) -> None:
             stream.write(json.dumps(record, ensure_ascii=True) + "\n")
 
 
+_BAD_HOST_CHARS = re.compile(r"[\s\x00-\x1f\\%]")
+
+
 def normalize_host(value: str) -> str:
-    if not value or any(char.isspace() or ord(char) < 32 for char in value) or "\\" in value or "%" in value:
+    if not value or _BAD_HOST_CHARS.search(value):
         raise ValueError("invalid host")
     try:
         return str(ipaddress.ip_address(value))

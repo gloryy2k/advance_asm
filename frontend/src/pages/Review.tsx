@@ -149,7 +149,7 @@ export function Review({ id }: { id: string }) {
     setBusy(true);
     setError("");
     try {
-      await api("/api/scans/" + id + "/launch", { method: "POST", body: JSON.stringify({ config, automation_ack: needAck && ack }) });
+      await api("/api/scans/" + id + "/launch", { method: "POST", body: JSON.stringify({ config: { ...config, skip_required_headers: hintsMissing.length > 0 && skipHint }, automation_ack: needAck && ack }) });
       if (headerDefault) {
         await api("/api/programs/" + encodeURIComponent(review.slug) + "/request-headers", { method: "PUT", body: JSON.stringify({ headers: headerLines }) }).catch(() => undefined);
       }
