@@ -69,3 +69,24 @@ def test_scheduler_rejects_invalid_interval_and_config(settings):
         scheduler.configure(1, "every_second", result.config)
     with pytest.raises(ScopeError):
         scheduler.configure(1, "daily", result.config.model_copy(update={"scan_timeout": 999999}))
+
+
+def test_dispatch_refuses_when_policy_started_asking_for_a_header(settings):
+    async def scenario():
+        db, _, result = environment(settings)
+        runner = JobRunner(settings, db)
+        runner.adopt_queued = AsyncMock()
+        scheduler = ScanScheduler(settings, db, runner)
+        scheduler.configure(1, "6h", result.config)
+        past = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+        with db.connect() as conn, conn:
+            conn.execute("UPDATE schedule SET next_run_at=?", (past,))
+            conn.execute("UPDATE program SET policy_json=?", (json.dumps({"user_policy_text": "Send X-HackerOne-Research: <user> always"}),))
+        with pytest.raises(ScopeError) as err:
+            await scheduler.dispatch(1)
+        assert err.value.code == "header_required"
+        runner.adopt_queued.assert_not_awaited()
+        with db.connect() as conn:
+            assert conn.execute("SELECT count(*) FROM scan_run WHERE trigger='scheduled'").fetchone()[0] == 0
+        await runner.close()
+    asyncio.run(scenario())

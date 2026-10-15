@@ -31,6 +31,7 @@ export type Config = {
   /** "Name: value" headers the program's policy requires on requests to the target. Per program, never part of a profile. */
   request_headers?: string[];
   allow_active_on_path_rules?: boolean;
+  skipped_headers?: string[];
   skip_required_headers?: boolean;
 };
 

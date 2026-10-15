@@ -22,15 +22,16 @@ def require_gate(depth: str, gate: dict):
 
 
 def require_headers(config, hints):
-    """Policy names a header (e.g. X-HackerOne-Research) and the config sends none of them: Light/Strong stop here.
-    Only an explicit skip_required_headers lets it through; the value itself is never invented."""
+    """Policy names a header (e.g. X-HackerOne-Research) that the config neither sends nor was told to skip: Light/Strong
+    stop here. The confirmation is per header name (skipped_headers), so a header the policy adds later is not covered by
+    an old answer. The value itself is never invented."""
     if config.depth == "passive" or config.skip_required_headers:
         return
-    have = {h.split(":", 1)[0].strip().lower() for h in config.request_headers}
-    missing = [name for name in hints or [] if name.lower() not in have]
+    covered = {h.split(":", 1)[0].strip().lower() for h in config.request_headers} | {n.lower() for n in config.skipped_headers}
+    missing = [name for name in hints or [] if name.lower() not in covered]
     if missing:
         raise ScopeError("Policy yêu cầu header " + ", ".join(missing) + " nhưng scan chưa cấu hình. Điền giá trị ở bước Review, "
-                         "hoặc xác nhận đã đọc policy và bỏ qua (skip_required_headers=true).", "header_required")
+                         "hoặc xác nhận đã đọc policy và bỏ qua (skipped_headers).", "header_required")
 
 
 class AutoScanRequest(BaseModel):

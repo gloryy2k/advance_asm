@@ -72,6 +72,10 @@ class ScanScheduler:
             if config.depth != row["depth"]:
                 raise ScopeError("Schedule depth differs from stored config")
             self.runner._validate(config)
+            policy = json.loads(conn.execute("SELECT policy_json FROM program WHERE id=?", (program_id,)).fetchone()[0] or "{}")
+            from backend.api.scans import require_headers
+            from backend.trust import required_headers
+            require_headers(config, required_headers(policy))  # policy may have started asking for a header since scheduling
             previous = datetime.fromisoformat(row["next_run_at"])
             step = INTERVALS[row["interval"]]
             next_run = previous + timedelta(seconds=(int((now - previous).total_seconds() // step) + 1) * step)
@@ -91,5 +95,6 @@ class ScanScheduler:
             if not target.is_relative_to(self.settings.BBASM_TARGETS.resolve()):
                 raise ScopeError("Scheduled target escapes target root")
             audit(target / "audit.jsonl", slug, "queued", "scheduled_scan", scan_id=scan_id)
+        self.runner._audit_headers(scan_id, config)
         await self.runner.adopt_queued(scan_id)
         return scan_id

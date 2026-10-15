@@ -3,7 +3,7 @@
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Depth = Literal["passive", "light", "strong"]
 Category = Literal["web", "wildcard", "ip", "cidr", "source_code", "mobile", "other"]
@@ -75,16 +75,37 @@ class ScanConfig(BaseModel):
     # Hosts that carry an OUT rule about a *path* get probe-only treatment (crawlers/templates cannot honour a path
     # exclusion). The user may knowingly allow the active tools on them; OUT URLs are still filtered from every result.
     allow_active_on_path_rules: bool = False
-    # The user read the policy and knowingly runs Light/Strong without the header it names. Never implied.
+    # Header names from the policy that the user read and knowingly does not send ("X-HackerOne-Research"). Names, not
+    # values; stored with the draft/schedule so every screen reads one answer. A header that is sent needs no entry.
+    skipped_headers: list[str] = Field(default_factory=list, max_length=5)
+    # Legacy blanket form of the same confirmation (accepted for older clients and stored schedules).
     skip_required_headers: bool = False
 
     def options(self) -> dict:
-        return {name: getattr(self, name) for name in (*OPTION_FIELDS, "request_headers", "allow_active_on_path_rules", "skip_required_headers")}
+        return {name: getattr(self, name) for name in (*OPTION_FIELDS, "request_headers", "allow_active_on_path_rules", "skipped_headers", "skip_required_headers")}
 
     @field_validator("request_headers")
     @classmethod
     def safe_headers(cls, value):
         return [validate_header(item) for item in value]
+
+    @field_validator("skipped_headers")
+    @classmethod
+    def safe_skipped(cls, value):
+        names = []
+        for name in value:
+            if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,59}", name.strip()):
+                raise ValueError(f"Tên header không hợp lệ: {str(name)[:40]!r}")
+            if name.strip().lower() not in {n.lower() for n in names}:
+                names.append(name.strip())
+        return names
+
+    @model_validator(mode="after")
+    def drop_sent_from_skipped(self):
+        # Once a header is actually sent, an old "I skip it" confirmation is meaningless and must not linger.
+        sent = {h.split(":", 1)[0].strip().lower() for h in self.request_headers}
+        self.skipped_headers = [n for n in self.skipped_headers if n.lower() not in sent]
+        return self
 
     @field_validator("url_exclude_patterns")
     @classmethod

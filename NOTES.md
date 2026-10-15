@@ -587,3 +587,14 @@ P2
 - Review gửi `skip_required_headers` theo ô xác nhận hiện có. Test: `test_v134_header_gate.py`.
 
 Còn mở: Strong vẫn cần người dùng tự cân nhắc khi policy cấm brute-force (ffuf); chưa có xác nhận theo từng bước.
+
+## v1.3.5 — Xác nhận header policy nhất quán (P2 của V134_HOST_RESULTS)
+
+- Nghĩa duy nhất: xác nhận "đã đọc policy, không dùng header X" là **một phần config của draft/schedule**, theo **tên header**
+  (`skipped_headers`). Header policy thêm về sau không bị xác nhận cũ phủ lên. `skip_required_headers: true` giữ làm dạng cũ (chấp nhận, không UI).
+- Header đã được gửi thì tự bị loại khỏi `skipped_headers` (model validator). Không nằm trong profile; `/rescan` không chép xác nhận.
+- Review: ô xác nhận suy ra từ config (không còn state cục bộ ghi đè lúc Launch); sửa cấu hình lưu vào draft sau 0,7 s nên tải lại trang
+  giữ nguyên lựa chọn.
+- Enforcement: `/launch`, `POST /api/scans`, `/schedule` (`header_required`) và **lúc `dispatch`** (policy có thể đã thêm header từ khi lên lịch).
+- Audit: `request_headers` — `required`, `sent`, `skipped`, chỉ tên, không giá trị; ghi lúc Launch và lúc schedule xếp hàng.
+- Tests: `test_v134_header_gate.py` (5), `test_scheduler.py` (+1), Vitest (+1).

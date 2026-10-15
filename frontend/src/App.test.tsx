@@ -874,6 +874,22 @@ describe("v1.3: policy header, OUT paths, stages and coverage", () => {
     expect(screen.getAllByRole("status").some((n) => /Header không hợp lệ/.test(n.textContent || ""))).toBe(true);
   });
 
+  test("a skipped header stored in the draft shows as confirmed after reload, and edits are saved to the draft", async () => {
+    const fetch = stubFetch((path, init) =>
+      path === "/api/health" ? health() : path.endsWith("/review") ? withHint()
+        : path.endsWith("/config") ? { ...baseConfig, skipped_headers: ["X-HackerOne-Research"] }
+          : path.endsWith("/launch") ? { scan_id: 4, status: "queued" } : {});
+    location.hash = "/scan/4/review";
+    render(<App />);
+    fireEvent.click(await screen.findByLabelText(/Tôi đã đọc policy và program cho phép/));
+    const skip = screen.getByLabelText(/không dùng header X-HackerOne-Research/) as HTMLInputElement;
+    expect(skip.checked).toBe(true);
+    expect(screen.getByRole("button", { name: "Launch scan" })).toBeEnabled();
+    fireEvent.click(skip);   // withdraw the confirmation: blocked again, and the draft remembers it
+    await waitFor(() => expect(screen.getByRole("button", { name: "Launch scan" })).toBeDisabled());
+    await waitFor(() => expect(JSON.parse(calls(fetch, "/config", "PUT")[0][1]!.body as string).skipped_headers).toEqual([]));
+  });
+
   test("OUT URLs with a path are listed as path rules, hosts are probe-only unless the user opts in", async () => {
     const fetch = reviewStub(withHint());
     location.hash = "/scan/4/review";

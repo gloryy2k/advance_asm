@@ -172,6 +172,21 @@ class JobRunner:
             conn.execute("UPDATE scan_run SET status='queued' WHERE id=?", (scan_id,))
         if ack:
             self._audit_ack(scan_id)
+        self._audit_headers(scan_id, config)
+
+    def _audit_headers(self, scan_id, config):
+        """What the policy asked for, what is sent and what the user knowingly skipped. Names only, never values."""
+        if config.depth == "passive":
+            return
+        with self.database.connect() as conn:
+            row = conn.execute("SELECT p.slug,p.policy_json FROM scan_run s JOIN program p ON p.id=s.program_id WHERE s.id=?", (scan_id,)).fetchone()
+        required = required_headers(json.loads(row["policy_json"] or "{}"))
+        sent = [h.split(":", 1)[0].strip() for h in config.request_headers]
+        if not (required or sent):
+            return
+        skipped = [n for n in required if n.lower() not in {s.lower() for s in sent}]
+        audit(self.settings.BBASM_TARGETS / row["slug"] / "audit.jsonl", row["slug"], "allow" if not skipped else "ack",
+              "request_headers", scan_id=scan_id, required=required, sent=sent, skipped=skipped)
 
     @staticmethod
     def _apply_scope_snapshot(conn, scan_id):

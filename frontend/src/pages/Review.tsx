@@ -43,7 +43,6 @@ export function Review({ id }: { id: string }) {
   const [saving, setSaving] = useState(false);
   const [newName, setNewName] = useState("");
   const [asDefault, setAsDefault] = useState(false);
-  const [skipHint, setSkipHint] = useState(false);
   const [headerDefault, setHeaderDefault] = useState(false);
   const confirmRef = useRef<HTMLElement>(null);
   const autoPassive = useRef(false);
@@ -70,6 +69,21 @@ export function Review({ id }: { id: string }) {
     }, 200);
     return () => { live = false; clearTimeout(t); };
   }, [planKey, config === null]);
+
+  // Draft edits are saved as you go, so reloading the page shows the same choices the server will launch with.
+  const savedKey = useRef<string | null>(null);
+  const isDraftNow = info.data?.scan.status === "draft";
+  useEffect(() => {
+    if (!config || !isDraftNow) return;
+    if (savedKey.current === null) { savedKey.current = planKey; return; }   // first value is what the server already has
+    if (savedKey.current === planKey) return;
+    const t = setTimeout(() => {
+      api<Config>("/api/scans/" + id + "/config", { method: "PUT", body: planKey })
+        .then(() => { savedKey.current = planKey; })
+        .catch(() => undefined);   // Launch sends the config anyway and reports any real error
+    }, 700);
+    return () => clearTimeout(t);
+  }, [planKey, isDraftNow, id]);
 
   const entries = info.data?.scope || [];
   const ins = entries.filter((e) => e.kind === "in");
@@ -110,12 +124,15 @@ export function Review({ id }: { id: string }) {
   const headerNames = headerLines.map((h) => h.split(":")[0].trim().toLowerCase());
   const badHeader = headerLines.find((h) => !/^[A-Za-z0-9][A-Za-z0-9-]{0,59}:\s*[\x20-\x7e]+$/.test(h));
   const hintsMissing = needAck ? (review.request_header_hints || []).filter((n) => !headerNames.includes(n.toLowerCase())) : [];
+  // The confirmation lives in the config (per header name), so a reloaded draft shows exactly what the server will enforce.
+  const skippedNames = (config.skipped_headers || []).map((n) => n.toLowerCase());
+  const hintsOpen = config.skip_required_headers ? [] : hintsMissing.filter((n) => !skippedNames.includes(n.toLowerCase()));
   const pathRules = outs.filter((e) => /^https?:\/\/[^/]+\/.+/.test(e.pattern));
   const pathHosts = [...new Set(pathRules.map((e) => new URL(e.pattern).hostname.toLowerCase()))];
   const blocker = !isDraft ? "Scan này đã được launch."
     : depthBlocked ? gateReason + ". Chỉ chạy được Passive cho tới khi đủ dữ liệu."
     : badHeader ? `Header không hợp lệ: "${badHeader.slice(0, 40)}" (dạng 'Tên: giá trị', giá trị là ký tự in được)`
-    : hintsMissing.length && !skipHint ? `Policy yêu cầu header ${hintsMissing.join(", ")}: điền giá trị hoặc xác nhận bỏ qua`
+    : hintsOpen.length ? `Policy yêu cầu header ${hintsOpen.join(", ")}: điền giá trị hoặc xác nhận bỏ qua`
     : unsupported ? health.data!.runtime!.reason
     : included.length === 0 ? "Chưa có mục IN nào được chọn để kiểm tra."
     : needAck && !ack ? "Cần xác nhận program cho phép scan tự động."
@@ -149,7 +166,7 @@ export function Review({ id }: { id: string }) {
     setBusy(true);
     setError("");
     try {
-      await api("/api/scans/" + id + "/launch", { method: "POST", body: JSON.stringify({ config: { ...config, skip_required_headers: hintsMissing.length > 0 && skipHint }, automation_ack: needAck && ack }) });
+      await api("/api/scans/" + id + "/launch", { method: "POST", body: JSON.stringify({ config, automation_ack: needAck && ack }) });
       if (headerDefault) {
         await api("/api/programs/" + encodeURIComponent(review.slug) + "/request-headers", { method: "PUT", body: JSON.stringify({ headers: headerLines }) }).catch(() => undefined);
       }
@@ -235,7 +252,8 @@ export function Review({ id }: { id: string }) {
                 onChange={(e) => edit({ request_headers: e.target.value.split("\n").map((l) => l.trim()).filter(Boolean) })} />
             </label>
             {hintsMissing.length > 0 && (
-              <label className="check"><input type="checkbox" checked={skipHint} onChange={(e) => setSkipHint(e.target.checked)} />Tôi đã đọc policy và không dùng header {hintsMissing.join(", ")} cho scan này.</label>
+              <label className="check"><input type="checkbox" checked={hintsOpen.length === 0}
+                onChange={(e) => edit({ skipped_headers: e.target.checked ? hintsMissing : [], skip_required_headers: false })} />Tôi đã đọc policy và không dùng header {hintsMissing.join(", ")} cho scan này.</label>
             )}
             <label className="check inline"><input type="checkbox" checked={headerDefault} onChange={(e) => setHeaderDefault(e.target.checked)} />Dùng làm mặc định cho program này (các scan sau tự điền)</label>
           </div>
