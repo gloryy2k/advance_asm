@@ -332,8 +332,9 @@ class JobRunner:
                 needed = tools_needed(plan.config, self.settings)
                 for name in missing:
                     if name in needed:
+                        hint = " (nuclei chạy nhưng không kiểm tra gì; chạy `nuclei -update-templates` hoặc đặt BBASM_UPDATE_TEMPLATES=1)" if name == "nuclei-templates" else ""
                         await self.logs.emit(scan_id, "log", level="warning", tag="missing_tool",
-                                             message=f"Thiếu công cụ {name}: các bước dùng nó sẽ bị bỏ qua")
+                                             message=f"Thiếu {name}: các bước dùng nó sẽ bị bỏ qua{hint}")
                     else:   # not used by this configuration (e.g. ffuf below Strong): not a problem, only noted
                         await self.logs.emit(scan_id, "log", tag="not_needed", message=f"{name} chưa cài — không dùng ở cấu hình này")
                 parser = ReconLogParser(self.settings, plan.config)
@@ -349,7 +350,7 @@ class JobRunner:
                 stats = await asyncio.to_thread(self.ingester.ingest, plan)
                 stats["missing_tools"] = missing
                 stats["missing_needed"] = sorted(set(missing) & needed)
-                stats["stages"], stats["sources"] = plan.stages, plan.sources
+                stats["stages"], stats["sources"], stats["tool_notes"] = plan.stages, plan.sources, plan.tool_notes
                 plan.coverage["unprobed"] = max(0, plan.coverage["discovered"] - plan.coverage["probed"])
                 stats["coverage"] = plan.coverage
                 stats["path_rule_hosts"] = plan.path_rules
@@ -531,6 +532,11 @@ class JobRunner:
         from backend.jobs.recon_orch import read_source_status
         names = {"timeout": "quá thời gian", "error": "lỗi"}
         problems = []
+        from backend.jobs.recon_orch import read_tool_notes
+        for note in await asyncio.to_thread(read_tool_notes, command.output):
+            if note not in plan.tool_notes:
+                plan.tool_notes.append(note)
+                await self.logs.emit(plan.scan_id, "log", level="warning", tag="skipped_config", message=f"{note['tool']}: {note['note']}")
         for row in await asyncio.to_thread(read_source_status, command.output):
             plan.sources.append({**row, "stage": command.stage})
             if row["status"] != "ok":

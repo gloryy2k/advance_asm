@@ -5,7 +5,7 @@ bbasm_shim_dir() { cd "$(dirname "${BASH_SOURCE[1]}")" && pwd; }
 # The engine re-exports PATH with ~/go/bin and /usr/local/bin in front, which would hide a PATH shim, so BBASM also
 # exports these wrappers as bash functions (they win over any PATH lookup). Inside a wrapper the function itself
 # must not be found again: use `type -P` (files on PATH only) and an absolute path.
-unset -f curl subfinder 2>/dev/null
+unset -f curl subfinder katana 2>/dev/null
 
 bbasm_real() {  # $1 = tool name, $2 = shim dir: first executable on PATH that is not the shim itself
     local clean="" part parts
@@ -17,4 +17,9 @@ bbasm_real() {  # $1 = tool name, $2 = shim dir: first executable on PATH that i
 bbasm_record() {  # $1 source label, $2 status (ok|timeout|error), $3 seconds, $4 exit code
     [ -n "${RECON_OUT_DIR:-}" ] && [ -d "$RECON_OUT_DIR" ] || return 0
     printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" >> "$RECON_OUT_DIR/.source_status.tsv" 2>/dev/null || true
+}
+
+bbasm_note() {  # $1 tool, $2 what the wrapper changed (shown to the user as a scan note)
+    [ -n "${RECON_OUT_DIR:-}" ] && [ -d "$RECON_OUT_DIR" ] || return 0
+    printf '%s\t%s\n' "$1" "$2" >> "$RECON_OUT_DIR/.tool_notes.tsv" 2>/dev/null || true
 }

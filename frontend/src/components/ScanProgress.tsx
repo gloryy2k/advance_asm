@@ -55,6 +55,9 @@ export function ScanProgress({ data, partial }: { data: ScanProgressData; partia
           {data.partial_inputs!.reduce((n, p) => n + p.in_scope, 0)} host được nhập từ các file nguồn dở dang (bước gộp chưa kịp chạy); tất cả đã qua scope gate.
         </p>
       )}
+      {(data.tool_notes || []).map((n, i) => (
+        <p className="muted" key={i} data-testid="tool-note"><strong>{n.tool}</strong>: {n.note}</p>
+      ))}
       {pathRules.length > 0 && (
         <p className="muted" data-testid="path-rules">
           OUT theo đường dẫn: {pathRules.map(([h, paths]) => `${h} (${paths.length})`).join(", ")} — các host này chỉ được probe, trừ khi bạn bật quét chủ động cho chúng.

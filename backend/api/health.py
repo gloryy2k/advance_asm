@@ -21,8 +21,8 @@ FRAMEWORK_FILES = (
 # Tools each depth actually needs; a missing one is skipped fail-soft, so Review shows it.
 DEPTH_TOOLS = {
     "passive": ["subfinder", "gau"],
-    "light": ["subfinder", "gau", "httpx", "katana", "nuclei"],
-    "strong": ["subfinder", "gau", "httpx", "katana", "nuclei", "nmap", "ffuf", "amass"],
+    "light": ["subfinder", "gau", "httpx", "katana", "nuclei", "nuclei-templates"],
+    "strong": ["subfinder", "gau", "httpx", "katana", "nuclei", "nuclei-templates", "nmap", "ffuf", "amass"],
 }
 # Nothing in a scan depends on these: a missing one is not a problem and is shown as "optional".
 OPTIONAL_TOOLS = ("bbscope", "git", "trufflehog")
@@ -61,6 +61,8 @@ def health(request: Request) -> HealthResponse:
     settings = request.app.state.settings
     tools = {name: tool_ready(name, settings.tool_search_path()) for name in EXECUTABLES}
     tools.update({name: settings.tool_path(name).is_file() for name in FRAMEWORK_FILES})
+    from backend.jobs.recon_orch import nuclei_templates_ready
+    tools["nuclei-templates"] = tools.get("nuclei", False) and nuclei_templates_ready(settings)
     missing = {depth: [t for t in needed if not tools.get(t)] for depth, needed in DEPTH_TOOLS.items()}
     h1 = bool(settings.H1_USER.get_secret_value() and settings.H1_TOKEN.get_secret_value())
     supported = os.name == "posix"

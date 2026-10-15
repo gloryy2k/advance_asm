@@ -40,7 +40,7 @@ PHASES = [
     {"key": "param_discover", "title": "Tham số", "touches": False, "tools": [],
      "what": "Thống kê tham số query từ URL đã thu thập, đánh dấu tên hay gặp lỗi (id, redirect, file…).",
      "files": ["params/unique_params.txt", "params/interesting_params.txt"], "count_label": "tham số", "view": {"kind": "urls", "label": "Xem URL có tham số", "filter": {"tag": "params"}}},
-    {"key": "nuclei", "title": "Nuclei", "touches": True, "tools": ["nuclei"],
+    {"key": "nuclei", "title": "Nuclei", "touches": True, "tools": ["nuclei", "nuclei-templates"], "all_required": True,
      "what": "Chạy bộ mẫu kiểm tra lỗi đã biết theo mức nghiêm trọng bạn chọn.",
      "files": ["nuclei/findings.jsonl"], "count_label": "finding", "view": {"kind": "findings", "label": "Xem findings", "filter": {"type": "nuclei"}}},
     {"key": "takeover", "title": "Takeover", "touches": True, "tools": ["subjack", "dnsreaper"],
@@ -93,7 +93,7 @@ def plan_for(config, settings, missing_tools):
         absent = [t for t in phase["tools"] if t in missing]
         if reason:
             status = "off"
-        elif phase["tools"] and len(absent) == len(phase["tools"]):
+        elif phase["tools"] and (absent if phase.get("all_required") else len(absent) == len(phase["tools"])):
             status, reason = "missing_tool", "Thiếu " + ", ".join(absent) + " — bước này sẽ bị bỏ qua."
         else:
             status = "on"
@@ -111,7 +111,7 @@ def tools_needed(config, settings=None):
         if disabled_reason(config, phase["key"], historical_off=historical_off) is None:
             # The first tool of a step is its main one; the rest are alternatives (dnsreaper beside subjack) or only
             # used in full mode (amass runs below --quick, i.e. at Strong).
-            needed.update(phase["tools"][:1])
+            needed.update(phase["tools"] if phase.get("all_required") else phase["tools"][:1])
             if phase["key"] == "subdomain_enum" and config.depth == "strong":
                 needed.add("amass")
     return needed
@@ -185,8 +185,8 @@ def build_report(settings, database, scan_id, tools_missing=None):
             status, label, reason = "ran", "Đã chạy", None
         elif mine:
             status, label, reason = "empty", "Chạy — 0 kết quả", "Có chạy nhưng không tìm thấy gì (không có nghĩa là an toàn)."
-        elif phase["tools"] and len(tools_out) == len(phase["tools"]):
-            status, label, reason = "missing_tool", "Thiếu công cụ", "Thiếu " + ", ".join(tools_out) + " nên bước này không chạy."
+        elif phase["tools"] and (tools_out if phase.get("all_required") else len(tools_out) == len(phase["tools"])):
+            status, label, reason = "missing_tool", "Thiếu công cụ", "Thiếu " + ", ".join(tools_out) + " nên bước này không kiểm tra gì."
         elif over:
             cut = any(st.get("status") in {"timeout", "skipped_budget"} for st in stats.get("stages") or [])
             status, label = ("timeout", "Hết thời gian") if cut else ("no_output", "Không có dữ liệu")
@@ -202,7 +202,7 @@ def build_report(settings, database, scan_id, tools_missing=None):
             # How far the scan actually got: stages and their budgets, discovered/probed/unprobed, failed passive sources.
             "stages": stats.get("stages") or [], "coverage": stats.get("coverage"), "sources": stats.get("sources") or [],
             "path_rule_hosts": stats.get("path_rule_hosts") or {}, "partial_inputs": stats.get("partial_inputs") or [],
-            "missing_needed": stats.get("missing_needed") or [], "request_headers": stats.get("request_headers") or []}
+            "missing_needed": stats.get("missing_needed") or [], "tool_notes": stats.get("tool_notes") or [], "request_headers": stats.get("request_headers") or []}
 
 
 # Credentials with a recognisable shape are hidden in every file, not only in scanner output.

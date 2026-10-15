@@ -84,6 +84,7 @@ export type ScanProgressData = {
   partial_inputs?: { command: string; found: number; in_scope: number; files: string[] }[];
   path_rule_hosts?: Record<string, string[]>;
   missing_needed?: string[];
+  tool_notes?: { tool: string; note: string }[];
 };
 export type ScanPhases = ScanProgressData & {
   scan_id: number;

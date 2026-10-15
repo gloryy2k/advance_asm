@@ -17,8 +17,10 @@ def test_tc_hlt_1_mixed_availability(monkeypatch, settings):
     body = response.json()
     assert body["ok"] is True
     assert body["tools"] == {**{name: name in {"bash", "nuclei"} for name in EXECUTABLES},
-                             **{name: name == "recon_engine.sh" for name in FRAMEWORK_FILES}}
+                             **{name: name == "recon_engine.sh" for name in FRAMEWORK_FILES},
+                             "nuclei-templates": False}          # binary present, no template files: it would test nothing
     assert "nuclei" not in body["missing_by_depth"]["light"] and "httpx" in body["missing_by_depth"]["light"]
+    assert "nuclei-templates" in body["missing_by_depth"]["light"]
     assert body["missing_by_depth"]["passive"] == ["subfinder", "gau"]
 
 

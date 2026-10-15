@@ -304,3 +304,63 @@ def test_curl_shim_adds_the_policy_header_to_target_calls_only(tmp_path):
         assert "X-HackerOne-Research" not in headers["/passive"]                                                    # passive source: anonymous
     finally:
         recorder.close()
+
+
+# ── katana: known-files requests carry no header, so they are removed when a policy header is set ──
+
+FAKE_KATANA = """#!/bin/bash
+here="$(dirname "$0")"; n=$(ls "$here/../../fakelog"/katana.*.argv 2>/dev/null | wc -l)
+printf '%s\\n' "$@" > "$here/../../fakelog/katana.$((n+1)).argv"
+"""
+
+
+def test_katana_shim_drops_known_files_only_when_a_policy_header_is_set(tmp_path):
+    import subprocess
+    from backend.jobs.recon_orch import SHIM_DIR, read_tool_notes
+    bin_dir = tmp_path / "go" / "bin"
+    (tmp_path / "fakelog").mkdir()
+    bin_dir.mkdir(parents=True)
+    (bin_dir / "katana").write_text(FAKE_KATANA)
+    (bin_dir / "katana").chmod(0o755)
+    out = tmp_path / "out"
+    out.mkdir()
+    env = {"PATH": f"{bin_dir}:/usr/bin:/bin", "RECON_OUT_DIR": str(out)}
+    argv = [str(SHIM_DIR / "katana"), "-list", "t.txt", "-d", "3", "-jc", "-kf", "all", "-silent", "-c", "50"]
+    subprocess.run(argv, env={**env, "BBHUNT_AUTH_HEADERS": "X-HackerOne-Research: tester"}, check=True, timeout=20)
+    subprocess.run(argv, env=env, check=True, timeout=20)
+    with_header, without = [(tmp_path / "fakelog" / f"katana.{i}.argv").read_text().split() for i in (1, 2)]
+    assert "-kf" not in with_header and "all" not in with_header                    # robots.txt/sitemap.xml are never requested
+    assert with_header == ["-list", "t.txt", "-d", "3", "-jc", "-silent", "-c", "50"]  # everything else untouched
+    assert "-kf" in without                                                          # no header configured: behaviour unchanged
+    assert read_tool_notes(out) == [{"tool": "katana", "note": "known-files (robots.txt, sitemap.xml) tắt: katana không gắn header của policy vào các request này"}]
+
+
+@pytest.mark.integration
+def test_the_engine_runs_katana_through_the_wrapper_and_the_scan_reports_it(settings, tools):
+    recorder = Recorder()
+    (tools.bin / "curl").unlink()
+    (tools.bin / "katana").write_text(FAKE_KATANA)
+    (tools.bin / "katana").chmod(0o755)
+    try:
+        tools.conf(FAKE_HOSTS="", FAKE_PORT=str(recorder.port), FAKE_WAYBACK_HANG="0")
+        settings.BBASM_SKIP_HISTORICAL = True
+
+        async def scenario():
+            db, _, result = environment(settings, ["127.0.0.1"])
+            cfg = result.config.model_copy(update={"depth": "light", "scan_timeout": 60, "skip_nmap": True, "skip_nuclei": True,
+                                                   "skip_active_crawl": False, "request_headers": ["X-HackerOne-Research: tester-4711"]})
+            settings.BBASM_SCAN_TIMEOUT_LIGHT = 60
+            runner = JobRunner(settings, db)
+            try:
+                await runner.submit(result.scan_id, cfg)
+                await runner.queue.join()
+                return runner.status(result.scan_id), json.dumps(runner.logs.replay(result.scan_id))
+            finally:
+                await runner.close()
+        row, events = asyncio.run(scenario())
+        argv = (tools.log / "katana.1.argv").read_text().split()
+        assert "-kf" not in argv and "-H" in argv and "X-HackerOne-Research: tester-4711" in (tools.log / "katana.1.argv").read_text()
+        stats = json.loads(row["stats_json"])
+        assert stats["tool_notes"][0]["tool"] == "katana" and "known-files" in events and "tester-4711" not in events
+    finally:
+        recorder.close()

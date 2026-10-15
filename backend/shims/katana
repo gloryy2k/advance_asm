@@ -1,0 +1,24 @@
+#!/bin/bash
+# BBASM wrapper. katana v1.8 sends its "known files" requests (robots.txt, sitemap.xml) WITHOUT the -H headers it
+# was given, so a program whose policy requires a header on every request would be violated by the first two
+# requests of every crawl. When a policy header is configured the known-files option is removed and the scan says so.
+. "$(dirname "$0")/_common.sh"
+shim_dir="$(cd "$(dirname "$0")" && pwd)"
+real="$(bbasm_real katana "$shim_dir")" || { echo "katana: not found" >&2; exit 127; }
+
+args=()
+if [ -n "${BBHUNT_AUTH_HEADERS:-}" ]; then
+    skip=0; removed=0
+    for arg in "$@"; do
+        if [ "$skip" = 1 ]; then skip=0; continue; fi
+        case "$arg" in
+            -kf|-known-files|--known-files) skip=1; removed=1; continue ;;
+            -kf=*|-known-files=*|--known-files=*) removed=1; continue ;;
+        esac
+        args+=("$arg")
+    done
+    [ "$removed" = 1 ] && bbasm_note katana "known-files (robots.txt, sitemap.xml) tắt: katana không gắn header của policy vào các request này"
+else
+    args=("$@")
+fi
+exec "$real" "${args[@]}"

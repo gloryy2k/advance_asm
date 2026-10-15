@@ -60,6 +60,7 @@ class ReconPlan:
     discoveries: list[Command] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     explicit_hosts: set = field(default_factory=set)       # hosts named in the scope (not discovered)
+    tool_notes: list = field(default_factory=list)         # behaviour a wrapper changed (e.g. katana known-files off)
     sources: list = field(default_factory=list)            # outcome of each passive source: [{source,status,seconds,stage}]
     stages: list = field(default_factory=list)             # [{key,label,status,budget_s,used_s,commands}]
     coverage: dict = field(default_factory=lambda: {"discovered": 0, "probed": 0, "unprobed": 0, "explicit": 0, "batches": 0, "batches_done": 0})
@@ -77,6 +78,19 @@ def read_config(row):
 
 
 SHIM_DIR = Path(__file__).resolve().parent.parent / "shims"
+# Same semantics as coreutils timeout; the only difference is that the command word katana/curl/subfinder runs our wrapper.
+TIMEOUT_FUNCTION = """() {  local a=("$@") i=0
+    while [ "$i" -lt "${#a[@]}" ]; do
+        case "${a[$i]}" in
+            -k|-s|--kill-after|--signal) i=$((i+2)) ;;
+            -*) i=$((i+1)) ;;
+            *) break ;;
+        esac
+    done
+    i=$((i+1))
+    case "${a[$i]:-}" in katana|curl|subfinder) a[$i]="$BBASM_SHIM_DIR/${a[$i]}" ;; esac
+    command timeout "${a[@]}"
+}"""
 
 
 def recon_env(settings, config, output, *, discovery=False, skip_historical=False, probe_only=False):
@@ -105,8 +119,11 @@ def recon_env(settings, config, output, *, discovery=False, skip_historical=Fals
         "BBASM_SKIP_CICD": "1",  # No automatic org expansion from discovered links.
         "BBASM_NMAP_CONNECT": "1",  # Portable -sT, including WSL2/no raw capabilities.
     })
-    for tool in ("curl", "subfinder"):   # exported shell functions beat the engine's own PATH rewriting
+    env["BBASM_SHIM_DIR"] = str(SHIM_DIR)
+    for tool in ("curl", "subfinder", "katana"):   # exported shell functions beat the engine's own PATH rewriting
         env[f"BASH_FUNC_{tool}%%"] = f'() {{  {shlex.quote(str(SHIM_DIR / tool))} "$@"\n}}'
+    # `timeout 300 katana ...` execs the binary directly, past any function. Resolve the wrapped tool names here.
+    env["BASH_FUNC_timeout%%"] = TIMEOUT_FUNCTION
     if probe_only:
         # Probe stage: liveness and fingerprint only. No archives, crawling, config-file checks, templates or fuzzing.
         env.update(BBASM_SKIP_HISTORICAL="1", BBASM_SKIP_ACTIVE_CRAWL="1", BBASM_SKIP_NUCLEI="1", BBASM_SKIP_FFUF="1")
@@ -149,6 +166,28 @@ def subdomain_candidates(root):
     for filename in SOURCE_FILES:
         names.update(_read_names(base / filename))
     return sorted(names), False
+
+
+def read_tool_notes(root):
+    """What a wrapper changed in a tool's behaviour for this command (shown to the user, never hidden)."""
+    path = Path(root) / ".tool_notes.tsv"
+    if not path.is_file() or path.is_symlink():
+        return []
+    notes = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines()[:20]:
+        tool, _, text = line.partition("\t")
+        if re.fullmatch(r"[a-z]{2,20}", tool) and text.strip():
+            notes.append({"tool": tool, "note": text.strip()[:300]})
+    return notes
+
+
+def nuclei_templates_ready(settings):
+    """True when nuclei has at least one template to run. A present binary without templates tests nothing."""
+    home = Path(os.environ.get("HOME") or Path.home())
+    for base in (home / "nuclei-templates", home / ".local" / "nuclei-templates"):
+        if base.is_dir() and next(base.rglob("*.yaml"), None) is not None:
+            return True
+    return False
 
 
 _SOURCE_STATUS = {"ok", "timeout", "error"}
@@ -376,5 +415,8 @@ class ReconOrchestrator:
         return self._host_list(plan, chosen, stage="deep") if chosen else None
 
     def missing_tools(self):
-        return [name for name in ("subfinder", "httpx", "nuclei", "nmap", "katana", "gau", "amass", "ffuf")
-                if shutil.which(name, path=self.settings.tool_search_path()) is None]
+        missing = [name for name in ("subfinder", "httpx", "nuclei", "nmap", "katana", "gau", "amass", "ffuf")
+                   if shutil.which(name, path=self.settings.tool_search_path()) is None]
+        if "nuclei" not in missing and not nuclei_templates_ready(self.settings):
+            missing.append("nuclei-templates")     # the binary alone checks nothing
+        return missing

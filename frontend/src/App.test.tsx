@@ -895,7 +895,8 @@ describe("v1.3: policy header, OUT paths, stages and coverage", () => {
           missing_tools: [], coverage: { discovered: 720, probed: 4, unprobed: 716, explicit: 4, batches: 5, batches_done: 0 },
           stages: [{ key: "discovery", label: "Khám phá subdomain/URL", status: "ok", budget_s: 270, used_s: 190, commands: 1 },
                    { key: "probe", label: "Probe host đã khám phá", status: "timeout", budget_s: 270, used_s: 270, commands: 5 }],
-          sources: [{ source: "web.archive.org", status: "timeout", seconds: 45 }], partial_inputs: [], path_rule_hosts: { "wolt.com": ["/en/x"] } }
+          sources: [{ source: "web.archive.org", status: "timeout", seconds: 45 }], partial_inputs: [], path_rule_hosts: { "wolt.com": ["/en/x"] },
+          tool_notes: [{ tool: "katana", note: "known-files (robots.txt, sitemap.xml) tắt: katana không gắn header của policy vào các request này" }] }
       : path.endsWith("/review") ? baseReview({ scan: { id: 31, depth: "light", status: "done_partial" } })
       : path.endsWith("/config") ? baseConfig
       : { id: 31, depth: "light", status: "done_partial", started_at: "2026-10-15T02:11:56Z", finished_at: "2026-10-15T02:27:45Z", error: "Giai đoạn 'Probe host đã khám phá' hết ngân sách 270s (timeout)" });
@@ -911,6 +912,7 @@ describe("v1.3: policy header, OUT paths, stages and coverage", () => {
     expect(screen.getByText("web.archive.org").closest("p")).toHaveTextContent("web.archive.org quá thời gian sau 45s");
     expect(screen.getByTestId("partial-reason")).toHaveTextContent("hết ngân sách");
     expect(screen.getByText(/chặn theo OUT đường dẫn/)).toBeInTheDocument();
+    expect(screen.getByTestId("tool-note")).toHaveTextContent("katana: known-files");
   });
 
   test("Program overview tells a running scan apart from the finished data it still shows", async () => {
