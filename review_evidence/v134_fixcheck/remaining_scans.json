@@ -1,0 +1,472 @@
+{
+  "scans": [
+    {
+      "id": 60,
+      "program_id": 12,
+      "depth": "light",
+      "status": "done_partial",
+      "trigger": "manual",
+      "started_at": "2026-10-15T20:26:27.525Z",
+      "finished_at": "2026-10-15T20:45:12.029Z",
+      "error": "Nguồn web.archive.org quá thời gian sau 45s (kết quả dở dang vẫn được dùng); Giai đoạn 'Probe host đã khám phá' hết ngân sách 339s (timeout); dữ liệu dở dang vẫn được nhập; Giai đoạn 'Quét sâu host đang sống' hết ngân sách 106s (timeout); dữ liệu dở dang vẫn được nhập; Scan hard timeout exceeded",
+      "counts": {
+        "subs": 711,
+        "live": 259,
+        "urls": 556,
+        "findings": 59,
+        "baseline_scan_id": 59
+      },
+      "diff": {
+        "new": 235,
+        "changed": 227,
+        "gone": 0
+      },
+      "coverage": {
+        "discovered": 704,
+        "probed": 300,
+        "unprobed": 404,
+        "explicit": 7,
+        "batches": 5,
+        "batches_done": 2
+      },
+      "source_statuses": [
+        {
+          "source": "subfinder",
+          "status": "ok",
+          "seconds": 33
+        },
+        {
+          "source": "crt.sh",
+          "status": "ok",
+          "seconds": 9
+        },
+        {
+          "source": "web.archive.org",
+          "status": "timeout",
+          "seconds": 45
+        }
+      ],
+      "stages": [
+        {
+          "key": "deep",
+          "status": "timeout",
+          "used_s": 112,
+          "budget_s": null,
+          "ts": "2026-10-15T20:41:06.180Z"
+        },
+        {
+          "key": "ingest",
+          "status": "ok",
+          "used_s": 10.3,
+          "budget_s": null,
+          "ts": "2026-10-15T20:41:38.148Z"
+        },
+        {
+          "key": "monitors",
+          "status": "ok",
+          "used_s": 0.6,
+          "budget_s": null,
+          "ts": "2026-10-15T20:41:38.755Z"
+        },
+        {
+          "key": "diff",
+          "status": "ok",
+          "used_s": 0.3,
+          "budget_s": null,
+          "ts": "2026-10-15T20:41:39.075Z"
+        },
+        {
+          "key": "rank",
+          "status": "ok",
+          "used_s": 197.3,
+          "budget_s": null,
+          "ts": "2026-10-15T20:44:56.358Z"
+        },
+        {
+          "key": "brief",
+          "status": "ok",
+          "used_s": 0.5,
+          "budget_s": null,
+          "ts": "2026-10-15T20:45:11.969Z"
+        }
+      ]
+    },
+    {
+      "id": 61,
+      "program_id": 23,
+      "depth": "passive",
+      "status": "done",
+      "trigger": "manual",
+      "started_at": "2026-10-15T20:50:07.935Z",
+      "finished_at": "2026-10-15T20:50:10.669Z",
+      "error": null,
+      "counts": {
+        "subs": 1,
+        "live": 0,
+        "urls": 0,
+        "findings": 0,
+        "baseline_scan_id": null
+      },
+      "diff": {
+        "new": 1,
+        "changed": 0,
+        "gone": 0
+      },
+      "coverage": {
+        "discovered": 0,
+        "probed": 0,
+        "unprobed": 0,
+        "explicit": 1,
+        "batches": 0,
+        "batches_done": 0
+      },
+      "source_statuses": [],
+      "stages": [
+        {
+          "key": "main",
+          "status": "ok",
+          "used_s": 1,
+          "budget_s": null,
+          "ts": "2026-10-15T20:50:09.131Z"
+        },
+        {
+          "key": "ingest",
+          "status": "ok",
+          "used_s": 0.6,
+          "budget_s": null,
+          "ts": "2026-10-15T20:50:09.731Z"
+        },
+        {
+          "key": "monitors",
+          "status": "ok",
+          "used_s": 0.1,
+          "budget_s": null,
+          "ts": "2026-10-15T20:50:09.887Z"
+        },
+        {
+          "key": "diff",
+          "status": "ok",
+          "used_s": 0.1,
+          "budget_s": null,
+          "ts": "2026-10-15T20:50:10.058Z"
+        },
+        {
+          "key": "rank",
+          "status": "ok",
+          "used_s": 0.3,
+          "budget_s": null,
+          "ts": "2026-10-15T20:50:10.366Z"
+        },
+        {
+          "key": "brief",
+          "status": "ok",
+          "used_s": 0.2,
+          "budget_s": null,
+          "ts": "2026-10-15T20:50:10.615Z"
+        }
+      ]
+    },
+    {
+      "id": 62,
+      "program_id": 23,
+      "depth": "light",
+      "status": "done",
+      "trigger": "manual",
+      "started_at": "2026-10-15T20:50:12.919Z",
+      "finished_at": "2026-10-15T20:50:22.916Z",
+      "error": null,
+      "counts": {
+        "subs": 1,
+        "live": 1,
+        "urls": 1,
+        "findings": 0,
+        "baseline_scan_id": 61
+      },
+      "diff": {
+        "new": 0,
+        "changed": 1,
+        "gone": 0
+      },
+      "coverage": {
+        "discovered": 0,
+        "probed": 0,
+        "unprobed": 0,
+        "explicit": 1,
+        "batches": 0,
+        "batches_done": 0
+      },
+      "source_statuses": [],
+      "stages": [
+        {
+          "key": "main",
+          "status": "ok",
+          "used_s": 4,
+          "budget_s": null,
+          "ts": "2026-10-15T20:50:17.945Z"
+        },
+        {
+          "key": "ingest",
+          "status": "ok",
+          "used_s": 0.6,
+          "budget_s": null,
+          "ts": "2026-10-15T20:50:19.080Z"
+        },
+        {
+          "key": "monitors",
+          "status": "ok",
+          "used_s": 0.2,
+          "budget_s": null,
+          "ts": "2026-10-15T20:50:19.257Z"
+        },
+        {
+          "key": "diff",
+          "status": "ok",
+          "used_s": 0.1,
+          "budget_s": null,
+          "ts": "2026-10-15T20:50:19.441Z"
+        },
+        {
+          "key": "rank",
+          "status": "ok",
+          "used_s": 0.2,
+          "budget_s": null,
+          "ts": "2026-10-15T20:50:19.657Z"
+        },
+        {
+          "key": "brief",
+          "status": "ok",
+          "used_s": 0.2,
+          "budget_s": null,
+          "ts": "2026-10-15T20:50:22.856Z"
+        }
+      ]
+    },
+    {
+      "id": 63,
+      "program_id": 23,
+      "depth": "passive",
+      "status": "done",
+      "trigger": "scheduled",
+      "started_at": "2026-10-15T20:51:17.613Z",
+      "finished_at": "2026-10-15T20:51:19.512Z",
+      "error": null,
+      "counts": {
+        "subs": 1,
+        "live": 0,
+        "urls": 0,
+        "findings": 0,
+        "baseline_scan_id": 62
+      },
+      "diff": {
+        "new": 0,
+        "changed": 0,
+        "gone": 0
+      },
+      "coverage": {
+        "discovered": 0,
+        "probed": 0,
+        "unprobed": 0,
+        "explicit": 1,
+        "batches": 0,
+        "batches_done": 0
+      },
+      "source_statuses": [],
+      "stages": [
+        {
+          "key": "main",
+          "status": "ok",
+          "used_s": 0,
+          "budget_s": null,
+          "ts": "2026-10-15T20:51:18.544Z"
+        },
+        {
+          "key": "ingest",
+          "status": "ok",
+          "used_s": 0.4,
+          "budget_s": null,
+          "ts": "2026-10-15T20:51:18.924Z"
+        },
+        {
+          "key": "monitors",
+          "status": "ok",
+          "used_s": 0.1,
+          "budget_s": null,
+          "ts": "2026-10-15T20:51:19.042Z"
+        },
+        {
+          "key": "diff",
+          "status": "ok",
+          "used_s": 0.1,
+          "budget_s": null,
+          "ts": "2026-10-15T20:51:19.155Z"
+        },
+        {
+          "key": "rank",
+          "status": "ok",
+          "used_s": 0.2,
+          "budget_s": null,
+          "ts": "2026-10-15T20:51:19.341Z"
+        },
+        {
+          "key": "brief",
+          "status": "ok",
+          "used_s": 0.1,
+          "budget_s": null,
+          "ts": "2026-10-15T20:51:19.487Z"
+        }
+      ]
+    },
+    {
+      "id": 64,
+      "program_id": 12,
+      "depth": "strong",
+      "status": "done",
+      "trigger": "manual",
+      "started_at": "2026-10-15T20:52:50.265Z",
+      "finished_at": "2026-10-15T20:56:10.179Z",
+      "error": null,
+      "counts": {
+        "subs": 1,
+        "live": 1,
+        "urls": 1,
+        "findings": 0,
+        "baseline_scan_id": 60
+      },
+      "diff": {
+        "new": 0,
+        "changed": 0,
+        "gone": 0
+      },
+      "coverage": {
+        "discovered": 0,
+        "probed": 0,
+        "unprobed": 0,
+        "explicit": 1,
+        "batches": 0,
+        "batches_done": 0
+      },
+      "source_statuses": [],
+      "stages": [
+        {
+          "key": "main",
+          "status": "ok",
+          "used_s": 3,
+          "budget_s": null,
+          "ts": "2026-10-15T20:52:54.222Z"
+        },
+        {
+          "key": "ingest",
+          "status": "ok",
+          "used_s": 0.4,
+          "budget_s": null,
+          "ts": "2026-10-15T20:52:54.940Z"
+        },
+        {
+          "key": "monitors",
+          "status": "ok",
+          "used_s": 0.1,
+          "budget_s": null,
+          "ts": "2026-10-15T20:52:55.025Z"
+        },
+        {
+          "key": "diff",
+          "status": "ok",
+          "used_s": 6.3,
+          "budget_s": null,
+          "ts": "2026-10-15T20:53:01.385Z"
+        },
+        {
+          "key": "rank",
+          "status": "ok",
+          "used_s": 177.1,
+          "budget_s": null,
+          "ts": "2026-10-15T20:55:58.517Z"
+        },
+        {
+          "key": "brief",
+          "status": "ok",
+          "used_s": 0.3,
+          "budget_s": null,
+          "ts": "2026-10-15T20:56:10.104Z"
+        }
+      ]
+    },
+    {
+      "id": 65,
+      "program_id": 23,
+      "depth": "strong",
+      "status": "done",
+      "trigger": "manual",
+      "started_at": "2026-10-15T20:59:29.291Z",
+      "finished_at": "2026-10-15T20:59:44.892Z",
+      "error": null,
+      "counts": {
+        "subs": 1,
+        "live": 1,
+        "urls": 1,
+        "findings": 0,
+        "baseline_scan_id": 63
+      },
+      "diff": {
+        "new": 0,
+        "changed": 1,
+        "gone": 0
+      },
+      "coverage": {
+        "discovered": 0,
+        "probed": 0,
+        "unprobed": 0,
+        "explicit": 1,
+        "batches": 0,
+        "batches_done": 0
+      },
+      "source_statuses": [],
+      "stages": [
+        {
+          "key": "main",
+          "status": "ok",
+          "used_s": 11,
+          "budget_s": null,
+          "ts": "2026-10-15T20:59:40.868Z"
+        },
+        {
+          "key": "ingest",
+          "status": "ok",
+          "used_s": 0.5,
+          "budget_s": null,
+          "ts": "2026-10-15T20:59:41.686Z"
+        },
+        {
+          "key": "monitors",
+          "status": "ok",
+          "used_s": 0.1,
+          "budget_s": null,
+          "ts": "2026-10-15T20:59:41.821Z"
+        },
+        {
+          "key": "diff",
+          "status": "ok",
+          "used_s": 0.1,
+          "budget_s": null,
+          "ts": "2026-10-15T20:59:41.968Z"
+        },
+        {
+          "key": "rank",
+          "status": "ok",
+          "used_s": 0.2,
+          "budget_s": null,
+          "ts": "2026-10-15T20:59:42.204Z"
+        },
+        {
+          "key": "brief",
+          "status": "ok",
+          "used_s": 0.2,
+          "budget_s": null,
+          "ts": "2026-10-15T20:59:44.850Z"
+        }
+      ]
+    }
+  ],
+  "qa_schedule_enabled": 0,
+  "wolt_scope_rows": 24
+}

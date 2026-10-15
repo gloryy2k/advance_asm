@@ -1,0 +1,162 @@
+{
+  "scan_id": 64,
+  "source": "public_page",
+  "allowed_depths": [
+    "passive",
+    "light",
+    "strong"
+  ],
+  "selected_host": "corporate.wolt.com",
+  "excluded_web_hosts": 6,
+  "rate_limit": 1,
+  "threads": 1,
+  "scan_timeout": 180,
+  "header_names": [
+    "X-HackerOne-Research"
+  ],
+  "disabled_steps": [
+    "historical",
+    "takeover",
+    "secrets",
+    "crawl",
+    "nmap",
+    "ffuf",
+    "nuclei"
+  ],
+  "plan": [
+    {
+      "key": "subdomain_enum",
+      "status": "on"
+    },
+    {
+      "key": "live_probe",
+      "status": "on"
+    },
+    {
+      "key": "port_scan",
+      "status": "off"
+    },
+    {
+      "key": "url_history",
+      "status": "off"
+    },
+    {
+      "key": "url_crawl",
+      "status": "off"
+    },
+    {
+      "key": "js_analysis",
+      "status": "off"
+    },
+    {
+      "key": "dir_fuzz",
+      "status": "off"
+    },
+    {
+      "key": "config_expose",
+      "status": "on"
+    },
+    {
+      "key": "param_discover",
+      "status": "on"
+    },
+    {
+      "key": "nuclei",
+      "status": "off"
+    },
+    {
+      "key": "takeover",
+      "status": "off"
+    },
+    {
+      "key": "secrets",
+      "status": "off"
+    }
+  ],
+  "status": "done",
+  "error": null,
+  "elapsed_s": 202.7,
+  "counts": {
+    "subs": 1,
+    "live": 1,
+    "urls": 1,
+    "findings": 0,
+    "baseline_scan_id": 60
+  },
+  "coverage": {
+    "discovered": 0,
+    "probed": 0,
+    "unprobed": 0,
+    "explicit": 1,
+    "batches": 0,
+    "batches_done": 0
+  },
+  "diff": {
+    "new": 0,
+    "changed": 0,
+    "gone": 0
+  },
+  "phases": [
+    {
+      "key": "subdomain_enum",
+      "status": "ran",
+      "count": 1
+    },
+    {
+      "key": "live_probe",
+      "status": "ran",
+      "count": 1
+    },
+    {
+      "key": "port_scan",
+      "status": "skipped",
+      "count": 0
+    },
+    {
+      "key": "url_history",
+      "status": "skipped",
+      "count": 0
+    },
+    {
+      "key": "url_crawl",
+      "status": "skipped",
+      "count": 0
+    },
+    {
+      "key": "js_analysis",
+      "status": "skipped",
+      "count": 0
+    },
+    {
+      "key": "dir_fuzz",
+      "status": "skipped",
+      "count": 0
+    },
+    {
+      "key": "config_expose",
+      "status": "no_output",
+      "count": 0
+    },
+    {
+      "key": "param_discover",
+      "status": "no_output",
+      "count": 0
+    },
+    {
+      "key": "nuclei",
+      "status": "skipped",
+      "count": 0
+    },
+    {
+      "key": "takeover",
+      "status": "skipped",
+      "count": 0
+    },
+    {
+      "key": "secrets",
+      "status": "skipped",
+      "count": 0
+    }
+  ],
+  "summary_latest": 64
+}

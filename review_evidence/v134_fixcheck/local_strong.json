@@ -1,0 +1,77 @@
+{
+  "scan_id": 65,
+  "target": "127.0.0.1",
+  "depth": "strong",
+  "status": "done",
+  "error": null,
+  "elapsed_s": 17.4,
+  "counts": {
+    "subs": 1,
+    "live": 1,
+    "urls": 1,
+    "findings": 0,
+    "baseline_scan_id": 63
+  },
+  "phases": [
+    {
+      "key": "subdomain_enum",
+      "status": "ran",
+      "count": 1
+    },
+    {
+      "key": "live_probe",
+      "status": "ran",
+      "count": 1
+    },
+    {
+      "key": "port_scan",
+      "status": "ran",
+      "count": 4
+    },
+    {
+      "key": "url_history",
+      "status": "skipped",
+      "count": 0
+    },
+    {
+      "key": "url_crawl",
+      "status": "skipped",
+      "count": 0
+    },
+    {
+      "key": "js_analysis",
+      "status": "skipped",
+      "count": 0
+    },
+    {
+      "key": "dir_fuzz",
+      "status": "skipped",
+      "count": 0
+    },
+    {
+      "key": "config_expose",
+      "status": "no_output",
+      "count": 0
+    },
+    {
+      "key": "param_discover",
+      "status": "no_output",
+      "count": 0
+    },
+    {
+      "key": "nuclei",
+      "status": "skipped",
+      "count": 0
+    },
+    {
+      "key": "takeover",
+      "status": "skipped",
+      "count": 0
+    },
+    {
+      "key": "secrets",
+      "status": "skipped",
+      "count": 0
+    }
+  ]
+}

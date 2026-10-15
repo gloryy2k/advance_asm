@@ -1,0 +1,71 @@
+{
+  "target": "127.0.0.1",
+  "program": "qa-v134-end2end-local",
+  "scans": [
+    {
+      "id": 61,
+      "depth": "passive",
+      "status": "done",
+      "error": null,
+      "elapsed_s": 4.3,
+      "phase_statuses": {
+        "subdomain_enum": "ran",
+        "live_probe": "skipped",
+        "port_scan": "skipped",
+        "url_history": "skipped",
+        "url_crawl": "skipped",
+        "js_analysis": "skipped",
+        "dir_fuzz": "skipped",
+        "config_expose": "skipped",
+        "param_discover": "no_output",
+        "nuclei": "skipped",
+        "takeover": "skipped",
+        "secrets": "skipped"
+      },
+      "latest_completed": 61,
+      "stats": {
+        "subs": 1,
+        "live": 0,
+        "urls": 0,
+        "findings": 0,
+        "baseline_scan_id": null
+      }
+    },
+    {
+      "id": 62,
+      "depth": "light",
+      "status": "done",
+      "error": null,
+      "elapsed_s": 11.9,
+      "phase_statuses": {
+        "subdomain_enum": "ran",
+        "live_probe": "ran",
+        "port_scan": "skipped",
+        "url_history": "skipped",
+        "url_crawl": "skipped",
+        "js_analysis": "skipped",
+        "dir_fuzz": "skipped",
+        "config_expose": "no_output",
+        "param_discover": "no_output",
+        "nuclei": "skipped",
+        "takeover": "skipped",
+        "secrets": "skipped"
+      },
+      "latest_completed": 62,
+      "stats": {
+        "subs": 1,
+        "live": 1,
+        "urls": 1,
+        "findings": 0,
+        "baseline_scan_id": 61
+      }
+    }
+  ],
+  "diff": {
+    "total": 1,
+    "first_rows": 1
+  },
+  "summary": {
+    "scan_id": 62
+  }
+}
