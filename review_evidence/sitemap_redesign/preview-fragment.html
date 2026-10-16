@@ -1,0 +1,199 @@
+<div id="bbasm-sitemap-preview">
+  <style>
+    #bbasm-sitemap-preview { color-scheme: light dark; --bb-bg: light-dark(#f4f7f5,#0c1713); --bb-side: light-dark(#eaf1ec,#0a130f); --bb-panel: light-dark(#ffffff,#13231c); --bb-panel2: light-dark(#f5f9f6,#192d23); --bb-line: light-dark(#d9e5dc,#294438); --bb-guide: light-dark(#c5d6ca,#3b5b4b); --bb-text: light-dark(#15251d,#eef7f1); --bb-muted: light-dark(#587064,#9db9a8); --bb-accent: light-dark(#08774d,#65d99f); --bb-selected: light-dark(#e3f5e9,#214a36); --bb-chip: light-dark(#edf4ef,#24382d); --bb-row-height: 39px; font-family: Inter, system-ui, sans-serif; color: var(--bb-text); }
+    #bbasm-sitemap-preview * { box-sizing: border-box; }
+    #bbasm-sitemap-preview .bb-app { display: grid; grid-template-columns: 150px minmax(0,1fr); min-height: 640px; background: var(--bb-bg); border: 1px solid var(--bb-line); border-radius: 12px; overflow: hidden; }
+    #bbasm-sitemap-preview .bb-side { background: var(--bb-side); border-right: 1px solid var(--bb-line); padding: 21px 13px; }
+    #bbasm-sitemap-preview .bb-brand { font-weight: 750; letter-spacing: .04em; font-size: 18px; margin: 0 0 24px; }
+    #bbasm-sitemap-preview .bb-nav { display: grid; gap: 5px; }
+    #bbasm-sitemap-preview .bb-nav span { padding: 10px; color: var(--bb-muted); border-radius: 7px; font-size: 12px; }
+    #bbasm-sitemap-preview .bb-nav .on { background: var(--bb-selected); color: var(--bb-text); font-weight: 650; }
+    #bbasm-sitemap-preview .bb-main { min-width: 0; padding: 24px 26px 28px; }
+    #bbasm-sitemap-preview .bb-kicker { color: var(--bb-accent); text-transform: uppercase; font-size: 10px; font-weight: 750; letter-spacing: .12em; margin-bottom: 5px; }
+    #bbasm-sitemap-preview .bb-top { display: flex; justify-content: space-between; align-items: start; gap: 14px; margin-bottom: 18px; }
+    #bbasm-sitemap-preview .bb-title { font-size: 23px; line-height: 1.15; font-weight: 720; margin: 0 0 4px; }
+    #bbasm-sitemap-preview .bb-sub { color: var(--bb-muted); font-size: 12px; margin: 0; }
+    #bbasm-sitemap-preview .bb-pill { white-space: nowrap; background: var(--bb-chip); color: var(--bb-muted); padding: 7px 10px; border-radius: 999px; font-size: 11px; }
+    #bbasm-sitemap-preview .bb-tabs { display: flex; gap: 5px; border-bottom: 1px solid var(--bb-line); margin-bottom: 14px; }
+    #bbasm-sitemap-preview .bb-tab { border: 0; background: transparent; color: var(--bb-muted); padding: 10px 12px; font: inherit; font-size: 12px; font-weight: 650; }
+    #bbasm-sitemap-preview .bb-tab.on { color: var(--bb-accent); border-bottom: 2px solid var(--bb-accent); }
+    #bbasm-sitemap-preview .bb-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+    #bbasm-sitemap-preview .bb-search { min-width: 180px; flex: 1 1 210px; border: 1px solid var(--bb-line); background: var(--bb-panel); color: var(--bb-text); border-radius: 8px; padding: 10px 12px; font: inherit; font-size: 12px; }
+    #bbasm-sitemap-preview .bb-select, #bbasm-sitemap-preview .bb-control { border: 1px solid var(--bb-line); background: var(--bb-panel); color: var(--bb-text); border-radius: 8px; padding: 9px 10px; font: inherit; font-size: 12px; }
+    #bbasm-sitemap-preview button { cursor: pointer; }
+    #bbasm-sitemap-preview button:focus-visible, #bbasm-sitemap-preview input:focus-visible, #bbasm-sitemap-preview select:focus-visible { outline: 2px solid var(--bb-accent); outline-offset: 2px; }
+    #bbasm-sitemap-preview .bb-workspace { display: grid; grid-template-columns: minmax(0,1.12fr) minmax(0,.88fr); gap: 12px; min-height: 400px; }
+    #bbasm-sitemap-preview .bb-panel { min-width: 0; background: var(--bb-panel); border: 1px solid var(--bb-line); border-radius: 10px; overflow: hidden; }
+    #bbasm-sitemap-preview .bb-panel-head { padding: 12px 14px; border-bottom: 1px solid var(--bb-line); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    #bbasm-sitemap-preview .bb-panel-head strong { font-size: 12px; }
+    #bbasm-sitemap-preview .bb-panel-head small { font-size: 11px; color: var(--bb-muted); }
+    #bbasm-sitemap-preview .bb-tree { padding: 8px 8px 16px; }
+    #bbasm-sitemap-preview .bb-tree-row { position: relative; display: flex; align-items: center; gap: 6px; width: 100%; min-height: var(--bb-row-height); padding: 0 10px; border: 0; border-radius: 6px; color: var(--bb-text); background: transparent; text-align: left; font: inherit; font-size: 12px; }
+    #bbasm-sitemap-preview .bb-tree-row:hover, #bbasm-sitemap-preview .bb-result:hover { background: var(--bb-panel2); }
+    #bbasm-sitemap-preview .bb-tree-row.active, #bbasm-sitemap-preview .bb-result.active { background: var(--bb-selected); }
+    #bbasm-sitemap-preview .bb-tree-row .arrow { color: var(--bb-muted); width: 14px; flex: none; }
+    #bbasm-sitemap-preview .bb-tree-row .folder { color: var(--bb-accent); width: 18px; flex: none; }
+    #bbasm-sitemap-preview .bb-tree-row .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    #bbasm-sitemap-preview .bb-tree-row .count { color: var(--bb-muted); font-variant-numeric: tabular-nums; font-size: 11px; }
+    #bbasm-sitemap-preview .bb-indent-1 { padding-left: 34px; }
+    #bbasm-sitemap-preview .bb-indent-2 { padding-left: 54px; }
+    #bbasm-sitemap-preview .bb-indent-3 { padding-left: 74px; }
+    #bbasm-sitemap-preview .bb-indent-1::before, #bbasm-sitemap-preview .bb-indent-2::before, #bbasm-sitemap-preview .bb-indent-3::before { content: ""; position: absolute; inset: 0; pointer-events: none; }
+    #bbasm-sitemap-preview .bb-indent-1::before { background: linear-gradient(var(--bb-guide),var(--bb-guide)) 22px 0 / 1px 100% no-repeat; }
+    #bbasm-sitemap-preview .bb-indent-2::before { background: linear-gradient(var(--bb-guide),var(--bb-guide)) 22px 0 / 1px 100% no-repeat, linear-gradient(var(--bb-guide),var(--bb-guide)) 42px 0 / 1px 100% no-repeat; }
+    #bbasm-sitemap-preview .bb-indent-3::before { background: linear-gradient(var(--bb-guide),var(--bb-guide)) 22px 0 / 1px 100% no-repeat, linear-gradient(var(--bb-guide),var(--bb-guide)) 42px 0 / 1px 100% no-repeat, linear-gradient(var(--bb-guide),var(--bb-guide)) 62px 0 / 1px 100% no-repeat; }
+    #bbasm-sitemap-preview .bb-indent-1::after, #bbasm-sitemap-preview .bb-indent-2::after, #bbasm-sitemap-preview .bb-indent-3::after { content: ""; position: absolute; top: 50%; width: 12px; height: 1px; background: var(--bb-guide); pointer-events: none; }
+    #bbasm-sitemap-preview .bb-indent-1::after { left: 22px; }
+    #bbasm-sitemap-preview .bb-indent-2::after { left: 42px; }
+    #bbasm-sitemap-preview .bb-indent-3::after { left: 62px; }
+    #bbasm-sitemap-preview .bb-tree-row[data-item="host"]::after { content: ""; position: absolute; left: 22px; top: 50%; bottom: 0; width: 1px; background: var(--bb-guide); pointer-events: none; }
+    #bbasm-sitemap-preview .bb-tree-row[data-item="health"]::before { background: linear-gradient(var(--bb-guide),var(--bb-guide)) 22px 0 / 1px 50% no-repeat; }
+    #bbasm-sitemap-preview .bb-tree-row[data-item="users"]::before { background: linear-gradient(var(--bb-guide),var(--bb-guide)) 22px 0 / 1px 100% no-repeat, linear-gradient(var(--bb-guide),var(--bb-guide)) 42px 0 / 1px 50% no-repeat; }
+    #bbasm-sitemap-preview .bb-tree-row[data-item="checkout"]::before { background: linear-gradient(var(--bb-guide),var(--bb-guide)) 22px 0 / 1px 100% no-repeat, linear-gradient(var(--bb-guide),var(--bb-guide)) 42px 0 / 1px 100% no-repeat, linear-gradient(var(--bb-guide),var(--bb-guide)) 62px 0 / 1px 50% no-repeat; }
+    #bbasm-sitemap-preview .bb-detail { padding: 17px 18px; }
+    #bbasm-sitemap-preview .bb-label { text-transform: uppercase; letter-spacing: .07em; color: var(--bb-muted); font-size: 10px; font-weight: 750; margin: 0 0 7px; }
+    #bbasm-sitemap-preview .bb-path { overflow-wrap: anywhere; font-size: 15px; font-weight: 650; line-height: 1.45; margin: 0 0 15px; }
+    #bbasm-sitemap-preview .bb-crumb { color: var(--bb-muted); font-size: 11px; margin: 0 0 15px; }
+    #bbasm-sitemap-preview .bb-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 8px; border-top: 1px solid var(--bb-line); padding-top: 15px; }
+    #bbasm-sitemap-preview .bb-fact small { display: block; color: var(--bb-muted); font-size: 10px; margin-bottom: 4px; }
+    #bbasm-sitemap-preview .bb-fact strong { font-size: 12px; font-weight: 650; }
+    #bbasm-sitemap-preview .bb-status { color: var(--bb-accent); }
+    #bbasm-sitemap-preview .bb-note { margin: 17px 0 0; padding: 10px 12px; background: var(--bb-panel2); border-radius: 7px; color: var(--bb-muted); font-size: 11px; line-height: 1.45; }
+    #bbasm-sitemap-preview .bb-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
+    #bbasm-sitemap-preview .bb-primary { background: var(--bb-accent); color: var(--bb-bg); border-color: var(--bb-accent); font-weight: 700; }
+    #bbasm-sitemap-preview .bb-foot { color: var(--bb-muted); font-size: 11px; margin: 12px 0 0; }
+    #bbasm-sitemap-preview .bb-results { padding: 7px; }
+    #bbasm-sitemap-preview .bb-result { width: 100%; display: block; text-align: left; border: 0; background: transparent; color: var(--bb-text); padding: 13px 12px; border-radius: 7px; font: inherit; }
+    #bbasm-sitemap-preview .bb-result + .bb-result { border-top: 1px solid var(--bb-line); border-radius: 0; }
+    #bbasm-sitemap-preview .bb-result b { display: block; font-size: 12px; overflow-wrap: anywhere; margin-bottom: 5px; }
+    #bbasm-sitemap-preview .bb-result small { color: var(--bb-muted); font-size: 11px; }
+    #bbasm-sitemap-preview .bb-filter-note { background: var(--bb-selected); color: var(--bb-text); padding: 10px 12px; border-radius: 7px; font-size: 11px; margin-bottom: 13px; }
+    @media (max-width: 760px) { #bbasm-sitemap-preview .bb-app { grid-template-columns: 1fr; min-height: 0; } #bbasm-sitemap-preview .bb-side { display: none; } #bbasm-sitemap-preview .bb-main { padding: 17px 13px 22px; } #bbasm-sitemap-preview .bb-workspace { grid-template-columns: 1fr; } #bbasm-sitemap-preview .bb-panel { min-height: 0; } #bbasm-sitemap-preview .bb-pill { display: none; } }
+  </style>
+  <div class="viz-carousel" aria-label="Hai hướng trình bày Sitemap" data-previous-label="Thiết kế trước" data-next-label="Thiết kế tiếp">
+    <section data-variant="Cây + chi tiết" aria-label="Sitemap dạng cây với panel chi tiết">
+      <div class="bb-app" data-design="tree">
+        <aside class="bb-side"><div class="bb-brand">◇ BBASM</div><nav class="bb-nav"><span>▦ Danh mục</span><span>＋ Thêm program</span><span class="on">⌘ Program</span><span>⚙ Công cụ</span></nav></aside>
+        <main class="bb-main">
+          <div class="bb-kicker">Program / demo.local / Dữ liệu</div>
+          <div class="bb-top"><div><h2 class="bb-title">URL & endpoint</h2><p class="bb-sub">Tìm đường dẫn cần xem trong 1.248 URL · bản mẫu dùng dữ liệu giả</p></div><span class="bb-pill">Scan mới nhất #42</span></div>
+          <div class="bb-tabs"><button class="bb-tab">Bảng</button><button class="bb-tab on">Cây sitemap</button></div>
+          <div class="bb-toolbar"><input class="bb-search" aria-label="Tìm URL trong cây" placeholder="Tìm host, thư mục hoặc endpoint…"><select class="bb-select" aria-label="Nguồn URL"><option>Mọi nguồn</option><option>Đã crawl</option><option>Lịch sử</option></select><select class="bb-select" aria-label="Mức mở cây"><option>Mở tới cấp 2</option><option>Thu hết</option><option>Mở tới cấp 3</option></select></div>
+          <div class="bb-workspace">
+            <section class="bb-panel"><div class="bb-panel-head"><strong>Đường dẫn</strong><small>3 host · 1.248 URL</small></div><div class="bb-tree">
+              <button class="bb-tree-row" data-item="host"><span class="arrow">▾</span><span class="folder">▣</span><span class="label"><b>api.demo.local</b></span><span class="count">412</span></button>
+              <button class="bb-tree-row bb-indent-1" data-item="v1"><span class="arrow">▾</span><span class="folder">▱</span><span class="label">v1/</span><span class="count">320</span></button>
+              <button class="bb-tree-row bb-indent-2" data-item="orders"><span class="arrow">▾</span><span class="folder">▱</span><span class="label">orders/</span><span class="count">83</span></button>
+              <button class="bb-tree-row bb-indent-3 active" data-item="order-id"><span class="arrow"></span><span class="folder">◇</span><span class="label">{id}?id=42</span><span class="count">8</span></button>
+              <button class="bb-tree-row bb-indent-3" data-item="checkout"><span class="arrow"></span><span class="folder">◇</span><span class="label">checkout</span><span class="count">34</span></button>
+              <button class="bb-tree-row bb-indent-2" data-item="users"><span class="arrow">▸</span><span class="folder">▱</span><span class="label">users/</span><span class="count">120</span></button>
+              <button class="bb-tree-row bb-indent-1" data-item="health"><span class="arrow"></span><span class="folder">◇</span><span class="label">health</span><span class="count">1</span></button>
+              <button class="bb-tree-row" data-item="app"><span class="arrow">▸</span><span class="folder">▣</span><span class="label"><b>app.demo.local</b></span><span class="count">624</span></button>
+              <button class="bb-tree-row" data-item="cdn"><span class="arrow">▸</span><span class="folder">▣</span><span class="label"><b>cdn.demo.local</b></span><span class="count">212</span></button>
+            </div></section>
+            <section class="bb-panel"><div class="bb-panel-head"><strong>Chi tiết mục đã chọn</strong><small>Không cần mở trang khác</small></div><div class="bb-detail" data-detail>
+              <p class="bb-label">URL đại diện</p><p class="bb-path" data-path>https://api.demo.local/v1/orders/{id}?id=42</p><p class="bb-crumb" data-crumb>api.demo.local / v1 / orders / {id}</p>
+              <div class="bb-facts"><div class="bb-fact"><small>Kiểm chứng</small><strong class="bb-status" data-status>Đã crawl</strong></div><div class="bb-fact"><small>Nguồn</small><strong data-source>Katana</strong></div><div class="bb-fact"><small>Biến thể</small><strong data-variants>8 URL</strong></div><div class="bb-fact"><small>Thấy trong scan</small><strong data-scan>#39 → #42</strong></div></div>
+              <p class="bb-note">URL lịch sử chỉ chứng minh đường dẫn từng xuất hiện; “đã crawl” nghĩa là công cụ thấy liên kết trong lần quét.</p><div class="bb-actions"><button class="bb-control bb-primary" data-copy>Sao chép URL</button><button class="bb-control" data-show>Hiện trong bảng</button></div>
+            </div></section>
+          </div>
+          <p class="bb-foot" data-tree-message aria-live="polite">Chọn host, thư mục hoặc URL để xem thông tin. Cây giữ gọn, chi tiết chỉ hiện ở bên phải.</p>
+        </main>
+      </div>
+    </section>
+    <section data-variant="Tìm kiếm ưu tiên" aria-label="Sitemap với danh sách kết quả tìm kiếm" hidden>
+      <div class="bb-app" data-design="search">
+        <aside class="bb-side"><div class="bb-brand">◇ BBASM</div><nav class="bb-nav"><span>▦ Danh mục</span><span>＋ Thêm program</span><span class="on">⌘ Program</span><span>⚙ Công cụ</span></nav></aside>
+        <main class="bb-main">
+          <div class="bb-kicker">Program / demo.local / Dữ liệu</div><div class="bb-top"><div><h2 class="bb-title">Tìm URL & endpoint</h2><p class="bb-sub">Kết quả hiện đầy đủ đường dẫn; chọn một mục để xem nguồn và lịch sử</p></div><span class="bb-pill">Scan mới nhất #42</span></div>
+          <div class="bb-toolbar"><input class="bb-search" aria-label="Tìm endpoint" value="auth" placeholder="Nhập host, đường dẫn hoặc tham số…"><select class="bb-select" aria-label="Nguồn kết quả"><option>Mọi nguồn</option><option>Đã crawl</option><option>Lịch sử</option></select><select class="bb-select" aria-label="Sắp xếp kết quả"><option>Liên quan nhất</option><option>Đường dẫn A–Z</option><option>Mới nhất</option></select></div>
+          <div class="bb-filter-note">3 kết quả cho “auth” · nhóm theo host · không tự mở hàng trăm nhánh cây</div>
+          <div class="bb-workspace">
+            <section class="bb-panel"><div class="bb-panel-head"><strong>Kết quả khớp</strong><small>Có đường dẫn cha</small></div><div class="bb-results">
+              <button class="bb-result active" data-result="auth-login"><b>api.demo.local / v1 / auth / login</b><small>Đã crawl · scan #42 · 3 biến thể</small></button>
+              <button class="bb-result" data-result="auth-token"><b>api.demo.local / v1 / auth / token</b><small>Lịch sử · scan #37 → #42 · 2 biến thể</small></button>
+              <button class="bb-result" data-result="auth-callback"><b>app.demo.local / account / auth / callback</b><small>Đã crawl · scan #41 → #42 · 1 URL</small></button>
+            </div></section>
+            <section class="bb-panel"><div class="bb-panel-head"><strong>Chi tiết kết quả</strong><small data-search-count>1 / 3</small></div><div class="bb-detail">
+              <p class="bb-label">URL đại diện</p><p class="bb-path" data-result-path>https://api.demo.local/v1/auth/login</p><p class="bb-crumb" data-result-crumb>api.demo.local / v1 / auth / login</p>
+              <div class="bb-facts"><div class="bb-fact"><small>Kiểm chứng</small><strong class="bb-status" data-result-status>Đã crawl</strong></div><div class="bb-fact"><small>Nguồn</small><strong data-result-source>Katana</strong></div><div class="bb-fact"><small>Biến thể</small><strong data-result-variants>3 URL</strong></div><div class="bb-fact"><small>Thấy trong scan</small><strong data-result-scan>#42</strong></div></div>
+              <div class="bb-actions"><button class="bb-control bb-primary" data-copy>Sao chép URL</button><button class="bb-control" data-show>Đi tới cây</button></div>
+            </div></section>
+          </div><p class="bb-foot" data-search-message aria-live="polite">Tìm kiếm trả danh sách ngắn có ngữ cảnh; cây chỉ dùng khi cần khám phá theo cấu trúc.</p>
+        </main>
+      </div>
+    </section>
+  </div>
+  <script>
+    (() => {
+      const root = document.getElementById('bbasm-sitemap-preview');
+      const tree = root.querySelector('[data-design="tree"]');
+      const search = root.querySelector('[data-design="search"]');
+      const treeData = {
+        host: ['https://api.demo.local/', 'api.demo.local', 'Chưa probe riêng', 'Scope thủ công', '412 URL', '#36 → #42'],
+        v1: ['https://api.demo.local/v1/', 'api.demo.local / v1', 'Hỗn hợp', 'Nhiều nguồn', '320 URL', '#36 → #42'],
+        orders: ['https://api.demo.local/v1/orders/', 'api.demo.local / v1 / orders', 'Hỗn hợp', 'Nhiều nguồn', '83 URL', '#39 → #42'],
+        'order-id': ['https://api.demo.local/v1/orders/{id}?id=42', 'api.demo.local / v1 / orders / {id}', 'Đã crawl', 'Katana', '8 URL', '#39 → #42'],
+        checkout: ['https://api.demo.local/v1/orders/checkout', 'api.demo.local / v1 / orders / checkout', 'Đã crawl', 'Katana', '34 URL', '#42'],
+        users: ['https://api.demo.local/v1/users/', 'api.demo.local / v1 / users', 'Lịch sử', 'GAU', '120 URL', '#36 → #42'],
+        health: ['https://api.demo.local/health', 'api.demo.local / health', 'Đã crawl', 'Katana', '1 URL', '#42'],
+        app: ['https://app.demo.local/', 'app.demo.local', 'Hỗn hợp', 'Nhiều nguồn', '624 URL', '#36 → #42'],
+        cdn: ['https://cdn.demo.local/', 'cdn.demo.local', 'Lịch sử', 'GAU', '212 URL', '#36 → #42']
+      };
+      tree.querySelectorAll('[data-item]').forEach(row => row.addEventListener('click', () => {
+        tree.querySelectorAll('[data-item]').forEach(other => other.classList.toggle('active', other === row));
+        const d = treeData[row.dataset.item];
+        ['path','crumb','status','source','variants','scan'].forEach((key, index) => tree.querySelector(`[data-${key}]`).textContent = d[index]);
+        tree.querySelector('[data-tree-message]').textContent = `Đã chọn ${d[1]}.`;
+      }));
+      tree.querySelector('.bb-search').addEventListener('input', event => {
+        const q = event.target.value.trim().toLowerCase();
+        let shown = 0;
+        tree.querySelectorAll('[data-item]').forEach(row => {
+          const text = treeData[row.dataset.item][1].toLowerCase();
+          row.hidden = !!q && !text.includes(q);
+          if (!row.hidden) shown++;
+        });
+        tree.querySelector('[data-tree-message]').textContent = q ? `${shown} mục khớp “${event.target.value}”; chọn một mục để xem đường dẫn đầy đủ.` : 'Chọn host, thư mục hoặc URL để xem thông tin.';
+      });
+      const searchData = {
+        'auth-login': ['https://api.demo.local/v1/auth/login','api.demo.local / v1 / auth / login','Đã crawl','Katana','3 URL','#42'],
+        'auth-token': ['https://api.demo.local/v1/auth/token','api.demo.local / v1 / auth / token','Lịch sử','GAU','2 URL','#37 → #42'],
+        'auth-callback': ['https://app.demo.local/account/auth/callback','app.demo.local / account / auth / callback','Đã crawl','Katana','1 URL','#41 → #42']
+      };
+      search.querySelectorAll('[data-result]').forEach((row, index) => row.addEventListener('click', () => {
+        search.querySelectorAll('[data-result]').forEach(other => other.classList.toggle('active', other === row));
+        const d = searchData[row.dataset.result];
+        ['path','crumb','status','source','variants','scan'].forEach((key, i) => search.querySelector(`[data-result-${key}]`).textContent = d[i]);
+        search.querySelector('[data-search-count]').textContent = `${index + 1} / 3`;
+        search.querySelector('[data-search-message]').textContent = `Đã chọn ${d[1]}.`;
+      }));
+      search.querySelector('.bb-search').addEventListener('input', event => {
+        const q = event.target.value.trim().toLowerCase();
+        let shown = 0;
+        search.querySelectorAll('[data-result]').forEach(row => {
+          row.hidden = !!q && !row.textContent.toLowerCase().includes(q);
+          if (!row.hidden) shown++;
+        });
+        search.querySelector('.bb-filter-note').textContent = q ? `${shown} kết quả cho “${event.target.value}” · nhóm theo host` : `${shown} kết quả · nhóm theo host`;
+      });
+      root.querySelectorAll('[data-copy]').forEach(button => button.addEventListener('click', () => {
+        const pane = button.closest('.bb-detail');
+        const url = pane.querySelector('.bb-path').textContent;
+        navigator.clipboard?.writeText(url).catch(() => {});
+        const old = button.textContent; button.textContent = 'Đã chép'; setTimeout(() => button.textContent = old, 1400);
+      }));
+      root.querySelectorAll('[data-show]').forEach(button => button.addEventListener('click', () => {
+        const app = button.closest('.bb-app');
+        app.querySelector('.bb-foot').textContent = 'Bản mẫu: thao tác này sẽ mở đúng URL trong bảng/cây khi triển khai.';
+      }));
+      const density = { rowHeight: 39 };
+      const renderDensity = () => tree.style.setProperty('--bb-row-height', `${density.rowHeight}px`);
+      renderDensity();
+      if (globalThis.Tweak) {
+        const tweak = new Tweak({ container: tree, onChange: renderDensity });
+        tweak.addSlider(density, 'rowHeight', { label: 'Chiều cao mỗi dòng cây', min: 32, max: 52, unit: 'px' });
+      }
+    })();
+  </script>
+</div>
