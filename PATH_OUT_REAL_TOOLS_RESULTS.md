@@ -2,6 +2,8 @@
 
 Ngày 2026-10-16. Code `audit/input-output-flow` tại `bd8405b` (phần xử lý IN/OUT ở `2d540fd`). Không gọi HackerOne, không scan host ngoài, không dùng token. Container QA riêng `bbasm-path-audit` chạy `--network none`, mount `backend/` của commit này vào image `bbasm-v12-bbasm` (`sha256:8b64ef90486449482a07a8bb3ae3ece522efea84ccc975bffaf7e3442708e8fb`); DB và targets tạm nằm ngoài checkout. Stack người dùng `bbasm-v12` cổng 18765 không bị thay đổi.
 
+**Cách đọc kết quả:** fixture đặt các URL `/admin` là OUT **không kèm hướng dẫn theo phương thức HTTP**. FAIL dưới đây là FAIL so với cam kết hiện tại của BBASM rằng active tool không gửi request tới path OUT. Đây không phải bằng chứng rằng những GET đó vi phạm policy của Wolt.
+
 Fixture ghi mọi GET trên `127.0.0.1:80` và `127.0.0.2:80`; `/jump` trả `302 Location: http://restricted.qa.test/admin`. Trong container, `restricted.qa.test -> 127.0.0.1`, `free.qa.test -> 127.0.0.2`. Trang `/` có link `/safe`, `/jump`, `/admin`. Template nuclei duy nhất `qa-redirect-out.yaml` có `redirects: true`, GET `{{BaseURL}}/jump`. Công cụ trong image: httpx v1.12.0, gau v2.2.4, subfinder v2.17.0, nuclei v3.11.1. Mỗi case launch Light với `threads=1`, `rate_limit=5`, crawl và nuclei bật, `automation_ack=true`.
 
 ## Kết quả
@@ -35,8 +37,14 @@ Fixture ghi mọi GET trên `127.0.0.1:80` và `127.0.0.2:80`; `/jump` trả `30
 - Nuclei finding ở case 1 và case 4 có `matched-at: http://restricted.qa.test/admin`. Case 2 còn có request trực tiếp với `Host: 127.0.0.1`, đủ để xác nhận OUT theo URL đã bị chạm.
 - Không chạy exploit hay template bên ngoài; template QA chỉ gửi GET và kiểm status. Log JSON đầy đủ và template nằm ở thư mục QA tạm ngoài repo. Bảng trên liệt kê tất cả request có path bắt đầu `/admin` trong cả bốn lượt.
 
+## Diễn giải policy Wolt: cần phân biệt OUT và phương thức request
+
+Trong bản `review_evidence/wolt_scans/31/PROGRAM.md` đã lưu, **ba** URL OUT có instruction `Do not POST data here, as it will be sent to a third-party system that is also out of scope.`; **hai** URL OUT khác (`wolt-for-work-contact-request`, `partner-with-wolt`) không có instruction đó. Fixture này chỉ ghi GET. Vì thế không thể từ bảng trên kết luận rằng GET tới cả năm URL Wolt đều bị cấm, cũng không thể suy từ instruction của ba URL rằng hai URL còn lại cho phép GET.
+
+Nếu policy chính thức xác nhận GET được phép ở một URL nhưng POST bị cấm, cách chặn mọi GET của BBASM là quá bảo thủ và giảm dữ liệu hữu ích. Tuy nhiên `eligible_for_submission=false`/OUT vẫn là nhãn phạm vi báo cáo; nó không tự động đồng nghĩa với quy tắc HTTP GET/POST. Cần giữ hai khái niệm riêng: (1) asset có được coi là IN cho finding/brief hay không; (2) phương thức, path và kiểu request nào được phép gửi. Chỉ cho GET khi instruction/policy của **chính asset đó** rõ ràng cho phép; trường hợp không rõ giữ giới hạn an toàn và báo lý do ở Review.
+
 ## Finding mới và hướng kiểm tra sửa
 
-**P1 — Chặn OUT sau khi nhận dữ liệu không bảo đảm không có request tới OUT.** `recon_orch.py` đánh dấu probe-only cho host nằm trực tiếp trong `path_rule_hosts`, nhưng CIDR đi qua `_recon(..., target_type="cidr")` mà không chia host bị giới hạn. Nuclei template có redirect riêng vẫn vượt OUT khi bắt đầu từ host tự do, ngay cả khi `BBASM_NO_REDIRECT=1`. Khi `BBASM_NO_REDIRECT=0`, katana cũng theo redirect sang OUT.
+**P1 đối với cam kết chặn mọi request tới OUT hiện tại — không phải kết luận vi phạm policy Wolt.** `recon_orch.py` đánh dấu probe-only cho host nằm trực tiếp trong `path_rule_hosts`, nhưng CIDR đi qua `_recon(..., target_type="cidr")` mà không chia host bị giới hạn. Nuclei template có redirect riêng vẫn vượt OUT khi bắt đầu từ host tự do, ngay cả khi `BBASM_NO_REDIRECT=1`. Khi `BBASM_NO_REDIRECT=0`, katana cũng theo redirect sang OUT.
 
-Đề nghị Claude phân tách hai lỗi: (a) CIDR cần tách/loại host có path OUT khỏi các bước crawl/template; (b) kiểm soát redirect ở **từng request của mọi công cụ**, kể cả redirect do template nuclei quyết định và redirect sang hostname khác trỏ cùng IP. Nếu không bảo đảm được, Review/Run phải ghi rõ giới hạn và không cho active scan với tổ hợp scope này. Test hồi quy phải dùng fixture ghi request, khẳng định không có một GET nào tới path OUT; chỉ kiểm DB hoặc output là không đủ.
+Đề nghị Claude phân tách hai lỗi: (a) CIDR cần tách/loại host có path OUT khỏi các bước crawl/template khi path đó cấm request; (b) kiểm soát redirect ở **từng request của mọi công cụ**, kể cả redirect do template nuclei quyết định và redirect sang hostname khác trỏ cùng IP. Nếu product hỗ trợ policy chỉ cấm POST, test hồi quy cần khẳng định GET được phép theo rule riêng nhưng POST/PUT/PATCH/DELETE và request có body không tới endpoint đó, kể cả sau redirect. Với OUT không có hướng dẫn cho phép GET, test phải khẳng định không có request nào tới path OUT. Chỉ kiểm DB hoặc output là không đủ.

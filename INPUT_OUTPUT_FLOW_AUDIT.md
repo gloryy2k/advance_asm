@@ -10,6 +10,8 @@ Review chọn scope và cấu hình; API Resolve/Review/Launch/Rescan/Schedule; 
 
 Trường hợp gốc: `wolt.com` là IN, còn URL như `https://wolt.com/en/wolt-for-work-contact-request` là OUT. OUT này phải chặn chính đường dẫn và các đường dẫn con, không biến cả `wolt.com` thành OUT. Đồng thời các công cụ active không được truy cập OUT trước khi kết quả bị lọc.
 
+**Làm rõ sau QA công cụ thật:** câu “không được truy cập OUT” ở trên là giả định an toàn của cách triển khai hiện tại, không phải diễn giải chung cho mọi policy. Bản policy Wolt đã lưu có ba endpoint OUT ghi rõ không gửi POST vì dữ liệu tới bên thứ ba, còn hai endpoint OUT khác không có ghi chú này. Các request QA đều là GET. Cần đọc instruction theo từng asset để tách phạm vi finding khỏi quyền gửi GET/POST; xem `PATH_OUT_REAL_TOOLS_RESULTS.md`.
+
 Thay đổi ở `2d540fd` nhìn chung giải quyết đúng hướng:
 
 1. `scope_gate.py` lưu OUT dạng `(host, path)`, so khớp path đã chuẩn hóa, giữ host và path khác trong IN. `ingest.py` loại URL thuộc path OUT khỏi DB và ghi số `path_rule_blocked`.
