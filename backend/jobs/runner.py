@@ -165,10 +165,14 @@ class JobRunner:
             self._validate(config)
             store_config(conn, scan_id, config)
             self._apply_scope_snapshot(conn, scan_id, config)
+            stats = json.loads(conn.execute("SELECT stats_json FROM scan_run WHERE id=?", (scan_id,)).fetchone()["stats_json"] or "{}")
             if ack:  # same transaction as queueing: a fast worker can never run before the confirmation is stored
-                stats = json.loads(conn.execute("SELECT stats_json FROM scan_run WHERE id=?", (scan_id,)).fetchone()["stats_json"] or "{}")
                 stats["automation_ack"] = utc_now()
-                conn.execute("UPDATE scan_run SET stats_json=? WHERE id=?", (json.dumps(stats), scan_id))
+            from backend.templates import snapshot_for_scan
+            templates = snapshot_for_scan(self.settings, config)
+            if templates is not None:
+                stats["nuclei_templates"] = templates      # the exact template set this scan is run with
+            conn.execute("UPDATE scan_run SET stats_json=? WHERE id=?", (json.dumps(stats), scan_id))
             conn.execute("UPDATE scan_run SET status='queued' WHERE id=?", (scan_id,))
         if ack:
             self._audit_ack(scan_id)

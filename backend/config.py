@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     BBASM_SUBFINDER_TIMEOUT: int = Field(default=120, ge=30, le=1800)  # whole subfinder run
     BBASM_PROBE_BATCH: int = Field(default=150, ge=10, le=1000)       # discovered hosts probed per batch
     BBASM_DEEP_HOSTS: int = Field(default=50, ge=1, le=500)            # live discovered hosts given the full Light/Strong pass
+    BBASM_NUCLEI_TEMPLATES: Path | None = None   # managed templates dir; default <BBASM_DATA>/nuclei-templates (a volume in compose)
+    BBASM_UPDATE_TEMPLATES: str = "auto"           # 0 never at boot; 1 every boot (background); auto only when none are installed yet
+    BBASM_TEMPLATES_MIN: int = Field(default=100, ge=1)          # fewer templates than this after a download = incomplete, keep the old set
+    BBASM_TEMPLATES_TIMEOUT: int = Field(default=900, ge=10, le=7200)
+    BBASM_TEMPLATES_MIN_FREE_MB: int = Field(default=500, ge=1)
     BBASM_BIND: str = "127.0.0.1"
     BBASM_PORT: int = Field(default=8000, ge=1, le=65535)
     BB_THREADS: int = Field(default=50, ge=1, le=200)
@@ -102,6 +107,10 @@ class Settings(BaseSettings):
         else:
             where = str((self.BBASM_TARGETS / slug).resolve())
         return {"hunt_command": f"cd {quote_path(where)} && claude", "hunt_note": note}
+
+    @property
+    def templates_dir(self) -> Path:
+        return Path(self.BBASM_NUCLEI_TEMPLATES) if self.BBASM_NUCLEI_TEMPLATES else Path(self.BBASM_DATA) / "nuclei-templates"
 
     def tool_path(self, name: str) -> Path:
         if not name or name in {".", ".."} or any(c in name for c in "/\\:"):

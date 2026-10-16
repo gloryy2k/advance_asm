@@ -33,6 +33,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if app.state.database.path.exists():
             await asyncio.to_thread(app.state.database.migrate)
         await asyncio.to_thread(app.state.runner.recover)
+        await asyncio.to_thread(app.state.templates.recover)
+        mode = settings.BBASM_UPDATE_TEMPLATES.strip().lower()
+        if mode == "1" or (mode == "auto" and not app.state.templates.describe()["installed"]):
+            try:
+                app.state.templates.start_update()      # background; its state is visible on the Tools page
+            except ScopeError:
+                pass                                   # nuclei not installed, or an update is already running
         app.state.scheduler.start()
         try:
             yield
@@ -46,6 +53,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.database = Database(settings.BBASM_DATA / "bbasm.db")
     app.state.scope_resolver = ScopeResolver(settings, app.state.database)
     app.state.runner = JobRunner(settings, app.state.database)
+    from backend.templates import TemplateStore
+    app.state.templates = TemplateStore(settings)
     app.state.scheduler = ScanScheduler(settings, app.state.database, app.state.runner)
     app.add_middleware(
         CORSMiddleware, allow_origins=settings.cors_origins,

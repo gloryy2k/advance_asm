@@ -122,3 +122,17 @@ def test_intrusive_templates_come_back_only_when_the_user_opts_in(home):
     add_template(home)
     run_shim(home, "-l", "x", extra_env={"BBASM_NUCLEI_ALLOW_INTRUSIVE": "1"})
     assert "-etags" not in (home / "go" / "bin" / "nuclei.argv").read_text().split()
+
+
+def test_shim_points_nuclei_at_the_managed_set_and_the_chosen_custom_templates(home, tmp_path):
+    (home / "go" / "bin" / "nuclei").write_text(FAKE_NUCLEI)
+    official = tmp_path / "official"
+    (official / "http").mkdir(parents=True)
+    (official / "http" / "a.yaml").write_text("id: a\n")
+    custom = tmp_path / "mine.yaml"
+    custom.write_text("id: mine\n")
+    run_shim(home, "-l", "x", extra_env={"BBASM_NUCLEI_OFFICIAL": str(official), "BBASM_NUCLEI_CUSTOM": f"{custom}\n/does/not/exist.yaml"})
+    argv = (home / "go" / "bin" / "nuclei.argv").read_text().split()
+    pairs = [argv[i + 1] for i, a in enumerate(argv) if a == "-t"]
+    assert pairs == [str(official), str(custom)]           # the missing custom file is skipped, nothing is guessed
+    assert "-duc" in argv

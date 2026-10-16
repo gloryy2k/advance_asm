@@ -2,6 +2,7 @@
 import asyncio
 
 from fastapi import APIRouter, Request
+from pydantic import BaseModel, Field
 
 from backend.tools import DEPTHS, probe_versions, tool_inventory
 
@@ -36,3 +37,35 @@ async def check(request: Request):
     """Deep check, only when the user asks: runs `<tool> -version` (update checks off, 8 s each) for tools that are present."""
     await asyncio.to_thread(probe_versions, request.app.state.settings)
     return await asyncio.to_thread(_payload, request)
+
+
+class CustomTemplate(BaseModel):
+    content: str = Field(min_length=10, max_length=300_000)
+
+
+def _store(request: Request):
+    return request.app.state.templates
+
+
+@router.get("/templates")
+async def templates(request: Request):
+    return await asyncio.to_thread(_store(request).describe)
+
+
+@router.post("/templates/update")
+async def update_templates(request: Request):
+    """Install or update the official nuclei templates now. One at a time; the old set is kept if it fails."""
+    job = await asyncio.to_thread(_store(request).start_update)
+    return {"job": job}
+
+
+@router.post("/templates/custom")
+async def import_template(body: CustomTemplate, request: Request):
+    """Add one YAML template of your own (checked, never run here, never part of a scan unless you choose it in Review)."""
+    return await asyncio.to_thread(_store(request).import_custom, body.content.encode("utf-8"))
+
+
+@router.delete("/templates/custom/{template_id}")
+async def delete_template(template_id: str, request: Request):
+    await asyncio.to_thread(_store(request).delete_custom, template_id)
+    return {"deleted": template_id}

@@ -1246,3 +1246,51 @@ describe("Tools page", () => {
     expect(link).toHaveAttribute("href", "#/tools?focus=nuclei");
   });
 });
+
+describe("Nuclei templates panel and per-scan custom templates", () => {
+  const toolsReport = (templates: object) => ({ tools: [
+    { id: "nuclei", kind: "binary", label: "nuclei", purpose: "p", state: "ready", detail: "", required_for: ["light"], optional: false, used_by: [], pinned_version: null, version: null, checked_at: null, remedy: "", impact: { passive: "unused", light: "ok", strong: "ok" } },
+    { id: "nuclei-templates", kind: "data", label: "nuclei-templates", purpose: "p", state: "missing_data", detail: "", required_for: ["light"], optional: false, used_by: [], pinned_version: null, version: null, checked_at: null, remedy: "x", impact: { passive: "unused", light: "ok", strong: "ok" }, templates }],
+    depths: ["passive", "light", "strong"], runtime: { os: "Linux", recon_supported: true }, summary: { ready: 1, missing_required: ["nuclei-templates"], missing_optional: [], missing_framework: [] } });
+  const info = (over: object = {}) => ({ installed: false, count: 0, updated_at: null, source: null, version: null, job: null, custom: [], ...over });
+
+  test("not installed -> install; a failed job says why and that the old set is kept; a custom template can be added and removed", async () => {
+    let state = info();
+    let custom: object[] = [];
+    const fetch = stubFetch((path, init) => {
+      if (path === "/api/tools/templates/update") { state = info({ job: { state: "failed", started_at: "2026-10-16T01:00:00Z", finished_at: "2026-10-16T01:00:05Z", message: "GitHub từ chối truy cập (403). Bộ template cũ (nếu có) vẫn được giữ.", count: null } }); return { job: state.job }; }
+      if (path === "/api/tools/templates/custom" && init?.method === "POST") { custom = [{ id: "my-check", name: "My check", enabled: false, bytes: 120, added_at: "2026-10-16T01:00:00Z" }]; return custom[0]; }
+      if (path.startsWith("/api/tools/templates/custom/") && init?.method === "DELETE") { custom = []; return { deleted: "my-check" }; }
+      if (path === "/api/tools/templates") return { ...state, custom };
+      if (path === "/api/tools") return toolsReport({ ...state, custom });
+      return {};
+    });
+    vi.stubGlobal("confirm", () => true);
+    location.hash = "/tools";
+    render(<App />);
+    const status = await screen.findByTestId("template-status");
+    expect(status).toHaveTextContent(/Chưa cài/);
+    fireEvent.click(screen.getByRole("button", { name: "Cài templates" }));
+    await waitFor(() => expect(calls(fetch, "/api/tools/templates/update", "POST")).toHaveLength(1));
+    expect(await screen.findByTestId("template-job")).toHaveTextContent(/thất bại.*403.*giữ/);
+    fireEvent.click(screen.getByText(/Template riêng \(/));
+    fireEvent.change(screen.getByLabelText("YAML template"), { target: { value: "id: my-check\ninfo: {name: My check}\nhttp: []" } });
+    fireEvent.click(screen.getByRole("button", { name: "Thêm template" }));
+    expect(await screen.findByText("My check")).toBeInTheDocument();
+    expect(JSON.parse(calls(fetch, "/api/tools/templates/custom", "POST")[0][1]!.body as string).content).toMatch(/^id: my-check/);
+    fireEvent.click(screen.getByRole("button", { name: "Xoá" }));
+    await waitFor(() => expect(screen.queryByText("My check")).not.toBeInTheDocument());
+  });
+
+  test("Review lets you choose custom templates for this scan only, and sends the ids with the config", async () => {
+    const fetch = stubFetch((path) => path === "/api/health" ? health() : path === "/api/tools/templates" ? info({ installed: true, count: 9000, custom: [{ id: "my-check", name: "My check", enabled: false, bytes: 1, added_at: "2026-10-16T01:00:00Z" }] })
+      : path.endsWith("/review") ? baseReview() : path.endsWith("/config") ? baseConfig : path.endsWith("/launch") ? { scan_id: 4, status: "queued" } : {});
+    location.hash = "/scan/4/review";
+    render(<App />);
+    fireEvent.click(await screen.findByLabelText(/Tôi đã đọc policy và program cho phép/));
+    fireEvent.click(await screen.findByLabelText(/My check/));
+    fireEvent.click(screen.getByRole("button", { name: "Launch scan" }));
+    await waitFor(() => expect(calls(fetch, "/launch")).toHaveLength(1));
+    expect(JSON.parse(calls(fetch, "/launch")[0][1]!.body as string).config.nuclei_custom).toEqual(["my-check"]);
+  });
+});

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
-import { RECIPE_FIELDS, type Config, type Depth, type Health, type PlanPhase, type Profile, type Recipe, type ReviewData, type ScopeEntry } from "../api/types";
+import { RECIPE_FIELDS, type Config, type Depth, type Health, type PlanPhase, type Profile, type Recipe, type ReviewData, type ScopeEntry, type TemplateInfo } from "../api/types";
 import { ConfigEditor } from "../components/ConfigEditor";
 import { PageHead, Panel } from "../components/layout";
 import { PolicyPanel } from "../components/PolicyPanel";
@@ -33,6 +33,7 @@ const recipeOf = (c: Config): Recipe => Object.fromEntries(RECIPE_FIELDS.map((f)
 export function Review({ id }: { id: string }) {
   const info = useData<ReviewData>("/api/scans/" + id + "/review");
   const health = useHealth();
+  const templates = useData<TemplateInfo>("/api/tools/templates");
   const [config, setConfig] = useState<Config | null>(null);
   const [profiles, setProfiles] = useState<{ builtin: Profile[]; custom: Profile[] } | null>(null);
   const [baseId, setBaseId] = useState("");
@@ -317,6 +318,20 @@ export function Review({ id }: { id: string }) {
         <ConfigEditor config={config} base={base?.config} baseName={base?.name} plan={plan} onChange={edit}
           onReset={() => base && chooseBase(base)} />
       </Panel>
+
+      {(templates.data?.custom?.length || 0) > 0 && config.depth !== "passive" && !config.skip_nuclei && (
+        <Panel id="custom-t-h" title="Template nuclei riêng cho scan này" hint="Chạy thêm bộ chính thức, chỉ cho scan này. Không chọn thì không template riêng nào chạy.">
+          <div className="chips-row">
+            {(templates.data?.custom || []).map((t) => (
+              <label className="check inline" key={t.id}>
+                <input type="checkbox" checked={(config.nuclei_custom || []).includes(t.id)}
+                  onChange={(e) => edit({ nuclei_custom: e.target.checked ? [...(config.nuclei_custom || []), t.id] : (config.nuclei_custom || []).filter((x) => x !== t.id) })} />
+                {t.name} <code>{t.id}</code>
+              </label>
+            ))}
+          </div>
+        </Panel>
+      )}
 
       <section className="panel" aria-labelledby="go-h" ref={confirmRef} id="confirm">
         <h2 id="go-h">Xác nhận</h2>

@@ -79,6 +79,8 @@ class ScanConfig(BaseModel):
     allow_active_on_path_rules: bool = False
     # The user confirmed the policy allows directory brute-forcing (ffuf) for THIS scan; Strong refuses to run ffuf otherwise.
     ffuf_confirmed: bool = False
+    # Ids of the user's own nuclei templates to run in addition to the official set, for THIS scan only.
+    nuclei_custom: list[str] = Field(default_factory=list, max_length=50)
     # Header names from the policy that the user read and knowingly does not send ("X-HackerOne-Research"). Names, not
     # values; stored with the draft/schedule so every screen reads one answer. A header that is sent needs no entry.
     skipped_headers: list[str] = Field(default_factory=list, max_length=5)
@@ -86,7 +88,7 @@ class ScanConfig(BaseModel):
     skip_required_headers: bool = False
 
     def options(self) -> dict:
-        return {name: getattr(self, name) for name in (*OPTION_FIELDS, "request_headers", "allow_active_on_path_rules", "skipped_headers", "skip_required_headers", "ffuf_confirmed")}
+        return {name: getattr(self, name) for name in (*OPTION_FIELDS, "request_headers", "allow_active_on_path_rules", "skipped_headers", "skip_required_headers", "ffuf_confirmed", "nuclei_custom")}
 
     @field_validator("request_headers")
     @classmethod
@@ -103,6 +105,14 @@ class ScanConfig(BaseModel):
             if name.strip().lower() not in {n.lower() for n in names}:
                 names.append(name.strip())
         return names
+
+    @field_validator("nuclei_custom")
+    @classmethod
+    def safe_custom_ids(cls, value):
+        for item in value:
+            if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", item):
+                raise ValueError(f"Mã template không hợp lệ: {item[:40]!r}")
+        return list(dict.fromkeys(value))
 
     @model_validator(mode="after")
     def drop_sent_from_skipped(self):

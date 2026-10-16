@@ -7,12 +7,18 @@
 shim_dir="$(cd "$(dirname "$0")" && pwd)"
 real="$(bbasm_real nuclei "$shim_dir")" || { echo "nuclei: not found" >&2; exit 127; }
 
+official="${BBASM_NUCLEI_OFFICIAL:-}"
 have_templates=0
-for dir in "${HOME:-/nonexistent}/nuclei-templates" "${HOME:-/nonexistent}/.local/nuclei-templates"; do
-    if [ -d "$dir" ] && [ -n "$(find "$dir" -name '*.yaml' -print -quit 2>/dev/null)" ]; then have_templates=1; fi
-done
+if [ -n "$official" ] && [ -d "$official" ] && [ -n "$(find "$official" -name '*.yaml' -print -quit 2>/dev/null)" ]; then
+    have_templates=1                      # the managed set (BBASM updates it on purpose)
+else
+    official=""
+    for dir in "${HOME:-/nonexistent}/nuclei-templates" "${HOME:-/nonexistent}/.local/nuclei-templates"; do
+        if [ -d "$dir" ] && [ -n "$(find "$dir" -name '*.yaml' -print -quit 2>/dev/null)" ]; then have_templates=1; fi
+    done
+fi
 if [ "$have_templates" = 0 ]; then
-    bbasm_note nuclei "không chạy: chưa có bộ template (nuclei sẽ tự tải từ internet nên BBASM chặn; cập nhật template bằng bước setup chủ động)"
+    bbasm_note nuclei "không chạy: chưa có bộ template (nuclei sẽ tự tải từ internet nên BBASM chặn; cài ở trang Công cụ & môi trường)"
     exit 0
 fi
 
@@ -24,5 +30,10 @@ extra=()
 if [ "${BBASM_NUCLEI_ALLOW_INTRUSIVE:-0}" != "1" ] && [ "$has_etags" = 0 ]; then
     extra+=(-etags dos,fuzz,intrusive,bruteforce,brute-force)
     bbasm_note nuclei "bỏ qua template gắn thẻ dos/fuzz/intrusive/brute-force (bật lại ở Review nếu policy cho phép)"
+fi
+# Point nuclei at the managed official set, plus the user's own templates chosen for this scan (added, not replacing).
+if [ -n "$official" ]; then
+    extra+=(-t "$official")
+    while IFS= read -r custom; do [ -n "$custom" ] && [ -f "$custom" ] && extra+=(-t "$custom"); done <<<"${BBASM_NUCLEI_CUSTOM:-}"
 fi
 exec "$real" "${extra[@]}" "$@"

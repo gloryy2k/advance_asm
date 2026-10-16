@@ -112,7 +112,11 @@ Docker dùng nmap connect-scan `-sT`, mặc định không thêm capabilities. N
 capabilities cho công cụ khác, dùng override `docker-compose.capabilities.yml`.
 Subfinder config là mount optional: đặt `SUBFINDER_CONFIG_DIR` tới thư mục host có
 sẵn và thêm `-f docker-compose.subfinder.yml`. Không cần mount để chạy mặc định.
-`BBASM_UPDATE_TEMPLATES=0` bỏ refresh templates lúc khởi động. Không sửa bind
+**Nuclei templates:** lưu trên named volume `bbasm-templates` (`/app/templates`), giữ qua `docker compose up --force-recreate`
+(`docker compose down -v` sẽ xóa). Cài/cập nhật ở trang **Công cụ & môi trường** (nút "Cài/Cập nhật templates"): tải vào thư mục tạm, chỉ thay
+bộ đang dùng khi tải đủ; lỗi thì giữ bộ cũ. Scan không bao giờ tự tải template. `BBASM_UPDATE_TEMPLATES`: `auto` (mặc định, tự cài nền
+một lần nếu chưa có), `1` (mỗi lần khởi động), `0` (không bao giờ). Template riêng (YAML) nhập ở cùng trang và chọn theo từng scan ở Review.
+Không sửa bind
 localhost của published port nếu chưa chủ động muốn expose dashboard không có auth.
 
 Docker tải 9 release binary đã pin phiên bản + SHA-256 trong

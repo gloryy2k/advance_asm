@@ -93,6 +93,15 @@ TIMEOUT_FUNCTION = """() {  local a=("$@") i=0
 }"""
 
 
+def _template_env(settings, config):
+    """Point nuclei at the managed set (and the custom templates chosen for this scan) so it never looks elsewhere or downloads."""
+    from backend.templates import official_ready, selected_custom
+    if not official_ready(settings):
+        return {}
+    return {"BBASM_NUCLEI_OFFICIAL": str(Path(settings.templates_dir) / "official"),
+            "BBASM_NUCLEI_CUSTOM": "\n".join(selected_custom(settings, config.nuclei_custom))}
+
+
 def recon_env(settings, config, output, *, discovery=False, skip_historical=False, probe_only=False):
     passive = config.depth == "passive" or discovery
     # Inherited tool toggles, auth sessions, shell init and proxies must not override review.
@@ -117,6 +126,7 @@ def recon_env(settings, config, output, *, discovery=False, skip_historical=Fals
         "BBASM_SKIP_NUCLEI": str(int(passive or config.skip_nuclei or not nuclei_templates_ready(settings))),
         "BBASM_NUC_SEV": config.nuclei_severity,
         "BBASM_NUCLEI_ALLOW_INTRUSIVE": str(int(config.nuclei_allow_intrusive)),
+        **_template_env(settings, config),
         "BBASM_SKIP_FFUF": str(int(config.depth != "strong" or config.skip_ffuf)),
         "BBASM_SKIP_CICD": "1",  # No automatic org expansion from discovered links.
         "BBASM_NMAP_CONNECT": "1",  # Portable -sT, including WSL2/no raw capabilities.
@@ -189,6 +199,9 @@ NUCLEI_BLOCKED_NOTE = ("KHÔNG được chạy: chưa có bộ template nuclei v
 
 def nuclei_templates_ready(settings):
     """True when nuclei has at least one template to run. A present binary without templates tests nothing."""
+    from backend.templates import official_ready
+    if official_ready(settings):    # the managed set (updated on purpose, kept on a volume)
+        return True
     home = Path(os.environ.get("HOME") or Path.home())
     for base in (home / "nuclei-templates", home / ".local" / "nuclei-templates"):
         if base.is_dir() and next(base.rglob("*.yaml"), None) is not None:

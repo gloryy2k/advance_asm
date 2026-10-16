@@ -22,6 +22,7 @@ export type Config = {
   skip_ffuf: boolean;
   nuclei_allow_intrusive?: boolean;
   ffuf_confirmed?: boolean;
+  nuclei_custom?: string[];
   skip_historical: boolean;
   skip_takeover: boolean;
   skip_secrets: boolean;
@@ -341,6 +342,8 @@ export type ToolsReport = {
 export type TemplateInfo = {
   installed: boolean;
   count: number;
+  managed?: boolean;
+  dir?: string;
   updated_at: string | null;
   source: string | null;
   version: string | null;

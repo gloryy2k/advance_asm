@@ -11,7 +11,14 @@ services:
       BBASM_DATA: /app/data
       BBASM_TARGETS: /app/targets
       BBASM_STATIC: /app/backend/static
+      BBASM_NUCLEI_TEMPLATES: /app/templates
     volumes:
       - ./data:/app/data
       - ./targets:/app/targets
+      # Nuclei templates live on a named volume: fast on Windows/macOS (no bind mount of ~14,000 small files) and kept by
+      # `docker compose up --force-recreate`. `docker compose down -v` deletes them; reinstall from the Tools page.
+      - bbasm-templates:/app/templates
     restart: unless-stopped
+
+volumes:
+  bbasm-templates:
