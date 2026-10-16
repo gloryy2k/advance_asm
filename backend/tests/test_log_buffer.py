@@ -17,6 +17,7 @@ def test_tc_run_5_replay_then_live_no_gaps_and_persists(tmp_path):
         assert (await pending)["id"] == 6
         await logs.emit(1, "done", status="done")
         assert (await anext(stream))["type"] == "done"
+        logs.flush()   # a restart happens after the old process has written its journal
         loaded = LogBuffer(tmp_path, capacity=3)
         assert loaded.replay(1) == logs.replay(1)
         reconnected = [item async for item in loaded.stream(1, after=5)]

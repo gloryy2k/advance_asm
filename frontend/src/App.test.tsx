@@ -215,11 +215,14 @@ describe("Review", () => {
     fireEvent.click(screen.getByLabelText(/Tôi đã đọc policy/));
     expect(launch).toBeDisabled();
     fireEvent.click(screen.getByLabelText(/Tôi hiểu Strong/));
+    expect(launch).toBeDisabled();   // ffuf would guess paths: the policy must be confirmed separately (or the step switched off)
+    expect(screen.getAllByRole("status").some((n) => /dò thư mục bằng ffuf/.test(n.textContent || ""))).toBe(true);
+    fireEvent.click(screen.getByLabelText(/xác nhận policy cho phép dò thư mục/));
     expect(launch).toBeEnabled();
     fireEvent.click(launch);
     await waitFor(() => expect(calls(fetch, "/launch")).toHaveLength(1));
     const config = JSON.parse(calls(fetch, "/launch")[0][1]!.body as string).config;
-    expect(config).toMatchObject({ depth: "strong", skip_nmap: false, scan_timeout: 2700, nuclei_severity: "low,medium,high,critical" });
+    expect(config).toMatchObject({ depth: "strong", skip_nmap: false, scan_timeout: 2700, nuclei_severity: "low,medium,high,critical", ffuf_confirmed: true });
   });
 
   test("excluding an entry changes exactly what is launched", async () => {

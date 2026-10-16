@@ -61,6 +61,8 @@ class ScanConfig(BaseModel):
     excluded_hosts: list[str] = Field(default_factory=list)
     # ── v1.2 user options (all optional: a config saved by an older client stays valid) ──
     skip_ffuf: bool = False            # strong only; ffuf never runs below strong
+    # Community nuclei templates tagged dos/fuzz/intrusive/brute-force are excluded unless the user opts in.
+    nuclei_allow_intrusive: bool = False
     skip_historical: bool = False      # no gau/wayback/crt.sh queries at all
     skip_takeover: bool = False
     skip_secrets: bool = False         # do not download/scan JS bundles
@@ -75,6 +77,8 @@ class ScanConfig(BaseModel):
     # Hosts that carry an OUT rule about a *path* get probe-only treatment (crawlers/templates cannot honour a path
     # exclusion). The user may knowingly allow the active tools on them; OUT URLs are still filtered from every result.
     allow_active_on_path_rules: bool = False
+    # The user confirmed the policy allows directory brute-forcing (ffuf) for THIS scan; Strong refuses to run ffuf otherwise.
+    ffuf_confirmed: bool = False
     # Header names from the policy that the user read and knowingly does not send ("X-HackerOne-Research"). Names, not
     # values; stored with the draft/schedule so every screen reads one answer. A header that is sent needs no entry.
     skipped_headers: list[str] = Field(default_factory=list, max_length=5)
@@ -82,7 +86,7 @@ class ScanConfig(BaseModel):
     skip_required_headers: bool = False
 
     def options(self) -> dict:
-        return {name: getattr(self, name) for name in (*OPTION_FIELDS, "request_headers", "allow_active_on_path_rules", "skipped_headers", "skip_required_headers")}
+        return {name: getattr(self, name) for name in (*OPTION_FIELDS, "request_headers", "allow_active_on_path_rules", "skipped_headers", "skip_required_headers", "ffuf_confirmed")}
 
     @field_validator("request_headers")
     @classmethod
@@ -123,7 +127,7 @@ class ScanConfig(BaseModel):
         return value
 
 
-OPTION_FIELDS = ("skip_ffuf", "skip_historical", "skip_takeover", "skip_secrets", "max_js_files",
+OPTION_FIELDS = ("skip_ffuf", "nuclei_allow_intrusive", "skip_historical", "skip_takeover", "skip_secrets", "max_js_files",
                  "url_exclude_patterns", "brief_budget_kb", "brief_top_assets", "brief_top_urls")
 # What a profile (a saved preset) may contain: how to scan, never *what* (scope stays per scan).
 RECIPE_FIELDS = ("depth", "threads", "rate_limit", "scan_timeout", "nuclei_severity", "skip_nmap", "skip_nuclei",

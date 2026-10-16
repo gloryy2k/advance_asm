@@ -17,7 +17,7 @@ const CONTROL: Record<string, keyof Config> = {
 const STATUS_LABEL = { on: "Sẽ chạy", off: "Tắt", missing_tool: "Thiếu công cụ" } as const;
 const FIELD_LABEL: Record<string, string> = {
   depth: "mức quét", threads: "số luồng", rate_limit: "request/giây", scan_timeout: "thời gian tối đa", nuclei_severity: "mức nuclei",
-  skip_nmap: "quét cổng", skip_nuclei: "nuclei", skip_active_crawl: "crawl chủ động", skip_ffuf: "dò thư mục", skip_historical: "URL lịch sử",
+  skip_nmap: "quét cổng", skip_nuclei: "nuclei", skip_active_crawl: "crawl chủ động", skip_ffuf: "dò thư mục", nuclei_allow_intrusive: "template nguy hiểm", skip_historical: "URL lịch sử",
   skip_takeover: "takeover", skip_secrets: "bí mật trong JS", max_js_files: "số file JS", url_exclude_patterns: "đường dẫn loại trừ",
   brief_budget_kb: "dung lượng brief", brief_top_assets: "số asset trong brief", brief_top_urls: "số URL trong brief",
 };
@@ -125,6 +125,11 @@ export function ConfigEditor({
             </label>
           ))}
         </div>
+        <label className="check">
+          <input type="checkbox" checked={!!config.nuclei_allow_intrusive} disabled={config.skip_nuclei}
+            onChange={(e) => onChange({ nuclei_allow_intrusive: e.target.checked })} />
+          Cho phép template có thẻ nguy hiểm (<code>dos</code>, <code>fuzz</code>, <code>intrusive</code>, <code>brute-force</code>). Mặc định tắt: chúng có thể làm sập dịch vụ hoặc đoán thông tin đăng nhập.
+        </label>
       </Panel>
 
       <Panel id="ed-data" title="Dữ liệu & brief" hint="Giới hạn lượng dữ liệu và chọn thứ gì được đưa vào AGENT_BRIEF.md.">

@@ -127,6 +127,8 @@ export function Review({ id }: { id: string }) {
   // The confirmation lives in the config (per header name), so a reloaded draft shows exactly what the server will enforce.
   const skippedNames = (config.skipped_headers || []).map((n) => n.toLowerCase());
   const hintsOpen = config.skip_required_headers ? [] : hintsMissing.filter((n) => !skippedNames.includes(n.toLowerCase()));
+  const ffuf = config.depth === "strong" && !config.skip_ffuf;
+  const bruteWarning = /brute[\s-]?force|dir(ectory)?[\s-]?(enumeration|brute)|fuzz/i.test(`${review.policy?.text || ""}\n${review.policy?.user_text || ""}`);
   const pathRules = outs.filter((e) => /^https?:\/\/[^/]+\/.+/.test(e.pattern));
   const pathHosts = [...new Set(pathRules.map((e) => new URL(e.pattern).hostname.toLowerCase()))];
   const blocker = !isDraft ? "Scan này đã được launch."
@@ -135,6 +137,7 @@ export function Review({ id }: { id: string }) {
     : hintsOpen.length ? `Policy yêu cầu header ${hintsOpen.join(", ")}: điền giá trị hoặc xác nhận bỏ qua`
     : unsupported ? health.data!.runtime!.reason
     : included.length === 0 ? "Chưa có mục IN nào được chọn để kiểm tra."
+    : ffuf && !config.ffuf_confirmed ? "Strong sẽ dò thư mục bằng ffuf (đoán đường dẫn): xác nhận policy cho phép, hoặc tắt bước dò thư mục"
     : needAck && !ack ? "Cần xác nhận program cho phép scan tự động."
     : config.depth === "strong" && !ackStrong ? "Cần xác nhận hiểu rủi ro của Strong." : "";
 
@@ -319,6 +322,13 @@ export function Review({ id }: { id: string }) {
         {needAck && (
           <label className="check"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />Tôi đã đọc policy và program cho phép scan tự động ở mức này.</label>
         )}
+        {ffuf && (
+          <label className="check">
+            <input type="checkbox" checked={!!config.ffuf_confirmed} onChange={(e) => edit({ ffuf_confirmed: e.target.checked })} />
+            Tôi xác nhận policy cho phép dò thư mục (ffuf gửi nhiều request tới đường dẫn đoán trước). Không chắc thì tắt bước "Dò thư mục" ở trên.
+          </label>
+        )}
+        {ffuf && bruteWarning && <p className="warnbox" role="note" data-testid="brute-warning">Policy có nhắc tới brute-force/fuzz: đọc kỹ trước khi xác nhận dò thư mục.</p>}
         {config.depth === "strong" && (
           <label className="check"><input type="checkbox" checked={ackStrong} onChange={(e) => setAckStrong(e.target.checked)} />Tôi hiểu Strong gửi nhiều request (nmap/ffuf/nuclei) và chỉ dùng khi policy cho phép active scan.</label>
         )}

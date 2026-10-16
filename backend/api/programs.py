@@ -218,6 +218,8 @@ async def schedule(slug: str, body: ScheduleRequest, request: Request):
         require_ack(config.depth, body.automation_ack)
         require_gate(config.depth, launch_gate(program["source"], policy))
         require_headers(config, required_headers(policy))
+        from backend.api.scans import require_ffuf
+        require_ffuf(config)
     saved = state.scheduler.configure(program["id"], body.interval, config, body.enabled)
     if body.enabled and config.depth != "passive":
         from backend.scope_gate import audit

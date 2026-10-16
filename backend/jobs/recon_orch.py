@@ -116,6 +116,7 @@ def recon_env(settings, config, output, *, discovery=False, skip_historical=Fals
         # No templates = nothing to run, and nuclei would download them itself: skip it (the scan reports the missing tool).
         "BBASM_SKIP_NUCLEI": str(int(passive or config.skip_nuclei or not nuclei_templates_ready(settings))),
         "BBASM_NUC_SEV": config.nuclei_severity,
+        "BBASM_NUCLEI_ALLOW_INTRUSIVE": str(int(config.nuclei_allow_intrusive)),
         "BBASM_SKIP_FFUF": str(int(config.depth != "strong" or config.skip_ffuf)),
         "BBASM_SKIP_CICD": "1",  # No automatic org expansion from discovered links.
         "BBASM_NMAP_CONNECT": "1",  # Portable -sT, including WSL2/no raw capabilities.

@@ -55,6 +55,18 @@ class Ingester:
         self.settings, self.database = settings, database
 
     @staticmethod
+    def _purge_stale_out_urls(conn, plan):
+        """URLs stored by earlier scans, before an OUT path rule existed (or was widened), must not stay in the inventory."""
+        removed = 0
+        for host in plan.gate.path_rule_hosts():
+            rows = conn.execute("SELECT id,url FROM url WHERE program_id=? AND (url LIKE ? ESCAPE '\\' OR url LIKE ? ESCAPE '\\')",
+                                (plan.program_id, f"%://{host.replace('_', chr(92) + '_')}/%", f"%://{host.replace('_', chr(92) + '_')}:%")).fetchall()
+            doomed = [row["id"] for row in rows if plan.gate.url_rule_for(row["url"])]
+            conn.executemany("DELETE FROM url WHERE id=?", [(i,) for i in doomed])
+            removed += len(doomed)
+        return removed
+
+    @staticmethod
     def _collapse_ranges(plan, assets, urls, findings):
         """A CIDR is one range asset; individual IPs only exist with real evidence.
 
@@ -255,6 +267,7 @@ class Ingester:
             for host, kind, severity, name, details in findings:
                 conn.execute("INSERT INTO finding(program_id,asset_id,type,severity,name,detail_json,first_seen_scan,last_seen_scan) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(program_id,type,name,asset_id) DO UPDATE SET severity=excluded.severity,detail_json=excluded.detail_json,last_seen_scan=excluded.last_seen_scan", (
                     plan.program_id, ids[host], kind, severity, name, json.dumps(details), plan.scan_id, plan.scan_id))
+            funnel["purged_stale"] = self._purge_stale_out_urls(conn, plan)
         return {"observed": observed, "collapsed_ips": collapsed, "subs": len(assets), "live": sum("status_code" in row for row in assets.values()),
                 "urls": len(urls), "url_funnel": funnel, "findings": len({(item[0], item[1], item[3]) for item in findings}),
                 "partial_inputs": partial_inputs, "observations": assets}

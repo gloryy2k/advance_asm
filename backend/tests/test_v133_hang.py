@@ -161,3 +161,32 @@ def test_a_slow_phases_report_is_built_once_and_reused_but_a_fast_one_is_never_s
         write_output(settings.BBASM_TARGETS / "example.com" / "recon" / "scans" / str(result.scan_id) / "0", "subdomains/all.txt", "x.example.com\n")
         b = client.get(f"/api/scans/{result.scan_id}/phases").json()
     assert a != b                                                                  # fast reports are rebuilt every time
+
+
+def test_log_journal_is_written_off_the_event_loop_and_complete_after_flush(tmp_path):
+    """A slow disk must not stall emit(); the journal still ends up complete, in order, and reloads after a restart."""
+    import asyncio
+    import time
+    from backend.log_buffer import LogBuffer
+
+    async def scenario():
+        buffer = LogBuffer(tmp_path / "logs", capacity=50)
+        slow = buffer._append
+
+        def slow_append(path, line):
+            time.sleep(0.05)       # a bind mount on a bad day
+            slow(path, line)
+        buffer._append = staticmethod(slow_append)
+        started = time.time()
+        for i in range(40):
+            await buffer.emit(1, "log", message=f"line {i}")
+        assert time.time() - started < 1.0            # 40 x 50 ms of disk time did not run on the loop
+        buffer.flush()
+        again = LogBuffer(tmp_path / "logs", capacity=50)
+        assert [e["message"] for e in again.replay(1)] == [f"line {i}" for i in range(40)]
+        for i in range(40, 130):                       # past capacity: the journal is compacted, newest events kept
+            await buffer.emit(1, "log", message=f"line {i}")
+        buffer.flush()
+        assert [e["message"] for e in LogBuffer(tmp_path / "logs", capacity=50).replay(1)][-1] == "line 129"
+        buffer.close()
+    asyncio.run(scenario())

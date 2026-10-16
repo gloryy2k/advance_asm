@@ -3,6 +3,7 @@
 import asyncio
 import re
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 import json
 
 from backend.db import utc_now
@@ -15,9 +16,33 @@ class LogBuffer:
             raise ValueError("Log capacity must be positive")
         self.directory, self.capacity = directory, capacity
         self.events, self.conditions, self.counts = {}, {}, {}
+        # File writes happen on one background thread, in order: a slow disk (Docker bind mount) must not stall the
+        # event loop that serves the API and the WebSocket. Replay always reads memory, the file is only the journal.
+        self._io = ThreadPoolExecutor(max_workers=1, thread_name_prefix="bbasm-log")
+
+    def flush(self):
+        """Wait until everything emitted so far is on disk (restart reads, tests, shutdown)."""
+        self._io.submit(lambda: None).result()
+
+    def close(self):
+        self._io.shutdown(wait=True)
+
+    @staticmethod
+    def _append(path, line):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8", newline="\n") as stream:
+            stream.write(line)
+
+    @staticmethod
+    def _rewrite(path, items):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp = path.with_suffix(".tmp")
+        temp.write_text("".join(json.dumps(item) + "\n" for item in items), encoding="utf-8", newline="\n")
+        temp.replace(path)
 
     def _load(self, scan_id):
         if scan_id not in self.events:
+            self.flush()   # a journal this process is still writing must be complete before it is read back
             items = deque(maxlen=self.capacity)
             path = self.directory / f"{int(scan_id)}.jsonl"
             if path.is_file():
@@ -44,17 +69,13 @@ class LogBuffer:
             if "message" in event:
                 event["message"] = str(event["message"])[:4096]
             events.append(event)
-            self.directory.mkdir(parents=True, exist_ok=True)
             path = self.directory / f"{int(scan_id)}.jsonl"
             self.counts[scan_id] += 1
             if self.counts[scan_id] >= self.capacity:
-                temp = path.with_suffix(".tmp")
-                temp.write_text("".join(json.dumps(item) + "\n" for item in events), encoding="utf-8", newline="\n")
-                temp.replace(path)
+                self._io.submit(self._rewrite, path, list(events))
                 self.counts[scan_id] = 0
             else:
-                with path.open("a", encoding="utf-8", newline="\n") as stream:
-                    stream.write(json.dumps(event) + "\n")
+                self._io.submit(self._append, path, json.dumps(event) + "\n")
             self.conditions[scan_id].notify_all()
             return event
 

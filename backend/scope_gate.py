@@ -95,6 +95,14 @@ def normalize_pattern(value: str, *, deny: bool = False) -> str:
     return normalize_host(value)
 
 
+def _clean_path(raw: str) -> str:
+    """A path as the server would read it: backslashes are slashes, percent-escapes decoded, `;param` dropped from each
+    segment (Java/Tomcat read /admin;x=1 as /admin), dot segments resolved."""
+    text = unquote(raw).replace("\\", "/")
+    segments = [segment.split(";", 1)[0] for segment in text.split("/")]
+    return posixpath.normpath("/" + "/".join(segments).strip("/"))
+
+
 def url_rule(value: str):
     """(host, path) for an OUT rule written as a URL with a path, e.g. https://wolt.com/en/contact. None for a plain host.
 
@@ -104,7 +112,7 @@ def url_rule(value: str):
     if "://" not in value or not value.lower().startswith(("http://", "https://")):
         return None
     parsed = urlsplit(value)
-    path = posixpath.normpath("/" + unquote(parsed.path).strip("/"))
+    path = _clean_path(parsed.path)
     if path in ("/", "."):
         return None
     if any(ord(c) < 32 for c in path):
@@ -114,7 +122,7 @@ def url_rule(value: str):
 
 def _url_path(value: str):
     parsed = urlsplit(value)
-    return posixpath.normpath("/" + unquote(parsed.path).strip("/")).lower() if parsed.path else "/"
+    return _clean_path(parsed.path).lower() if parsed.path else "/"
 
 
 def _network(value):

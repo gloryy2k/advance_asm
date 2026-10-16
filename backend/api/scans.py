@@ -34,6 +34,13 @@ def require_headers(config, hints):
                          "hoặc xác nhận đã đọc policy và bỏ qua (skipped_headers).", "header_required")
 
 
+def require_ffuf(config):
+    """Strong's directory brute-force (ffuf) needs the user's explicit word that the policy allows it, or must be switched off."""
+    if config.depth == "strong" and not config.skip_ffuf and not config.ffuf_confirmed:
+        raise ScopeError("Strong sẽ dò thư mục bằng ffuf (đoán đường dẫn). Xác nhận policy cho phép, hoặc tắt bước dò thư mục.",
+                         "ffuf_confirm_required")
+
+
 class AutoScanRequest(BaseModel):
     input: str
     scope: list[str] = []
@@ -65,6 +72,7 @@ async def auto_scan(body: AutoScanRequest, request: Request):
         review = await asyncio.to_thread(state.runner.review, result.scan_id)
         require_gate(config.depth, review["launch_gate"])
         require_headers(config, review["request_header_hints"])
+        require_ffuf(config)
     except ScopeError:
         await asyncio.to_thread(state.runner.delete_draft, result.scan_id)  # do not leave a draft nobody asked to keep
         raise
@@ -179,6 +187,7 @@ async def launch(scan_id: int, body: LaunchRequest, request: Request):
     review = await asyncio.to_thread(runner.review, scan_id)
     require_gate(depth, review["launch_gate"])
     require_headers(config, review["request_header_hints"])
+    require_ffuf(config)
     await runner.submit(scan_id, body.config, ack=body.automation_ack)
     return {"scan_id": scan_id, "status": "queued"}
 

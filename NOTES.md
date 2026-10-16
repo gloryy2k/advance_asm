@@ -642,3 +642,11 @@ F1 PASS (Rescan và lịch giữ 2 loại trừ, Review hiển thị), F3 PASS (
 
 ### v1.4.1 — kết quả host QA `24f0c03` cho cây sitemap, F4, F5
 Cây sitemap: dữ liệu và thao tác PASS (mở/thu, Xem thêm 150 mục, bàn phím, "Mở tới cấp 3" 302 ms), F4 PASS, F5 PASS. **FAIL một ca:** tìm kiếm chỉ tự mở tới cấp 3 nên file nằm sau 4 thư mục không hiện. Sửa: tìm kiếm và "Mở hết" yêu cầu `depth=12` (API nhận 1–12); khi vượt ngân sách 3000 nút thì ghi rõ số URL khớp (`matched`) và cách thu hẹp. Đã kiểm bằng trình duyệt thật: `item0999` sau 5 thư mục hiện ngay sau một lần tìm. Test: `test_v138_sitemap.py` (+1), Vitest cập nhật.
+
+
+## v1.5.0 — dọn backlog: sửa nhỏ (A3–A7)
+- **A3 Strong/ffuf:** Strong chỉ dò thư mục khi người dùng xác nhận policy cho phép (`ffuf_confirmed`, theo từng scan, không nằm trong profile) hoặc tắt bước dò thư mục. Server từ chối `ffuf_confirm_required` ở launch, `POST /api/scans`, bật lịch và lúc chạy lịch. Review hiện ô xác nhận, cảnh báo nếu policy nhắc brute-force/fuzz.
+- **A4 nuclei:** mặc định loại template gắn thẻ `dos,fuzz,intrusive,bruteforce,brute-force` (`-etags` trong shim); tuỳ chọn `nuclei_allow_intrusive` (nằm trong profile) trong Review › Nuclei. Lựa chọn `-etags` tường minh không bị ghi đè.
+- **A5:** `purge_drafts` không còn xóa draft thiếu dòng `scan_config` ở mỗi lần khởi động.
+- **A6:** `LogBuffer` ghi journal trên một luồng nền theo thứ tự (không chặn event loop); `flush()` đợi ghi xong; `JobRunner.close()` flush.
+- **A7:** so khớp đường dẫn OUT đọc như server: bỏ `;param` từng đoạn, `\` thành `/`, phân giải `..`; ingest xóa URL đã lưu từ scan cũ khớp rule OUT hiện hành (`url_funnel.purged_stale`).

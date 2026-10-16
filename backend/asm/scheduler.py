@@ -62,7 +62,7 @@ class ScanScheduler:
     async def dispatch(self, program_id):
         if self.runner.closing:
             return None
-        from backend.api.scans import require_gate, require_headers
+        from backend.api.scans import require_ffuf, require_gate, require_headers
         from backend.scope_selection import apply_selection, read_selection
         from backend.trust import launch_gate, required_headers
         now = datetime.now(timezone.utc)
@@ -90,6 +90,7 @@ class ScanScheduler:
             try:
                 require_gate(config.depth, launch_gate(program["source"], policy))
                 require_headers(config, required_headers(policy))
+                require_ffuf(config)
             except ScopeError as exc:
                 problem = exc
                 conn.execute("UPDATE schedule SET last_error=?,last_error_at=? WHERE id=?", (str(exc)[:500], utc_now(), row["id"]))

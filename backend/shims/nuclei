@@ -16,7 +16,13 @@ if [ "$have_templates" = 0 ]; then
     exit 0
 fi
 
-has_duc=0
-for arg in "$@"; do case "$arg" in -duc|--duc|-disable-update-check) has_duc=1 ;; esac; done
-[ "$has_duc" = 1 ] && exec "$real" "$@"
-exec "$real" -duc "$@"
+has_duc=0; has_etags=0
+for arg in "$@"; do case "$arg" in -duc|--duc|-disable-update-check) has_duc=1 ;; -etags|-exclude-tags|--exclude-tags) has_etags=1 ;; esac; done
+extra=()
+[ "$has_duc" = 1 ] || extra+=(-duc)
+# Templates that can take a service down, fuzz it or guess credentials need the user's explicit opt-in (Review).
+if [ "${BBASM_NUCLEI_ALLOW_INTRUSIVE:-0}" != "1" ] && [ "$has_etags" = 0 ]; then
+    extra+=(-etags dos,fuzz,intrusive,bruteforce,brute-force)
+    bbasm_note nuclei "bỏ qua template gắn thẻ dos/fuzz/intrusive/brute-force (bật lại ở Review nếu policy cho phép)"
+fi
+exec "$real" "${extra[@]}" "$@"

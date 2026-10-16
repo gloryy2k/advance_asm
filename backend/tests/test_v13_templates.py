@@ -91,9 +91,12 @@ def test_nuclei_wrapper_starts_nuclei_with_the_update_check_disabled_when_templa
     add_template(home)
     run_shim(home, "-l", "hosts.txt", "-severity", "low")
     argv = (home / "go" / "bin" / "nuclei.argv").read_text().split()
-    assert argv[0] == "-duc" and argv[1:] == ["-l", "hosts.txt", "-severity", "low"]
+    # no update check, and the dangerous template tags are left out unless the user opted in
+    assert argv[:3] == ["-duc", "-etags", "dos,fuzz,intrusive,bruteforce,brute-force"] and argv[3:] == ["-l", "hosts.txt", "-severity", "low"]
     run_shim(home, "-duc", "-l", "x")
     assert (home / "go" / "bin" / "nuclei.argv").read_text().split().count("-duc") == 1   # never doubled
+    run_shim(home, "-etags", "mine", "-l", "x")
+    assert (home / "go" / "bin" / "nuclei.argv").read_text().split().count("-etags") == 1   # an explicit choice is not overridden
 
 
 def test_the_scan_says_plainly_that_nuclei_was_blocked_not_that_it_ran(home, settings):
@@ -112,3 +115,10 @@ def test_the_scan_says_plainly_that_nuclei_was_blocked_not_that_it_ran(home, set
         __import__("backend.models", fromlist=["ResolveRequest"]).ResolveRequest(input="raw", scope=["example.com"], name="second"))
     JobRunner(settings, db).config(new.scan_id, new.config.model_copy(update={"depth": "light", "skip_nuclei": False}))
     assert ReconOrchestrator(settings, db).build(new.scan_id).tool_notes == []
+
+
+def test_intrusive_templates_come_back_only_when_the_user_opts_in(home):
+    (home / "go" / "bin" / "nuclei").write_text(FAKE_NUCLEI)
+    add_template(home)
+    run_shim(home, "-l", "x", extra_env={"BBASM_NUCLEI_ALLOW_INTRUSIVE": "1"})
+    assert "-etags" not in (home / "go" / "bin" / "nuclei.argv").read_text().split()

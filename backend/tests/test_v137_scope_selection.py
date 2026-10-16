@@ -197,3 +197,70 @@ def test_f5_out_globs_are_accepted_consistently_and_never_widen(settings):
         assert client.put(f"/api/scans/{scan}/config", json=cfg).status_code == 200       # same rule as the gate (was 422)
         cfg["excluded_hosts"] = ["*bad host"]
         assert client.put(f"/api/scans/{scan}/config", json=cfg).status_code == 422
+
+
+def test_strong_needs_the_users_word_before_ffuf_runs(settings):
+    """Policies that forbid brute-forcing: Strong must not guess paths unless the user confirmed, or switched ffuf off."""
+    from backend.api.scans import require_ffuf
+    from backend.jobs.scope_resolver import ScopeError, default_config
+    base = default_config(settings.model_copy(update={"BBASM_DEFAULT_DEPTH": "strong"}), [])
+    import pytest
+    with pytest.raises(ScopeError) as err:
+        require_ffuf(base)
+    assert err.value.code == "ffuf_confirm_required"
+    require_ffuf(base.model_copy(update={"ffuf_confirmed": True}))
+    require_ffuf(base.model_copy(update={"skip_ffuf": True}))
+    require_ffuf(default_config(settings.model_copy(update={"BBASM_DEFAULT_DEPTH": "light"}), []))   # below Strong ffuf never runs
+
+
+def test_intrusive_nuclei_tags_are_an_explicit_option(settings):
+    from backend.jobs.recon_orch import recon_env
+    from backend.jobs.scope_resolver import default_config
+    config = default_config(settings, [])
+    assert recon_env(settings, config, settings.BBASM_DATA)["BBASM_NUCLEI_ALLOW_INTRUSIVE"] == "0"
+    assert recon_env(settings, config.model_copy(update={"nuclei_allow_intrusive": True}), settings.BBASM_DATA)["BBASM_NUCLEI_ALLOW_INTRUSIVE"] == "1"
+    from backend.models import RECIPE_FIELDS
+    assert "nuclei_allow_intrusive" in RECIPE_FIELDS and "ffuf_confirmed" not in RECIPE_FIELDS   # a profile may carry the first, never the second
+
+
+def test_purge_drafts_only_removes_drafts_that_are_actually_old(settings):
+    from backend.jobs.runner import JobRunner
+    from backend.tests.p2_helpers import environment
+    db, _, result = environment(settings, ["a.example.com"])
+    runner = JobRunner(settings, db)
+    assert runner.purge_drafts(days=7) == 0                         # a fresh draft stays
+    with db.connect() as conn, conn:
+        conn.execute("DELETE FROM scan_config")                      # a draft whose config row is missing used to be purged at every boot
+    assert runner.purge_drafts(days=7) == 0
+    with db.connect() as conn, conn:
+        conn.execute("INSERT INTO scan_config(scan_run_id,created_at) VALUES(?,?)", (result.scan_id, "2020-01-01T00:00:00.000Z"))
+    assert runner.purge_drafts(days=7) == 1                          # really old: gone
+
+
+def test_path_rules_read_paths_the_way_a_server_does(settings, tmp_path):
+    from backend.scope_gate import ScopeGate
+    from backend.config import PROJECT_ROOT
+    settings.BBASM_BBROOT = PROJECT_ROOT / "vendor/claude-bug-bounty"
+    gate = ScopeGate(["wolt.com"], ["https://wolt.com/admin"], tmp_path / "a.jsonl", settings)
+    for blocked in ("https://wolt.com/admin;x=1", "https://wolt.com/admin;jsessionid=1/users", "https://wolt.com/a/..;/admin",
+                    "https://wolt.com/ADMIN/", "https://wolt.com/x/..\\admin", "https://wolt.com/%2e/admin"):
+        assert not gate.in_scope(blocked), blocked
+    assert gate.in_scope("https://wolt.com/administrator") and gate.in_scope("https://wolt.com/adminx;y=1")
+
+
+def test_ingest_removes_urls_stored_before_an_out_path_rule_existed(settings):
+    import json as _json
+    from backend.jobs.ingest import Ingester
+    from backend.jobs.recon_orch import ReconOrchestrator
+    from backend.tests.p2_helpers import environment, write_output
+    db, _, result = environment(settings, ["wolt.com", "# OUT", "https://wolt.com/admin"])
+    plan = ReconOrchestrator(settings, db).build(result.scan_id)
+    with db.connect() as conn, conn:
+        conn.execute("UPDATE scan_run SET status='running' WHERE id=?", (result.scan_id,))
+        for url in ("https://wolt.com/admin/old", "https://wolt.com/Admin;x=1", "https://wolt.com/keep/me"):
+            conn.execute("INSERT INTO url(program_id,url,source,first_seen_scan,last_seen_scan) VALUES(?,?,?,?,?)", (plan.program_id, url, "gau", 0, 0))
+    write_output(plan.commands[0].output, "urls/all.txt", "https://wolt.com/new\n")
+    stats = Ingester(settings, db).ingest(plan)
+    with db.connect() as conn:
+        urls = {r[0] for r in conn.execute("SELECT url FROM url")}
+    assert urls == {"https://wolt.com/keep/me", "https://wolt.com/new"} and stats["url_funnel"]["purged_stale"] == 2

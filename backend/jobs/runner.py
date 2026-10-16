@@ -298,7 +298,7 @@ class JobRunner:
         with self.database.connect() as conn, conn:
             conn.execute("BEGIN IMMEDIATE")
             old = conn.execute("SELECT s.id,s.program_id FROM scan_run s LEFT JOIN scan_config c ON c.scan_run_id=s.id "
-                               "WHERE s.status='draft' AND COALESCE(c.created_at,'')<?", (cutoff,)).fetchall()
+                               "WHERE s.status='draft' AND c.created_at IS NOT NULL AND c.created_at<?", (cutoff,)).fetchall()
             for row in old:
                 self._drop_draft(conn, row["id"], row["program_id"])
             return len(old)
@@ -680,3 +680,4 @@ class JobRunner:
         self.workers.clear()
         self.executor.shutdown(wait=False, cancel_futures=True)
         self.control_executor.shutdown(wait=False, cancel_futures=True)
+        await asyncio.to_thread(self.logs.flush)   # the journal is complete when close() returns

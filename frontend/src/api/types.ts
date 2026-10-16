@@ -20,6 +20,8 @@ export type Config = {
   categories_enabled: string[];
   excluded_hosts: string[];
   skip_ffuf: boolean;
+  nuclei_allow_intrusive?: boolean;
+  ffuf_confirmed?: boolean;
   skip_historical: boolean;
   skip_takeover: boolean;
   skip_secrets: boolean;
@@ -37,7 +39,7 @@ export type Config = {
 
 export const RECIPE_FIELDS = [
   "depth", "threads", "rate_limit", "scan_timeout", "nuclei_severity", "skip_nmap", "skip_nuclei",
-  "skip_active_crawl", "skip_ffuf", "skip_historical", "skip_takeover", "skip_secrets", "max_js_files",
+  "skip_active_crawl", "skip_ffuf", "nuclei_allow_intrusive", "skip_historical", "skip_takeover", "skip_secrets", "max_js_files",
   "url_exclude_patterns", "brief_budget_kb", "brief_top_assets", "brief_top_urls",
 ] as const;
 export type Recipe = Partial<Pick<Config, (typeof RECIPE_FIELDS)[number]>>;
