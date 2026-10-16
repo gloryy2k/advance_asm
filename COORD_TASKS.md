@@ -13,7 +13,7 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 | NUC-3 | P2 | Codex | OPEN | d65c4f5 | — | Đo `nuclei/stats.jsonl` phình bao nhiêu ở fixture chạy dài hơn 12s hiện có (vài trăm giây), không cần sửa gì nếu không có vấn đề. |
 | NUC-4 | P2 | Codex | OPEN | d65c4f5 | — | Chạy 1 scan Strong qua orchestration thật (`ReconOrchestrator`/`JobRunner`, không gọi tay `recon_engine.sh`) với ≥2 lệnh chạm Phase 9 (main+deep), xác nhận `build_report` gộp đúng ngoài fixture ghép tay. |
 | UX-1 | P3 | Claude | READY_FOR_QA | ab9abc4 | `6ba098d` | `GET /api/programs/{slug}/ports` và `/dirs` (mới) + 2 tab "Cổng/Dịch vụ"/"Đường dẫn dò được" trong Dữ liệu. Đọc lại `backend.asm.results.summarize_ports/summarize_dirs` của scan cụ thể (`?scan=latest|<id>`), không có bảng DB riêng. |
-| ENG-1 | P4 | Claude | READY_FOR_QA | — | `(commit tiếp)` + submodule `bfd61ba` | `open_ports.txt` ở `recon_engine.sh` đổi `sed` tham lam sang `grep -oE` giữ đủ mọi cổng/dòng. BBASM không bị ảnh hưởng (đã đọc `nmap_greppable.txt` trực tiếp từ v1.6.0); chỉ sửa file tóm tắt text. |
+| ENG-1 | P4 | Claude | READY_FOR_QA | ab9abc4 | `bb17169` (BBASM) + `bfd61ba` (submodule) | `open_ports.txt` ở `recon_engine.sh` đổi `sed` tham lam sang `grep -oE` giữ đủ mọi cổng/dòng. BBASM không bị ảnh hưởng (đã đọc `nmap_greppable.txt` trực tiếp từ v1.6.0); chỉ sửa file tóm tắt text. |
 
 ## Việc đã đóng (lịch sử, không mở lại — sự cố tái phát ra ID mới)
 
