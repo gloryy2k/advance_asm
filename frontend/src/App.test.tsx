@@ -1089,4 +1089,21 @@ describe("UI/logic audit fixes (V134_UI_LOGIC_AUDIT)", () => {
     expect(within(dialog).getByRole("link", { name: "Tải file ↓" })).toBeInTheDocument();
     expect(fetch).toBeDefined();
   });
+
+  test("F3: a skipped scheduled run is explained on the Program page", async () => {
+    stubFetch((path) => path.endsWith("/summary") ? sum({ schedule: { interval: "daily", depth: "light", enabled: 1, next_run_at: "2026-10-18T01:00:00Z",
+      last_error: "Chưa đủ dữ liệu scope/policy để chạy light: Scope chỉ lấy từ bản sao bounty-targets-data.", last_error_at: "2026-10-17T01:00:00Z" } }) : { scans: [] });
+    location.hash = "/program/acme";
+    render(<App />);
+    const alert = await screen.findByTestId("schedule-error");
+    expect(alert).toHaveTextContent(/đã bị bỏ qua.*Chưa đủ dữ liệu scope\/policy/);
+  });
+
+  test("F1: Review says that exclusions are kept for Rescan and schedules", async () => {
+    stubFetch((path) => path === "/api/health" ? health() : path.endsWith("/review") ? baseReview() : path.endsWith("/config") ? { ...baseConfig, excluded_hosts: ["legacy.acme.com", "https://acme.com/admin"] } : {});
+    location.hash = "/scan/4/review";
+    render(<App />);
+    expect(await screen.findByText(/đang có 2/)).toBeInTheDocument();
+    expect(screen.getByText(/lưu cho program: Scan lại và lịch giám sát dùng lại/)).toBeInTheDocument();
+  });
 });

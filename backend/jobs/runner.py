@@ -164,7 +164,7 @@ class JobRunner:
             config = config or read_config(conn.execute("SELECT * FROM scan_config WHERE scan_run_id=?", (scan_id,)).fetchone())
             self._validate(config)
             store_config(conn, scan_id, config)
-            self._apply_scope_snapshot(conn, scan_id)
+            self._apply_scope_snapshot(conn, scan_id, config)
             if ack:  # same transaction as queueing: a fast worker can never run before the confirmation is stored
                 stats = json.loads(conn.execute("SELECT stats_json FROM scan_run WHERE id=?", (scan_id,)).fetchone()["stats_json"] or "{}")
                 stats["automation_ack"] = utc_now()
@@ -189,12 +189,17 @@ class JobRunner:
               "request_headers", scan_id=scan_id, required=required, sent=sent, skipped=skipped)
 
     @staticmethod
-    def _apply_scope_snapshot(conn, scan_id):
-        """Launch is the moment the reviewed scope becomes the program's scope (schedules read it)."""
+    def _apply_scope_snapshot(conn, scan_id, config=None):
+        """Launch is the moment the reviewed scope becomes the program's scope (schedules read it) -- including what the
+        user un-ticked or excluded by hand, so Rescan and schedules do not quietly bring it back."""
         row = conn.execute("SELECT program_id,stats_json FROM scan_run WHERE id=?", (scan_id,)).fetchone()
         entries = json.loads(row["stats_json"] or "{}").get("resolved_scope") or []
         if not entries:
             return
+        if config is not None:
+            from backend.scope_selection import selection_from_config
+            conn.execute("UPDATE program SET scope_selection_json=? WHERE id=?",
+                         (json.dumps(selection_from_config(entries, config)), row["program_id"]))
         conn.execute("DELETE FROM scope_rule WHERE program_id=?", (row["program_id"],))
         conn.executemany("INSERT INTO scope_rule(program_id,pattern,kind,asset_type) VALUES(?,?,?,?)",
                          [(row["program_id"], e["pattern"], e["kind"], e["asset_type"]) for e in entries])

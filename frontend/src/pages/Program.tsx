@@ -166,6 +166,12 @@ function Overview({ slug, summary, detail, urls, reload }: { slug: string; summa
         <Panel id="mon-h" title="Giám sát liên tục" hint={enabled ? `Đang bật (${summary.schedule!.interval}, mức ${summary.schedule!.depth}). Lần kế tiếp: ${when(summary.schedule!.next_run_at)}.` : "Tự quét lại theo lịch với scope hiện hành, không qua xem lại từng lần. Chỉ bật cho program cho phép automation."}
           output="Mỗi lần chạy tạo một scan mới trong Lịch sử và cập nhật Diff.">
           <ErrorBox text={error} />
+          {enabled && summary.schedule?.last_error && (
+            <p className="warnbox" role="alert" data-testid="schedule-error">
+              Lần chạy theo lịch gần nhất ({when(summary.schedule.last_error_at)}) <strong>đã bị bỏ qua</strong>: {summary.schedule.last_error}
+              {" "}Sửa điều kiện này (Scan lại để xem lại scope/policy) hoặc tắt giám sát.
+            </p>
+          )}
           <div className="form">
             <label>Tần suất
               <select aria-label="Interval" value={interval} onChange={(e) => setInterval(e.target.value)}>

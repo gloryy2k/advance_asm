@@ -235,10 +235,8 @@ class ReconOrchestrator:
         target = (self.settings.BBASM_TARGETS / scan["slug"]).resolve()
         if not target.is_relative_to(self.settings.BBASM_TARGETS.resolve()):
             raise ValueError("Target path escaped root")
-        eligible = [e for e in entries if e.category not in {"mobile", "other"}]
-        allow = [e.pattern for e in eligible if e.kind == "in" and e.category in config.categories_enabled]
-        deny = [e.pattern for e in eligible if e.kind == "out"] + config.excluded_hosts
-        gate = ScopeGate(allow, deny, target / "audit.jsonl", self.settings)
+        from backend.scope_selection import effective_gate
+        gate = effective_gate(entries, config, target / "audit.jsonl", self.settings)
         root = target / "recon" / "scans" / str(scan_id)
         warnings = self._claim_output(scan_id, root)
         plan = ReconPlan(scan_id, scan["program_id"], scan["slug"], config, root, target / "audit.jsonl", gate)

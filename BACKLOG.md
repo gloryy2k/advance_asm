@@ -35,3 +35,8 @@ Chưa có mục nào được triển khai, trừ khi ghi "ĐÃ LÀM".
 - `LogBuffer.emit` ghi file đồng bộ trên event loop (có thể chậm trên bind mount).
 - `purge_drafts` xóa luôn draft không có dòng `scan_config` ở mỗi lần boot (`COALESCE(created_at,'')<cutoff`).
 - Schedule bị `header_required` lúc dispatch chỉ ghi lỗi trong log tiến trình; chưa hiện trên trang Program.
+
+
+## Đã chốt sau audit luồng input→output (không làm)
+- R1–R7 (chặn request tới endpoint OUT theo đường dẫn): bỏ. Quy tắc của người dùng: **GET tới endpoint OUT trong domain được chấp nhận**, chỉ cần tránh POST/PUT/PATCH/DELETE. Giữ nguyên logic hiện tại (host có path OUT mặc định chỉ probe, có ô cho phép quét chủ động). Không merge phần hạn chế của commit `2d540fd` (xóa ô cho phép, ép probe-only vĩnh viễn).
+- Còn nếu quay lại: nuclei là công cụ duy nhất có thể gửi request không phải GET (template POST) nên khi bật quét chủ động trên host có path OUT có thể cân nhắc `-fhr`; F4 (policy theo draft), F5 (glob OUT), xóa URL OUT cũ trong DB.

@@ -30,6 +30,13 @@ MIGRATIONS: dict[int, list[str]] = {
         # Headers the program's policy requires on requests to the target (per program default).
         "ALTER TABLE program ADD COLUMN request_headers_json TEXT",
     ],
+    4: [
+        # What the user chose at Review (un-ticked hosts, hand-typed OUT rules, disabled asset groups): program-level.
+        "ALTER TABLE program ADD COLUMN scope_selection_json TEXT",
+        # Why the last scheduled run did not happen (gate/header re-check at dispatch), shown on the Program page.
+        "ALTER TABLE schedule ADD COLUMN last_error TEXT",
+        "ALTER TABLE schedule ADD COLUMN last_error_at TEXT",
+    ],
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 

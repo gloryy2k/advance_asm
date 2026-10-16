@@ -231,7 +231,8 @@ export function Review({ id }: { id: string }) {
           </fieldset>
         )}
         <details className="adv">
-          <summary>Loại trừ thêm host/pattern (tuỳ chọn)</summary>
+          <summary>Loại trừ thêm host/pattern (tuỳ chọn){config.excluded_hosts.length > 0 ? ` — đang có ${config.excluded_hosts.length}` : ""}</summary>
+          <p className="muted">Mục loại trừ (kể cả mục bạn bỏ chọn ở trên) được lưu cho program: Scan lại và lịch giám sát dùng lại chúng. Muốn đưa lại vào scope, bỏ khỏi danh sách rồi launch.</p>
           <label>Mỗi dòng một host hoặc pattern
             <textarea rows={3} value={config.excluded_hosts.join("\n")} onChange={(e) => edit({ excluded_hosts: e.target.value.split("\n").map((l) => l.trim()).filter(Boolean) })} />
           </label>

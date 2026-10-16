@@ -283,6 +283,8 @@ export type Summary = {
     depth: Depth;
     enabled: number;
     next_run_at: string | null;
+    last_error?: string | null;
+    last_error_at?: string | null;
     config?: { depth: Depth; threads: number; rate_limit: number; request_header_names: string[]; skipped_headers: string[] };
   } | null;
 };

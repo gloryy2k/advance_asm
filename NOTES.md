@@ -615,3 +615,11 @@ Còn mở: Strong vẫn cần người dùng tự cân nhắc khi policy cấm b
 Kiểm lại thêm: Danh mục — công cụ tùy chọn (bbscope…) không còn nhãn đỏ "thiếu"; Profile — đổi preset khi đã chỉnh sửa hỏi xác nhận trước khi bỏ chỉnh sửa.
 Tests: `test_v136_ui_logic.py` (4), `test_scheduler.py`, Vitest +8 (63 tổng). `review_tools/v134_policy_rescan_check.py` nay cho `after_manual_policy: true`; `v134_schedule_ui_check.py` cần gửi `automation_ack` (hành vi mới).
 Chưa kiểm: export mọi chế độ, mobile (không làm), H1 thật, Light/Strong thật, hơn 1.000 hàng, trình duyệt khác.
+
+
+## v1.3.7 — F1/F2/F3 của audit luồng input→output
+
+- **F1 — lựa chọn ở Review thuộc về program.** Migration v4: `program.scope_selection_json`. Lúc launch lưu `excluded_hosts` (host bỏ chọn **và mục loại trừ tự gõ, kể cả URL có đường dẫn**) và `categories_disabled`. Draft mới (Scan lại), lịch giám sát lúc bật và **lúc mỗi lần chạy** đều áp dụng lại (`backend/scope_selection.py`: `apply_selection`). Chỉ thêm loại trừ, không bao giờ tự đưa lại; muốn đưa lại thì bỏ khỏi danh sách và launch (lựa chọn mới thay thế cũ). Review hiện ghi chú và số mục loại trừ. `effective_gate()` là cách duy nhất dựng gate từ scope + cấu hình: dùng ở plan (`ReconOrchestrator.build`) và ZIP.
+- **F2 — ZIP "filtered".** Mọi host/IP/URL trên dòng đều phải thuộc scope (trước đây chỉ token đầu tiên), nhận cả `host/đường-dẫn` không scheme, `\/` trong JSON, IP; tên file kiểu `app.js` không tính là host. Gate giống scan đã chạy (gồm mục loại trừ tự gõ) cộng loại trừ hiện tại của program. Dòng không có host nào được giữ (không có gì để gán).
+- **F3 — lịch kiểm lại gate.** `dispatch` gọi lại `launch_gate` và header theo policy hiện tại của program; nếu không đạt thì không tạo scan, ghi `schedule.last_error` + `last_error_at` (commit trước khi báo lỗi), Program hiện cảnh báo "lần chạy theo lịch gần nhất đã bị bỏ qua". Bật lại lịch hoặc lần chạy hợp lệ kế tiếp xóa lỗi.
+- Tests: `test_v137_scope_selection.py` (5), Vitest +2; migration v4 trong `test_v13_headers_api.py`.

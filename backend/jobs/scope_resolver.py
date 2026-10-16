@@ -137,7 +137,8 @@ def program_config(settings: Settings, conn, program, entries: list[ScopeEntry],
             config = apply_recipe(config, recipe)  # scope selections stay the draft's own
     if program["request_headers_json"]:
         config = config.model_copy(update={"request_headers": json.loads(program["request_headers_json"])})
-    return config
+    from backend.scope_selection import apply_selection, read_selection
+    return apply_selection(config, entries, read_selection(program["scope_selection_json"]))
 
 
 def safe_slug(value: str) -> str:
