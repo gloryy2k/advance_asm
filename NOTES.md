@@ -632,3 +632,10 @@ F1 PASS (Rescan và lịch giữ 2 loại trừ, Review hiển thị), F3 PASS (
 - **F4:** mỗi draft lưu `policy_snapshot` + `policy_snapshot_at` lúc Resolve. Review, hint header, trust và kiểm header lúc launch đều dùng bản chụp của draft đó, không dùng policy mới nhất của program. Draft cũ khi program đã được Resolve lại (hoặc draft khác đã launch) hiện cảnh báo `policy_newer` kèm link tới draft mới nhất. Launch một draft đặt policy của program về bản chụp của nó cùng lúc với scope (scope và policy luôn đi cùng nhau).
 - **F5:** ô OUT chấp nhận mẫu host glob (`api*.example.com`) như gate; cấu hình scan (`excluded_hosts`) dùng cùng quy tắc `normalize_pattern(deny=True)`. IN glob vẫn bị từ chối (sẽ mở rộng scope); OUT glob kèm đường dẫn (`https://*.x.com/admin`) vẫn từ chối, nay có thông báo rõ.
 - Tests: `test_v137_scope_selection.py` (+2), Vitest +1.
+
+
+## v1.4.0 — V1: cây sitemap (Dữ liệu › URL › "Cây sitemap")
+- API `GET /api/programs/{slug}/urls/tree`: một cấp mỗi lần (`host`, `prefix`), `depth` 1–6 để mở nhiều cấp (tối đa 3000 nút/yêu cầu, báo `truncated`), phân trang con (`limit` ≤ 500, `offset`), cùng bộ lọc và phạm vi scan như `/urls` (`scan`, `q`, `tag`, `verification`, `min_score`). Sắp xếp `az` (không phân biệt hoa thường) / `score` / `count`, tuỳ chọn `folders_first`. Mỗi nút: số URL cả nhánh, điểm cao nhất, nhãn, mức kiểm chứng, "mới", scan thấy lần đầu→gần nhất, số biến thể query (`?id=1`, `?id=2` gộp một nút), URL đại diện. Cổng khác nhau là host khác nhau. Mã trong `backend/sitemap.py`.
+- UI `SitemapTree`: mũi tên ▸/▾ mở/thu và tải con khi mở; "Thu hết", "Mở tới cấp 2/3", "Mở hết"; bàn phím ↑↓ Home End, → mở/vào con, ← thu/lên cha, Enter/Space; `role="tree"`/`treeitem`/`aria-expanded`; "Xem thêm" khi một nút có > 200 con; tìm kiếm tự mở các nhánh khớp; chép URL và mở tab mới (`noopener noreferrer`). Lần đầu chuyển sang cây, mức điểm đổi thành "mọi URL".
+- Chưa làm: nhớ trạng thái mở khi rời trang; xác định method/status/length (dữ liệu chưa có cho mọi URL).
+- Tests: `test_v138_sitemap.py` (5, gồm 20.000 URL < 2 s và phân trang), Vitest +3 (69). Kiểm bằng trình duyệt thật 1366px với 1.500 URL: không cuộn ngang, không lỗi JS.

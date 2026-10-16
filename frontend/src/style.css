@@ -320,3 +320,24 @@ table.stages th { color: var(--muted); font-weight: 600; font-size: 12px; text-t
 .subhead { margin: 12px 0 4px; font-size: 14px; color: var(--muted, #667); }
 .scopebar { align-items: center; gap: 12px; }
 .scopebar label { display: flex; align-items: center; gap: 6px; }
+
+/* sitemap tree */
+.tree-wrap { border: 1px solid var(--border); border-radius: 8px; padding: 6px; background: var(--panel); overflow-x: auto; }
+.tree-root, .tree-group { list-style: none; margin: 0; padding: 0; }
+.tree-row { display: flex; align-items: center; gap: 8px; padding: 3px 6px; border-radius: 6px; min-height: 30px; white-space: nowrap; }
+.tree-row:hover, .tree-row:focus { background: var(--panel-2); outline: none; }
+.tree-row:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.tree-arrow { width: 24px; height: 24px; padding: 0; border: 0; background: transparent; color: var(--text); font-size: 14px; cursor: pointer; flex: none; }
+.tree-arrow.spacer { display: inline-block; cursor: default; }
+.tree-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; overflow: hidden; text-overflow: ellipsis; max-width: 46ch; }
+.tree-count { color: var(--muted); min-width: 3ch; text-align: right; }
+.tree-actions { margin-left: auto; display: inline-flex; gap: 6px; }
+.tree-more { margin: 4px 0 6px 30px; }
+.viewswitch { display: inline-flex; gap: 6px; margin: 8px 0; }
+.sitemap .filters { align-items: center; }
+.sitemap .filters label { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; margin: 0; }
+.sitemap .filters label select { width: auto; min-width: 0; }
+.sitemap .filters label.check input { width: auto; margin: 0; }
+.tree-name { min-width: 22ch; flex: 0 1 auto; }
+.sitemap .filters label.treecheck { gap: 6px; }
+.sitemap .filters label.treecheck input { min-width: 0; width: 16px; height: 16px; flex: none; margin: 0; }

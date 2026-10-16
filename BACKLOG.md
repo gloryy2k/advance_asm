@@ -42,7 +42,7 @@ Chưa có mục nào được triển khai, trừ khi ghi "ĐÃ LÀM".
 - Còn nếu quay lại: nuclei là công cụ duy nhất có thể gửi request không phải GET (template POST) nên khi bật quét chủ động trên host có path OUT có thể cân nhắc `-fhr`; xóa URL OUT cũ trong DB. (F4, F5: ĐÃ LÀM, xem NOTES v1.3.8.)
 
 ## Visualization (thêm 2026-10-16, chưa làm)
-**V1 — Sitemap dạng cây như Burp Suite (ưu tiên cao).** Tab Dữ liệu › URL có thêm chế độ "Cây sitemap" cạnh bảng hiện tại.
+**V1 — Sitemap dạng cây như Burp Suite — ĐÃ LÀM (NOTES v1.4.0; còn: nhớ trạng thái mở, chọn nhiều nút).** Tab Dữ liệu › URL có thêm chế độ "Cây sitemap" cạnh bảng hiện tại.
 - Cây: host → thư mục → file (→ các biến thể query gộp thành một nút "?id=… N biến thể"). Mỗi nút có mũi tên mở/thu (▸/▾, bàn phím ←/→,
   `role="tree"`, `aria-expanded`), nút "Mở hết / Thu hết / Mở tới cấp N"; **sắp xếp A→Z** (host rồi từng cấp đường dẫn; tuỳ chọn thư mục trước file,
   hoặc theo điểm / số URL).

@@ -290,3 +290,25 @@ export type Summary = {
     config?: { depth: Depth; threads: number; rate_limit: number; request_header_names: string[]; skipped_headers: string[] };
   } | null;
 };
+
+export type TreeNode = {
+  name: string;
+  display: string;
+  kind: "host" | "dir" | "file";
+  host: string;
+  path: string;
+  count: number;
+  self_count: number;
+  variants: number;
+  has_children: boolean;
+  max_score: number;
+  tags: string[];
+  verification: string;
+  is_new: boolean;
+  first_seen_scan: number | null;
+  last_seen_scan: number | null;
+  url: string | null;
+  children: TreeNode[] | null;
+  children_total?: number;
+};
+export type TreeLevel = { scan: string; scan_id: number | null; host: string | null; prefix: string; nodes: TreeNode[]; total: number; truncated: boolean };

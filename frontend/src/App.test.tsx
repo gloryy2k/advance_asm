@@ -1115,4 +1115,81 @@ describe("UI/logic audit fixes (V134_UI_LOGIC_AUDIT)", () => {
     expect(note).toHaveTextContent(/Resolve lại sau bản nháp này/);
     expect(within(note).getByRole("link", { name: /#9/ })).toHaveAttribute("href", "#/scan/9/review");
   });
+
+});
+
+describe("Sitemap tree (Data › URL › Cây sitemap)", () => {
+  const node = (over: object) => ({ name: "", display: "", kind: "dir", host: "a.example.com", path: "/", count: 1, self_count: 0, variants: 0, has_children: false,
+    max_score: 0, tags: [], verification: "historical", is_new: false, first_seen_scan: 1, last_seen_scan: 2, url: null, children: null, ...over });
+  const hosts = [node({ name: "a.example.com", display: "a.example.com", kind: "host", count: 5, has_children: true, url: "https://a.example.com/" }),
+                 node({ name: "b.example.com", display: "b.example.com", kind: "host", host: "b.example.com", count: 1, url: "https://b.example.com/" })];
+  const kids = [node({ name: "Alpha", display: "Alpha", path: "/Alpha", count: 3, has_children: true, max_score: 4, tags: ["api"], verification: "observed" }),
+                node({ name: "zeta", display: "zeta", kind: "file", path: "/zeta", count: 1, url: "https://a.example.com/zeta" })];
+  const level = (nodes: object[], over: object = {}) => ({ scan: "latest", scan_id: 2, host: null, prefix: "/", nodes, total: nodes.length, truncated: false, ...over });
+  const stub = () => stubFetch((path) => {
+    if (path.includes("/urls/tree")) {
+      if (path.includes("host=a.example.com")) return level(kids, { host: "a.example.com" });
+      if (path.includes("depth=2") || path.includes("depth=3")) return level([{ ...hosts[0], children: kids, children_total: 2 }, hosts[1]]);
+      return level(hosts);
+    }
+    if (path.includes("/urls/summary")) return { scan_id: 2, total: 6, history_total: 6, funnel: null, by_tag: {}, top_shapes: [], hosts: [], latest: { id: 2, depth: "light", status: "done", finished_at: null } };
+    return {};
+  });
+  const open = async () => {
+    location.hash = "/program/acme/data?v=urls";
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Cây sitemap" }));
+  };
+
+  test("hosts first; an arrow loads and shows one level; the same arrow hides it again", async () => {
+    const fetch = stub();
+    await open();
+    const tree = await screen.findByRole("tree", { name: "Sitemap" });
+    expect(Array.from(tree.querySelectorAll(".tree-name")).map((n) => n.textContent)).toEqual(["a.example.com", "b.example.com"]);
+    expect(fetch.mock.calls.some((c) => String(c[0]).includes("/urls/tree?") && String(c[0]).includes("min_score=0"))).toBe(true);   // the tree starts from every URL
+    fireEvent.click(screen.getByRole("button", { name: "Mở a.example.com" }));
+    expect(await screen.findByText("Alpha/")).toBeInTheDocument();
+    expect(screen.getByText("zeta")).toBeInTheDocument();
+    expect(fetch.mock.calls.some((c) => String(c[0]).includes("host=a.example.com") && String(c[0]).includes("prefix=%2F"))).toBe(true);
+    expect(tree.querySelector('li[aria-level="1"]')).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Thu a.example.com" }));
+    await waitFor(() => expect(screen.queryByText("Alpha/")).not.toBeInTheDocument());
+  });
+
+  test("keyboard: → opens, ← closes, ↓ moves; leaves have no arrow, copy and open-in-new-tab are offered", async () => {
+    stub();
+    await open();
+    const first = (await screen.findByRole("tree", { name: "Sitemap" })).querySelector<HTMLElement>("[data-row]")!;
+    first.focus();
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+    expect(await screen.findByText("Alpha/")).toBeInTheDocument();
+    fireEvent.keyDown(first, { key: "ArrowDown" });
+    expect(document.activeElement?.textContent).toMatch(/Alpha\//);
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowLeft" });                 // from a closed child, ← goes to the parent
+    expect(document.activeElement?.textContent).toMatch(/a\.example\.com/);
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowLeft" });
+    await waitFor(() => expect(screen.queryByText("Alpha/")).not.toBeInTheDocument());
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" });
+    const zeta = (await screen.findByText("zeta")).closest("[data-row]") as HTMLElement;
+    expect(within(zeta).queryByRole("button", { name: /Mở zeta|Thu zeta/ })).not.toBeInTheDocument();
+    expect(within(zeta).getByRole("link", { name: /trong tab mới/ })).toHaveAttribute("rel", "noopener noreferrer");
+    expect(within(zeta).getByRole("button", { name: "Chép" })).toBeInTheDocument();
+  });
+
+  test("sorting asks the server; 'Mở tới cấp 2' opens everything it returned; searching opens the matching branches by itself", async () => {
+    const fetch = stub();
+    await open();
+    await screen.findByRole("tree", { name: "Sitemap" });
+    fireEvent.change(screen.getByLabelText("Sắp xếp cây"), { target: { value: "score" } });
+    await waitFor(() => expect(fetch.mock.calls.some((c) => String(c[0]).includes("/urls/tree?") && String(c[0]).includes("sort=score"))).toBe(true));
+    fireEvent.click(screen.getByLabelText("Thư mục trước file"));
+    await waitFor(() => expect(fetch.mock.calls.some((c) => String(c[0]).includes("folders_first=true"))).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: "Mở tới cấp 2" }));
+    expect(await screen.findByText("Alpha/")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Thu hết" }));
+    await waitFor(() => expect(screen.queryByText("Alpha/")).not.toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText("Tìm URL"), { target: { value: "alpha" } });
+    expect(await screen.findByText("Alpha/")).toBeInTheDocument();                       // opened without any click
+    expect(fetch.mock.calls.some((c) => String(c[0]).includes("q=alpha") && String(c[0]).includes("depth=3"))).toBe(true);
+  });
 });

@@ -338,6 +338,41 @@ def urls_summary(slug: str, request: Request, shapes: int = Query(25, ge=1, le=1
     return {"scan_id": latest, "scope": scan, "latest": dict(latest_row) if latest_row else None, "history_total": history_total, "total": total, "funnel": stats.get("url_funnel") if scan == "latest" else None, "by_tag": counts, "top_shapes": top_shapes, "hosts": hosts}
 
 
+def _like(text):
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+@router.get("/{slug}/urls/tree")
+def urls_tree(slug: str, request: Request, host: str | None = Query(None, max_length=260), prefix: str = Query("", max_length=1000),
+              q: str = Query("", max_length=500), tag: str | None = Query(None, max_length=20),
+              verification: Literal["historical", "observed", "live"] | None = None, min_score: float = Query(0, ge=0, le=10),
+              include_static: bool = True, scan: str = Query("latest", max_length=12),
+              sort: Literal["az", "score", "count"] = "az", folders_first: bool = False,
+              depth: int = Query(1, ge=1, le=6), limit: int = Query(200, ge=1, le=500), offset: int = Query(0, ge=0)):
+    """One level of the sitemap: the hosts (no `host`), or the folders/files under `host`+`prefix`. Same filters and scan
+    scope as /urls. `depth` > 1 returns nested levels (capped), used by "expand to level N" and by search."""
+    from backend.sitemap import MAX_NODES, MAX_ROWS, Budget, build_level, parse_rows
+    database = request.app.state.database
+    program = program_row(database, slug)
+    with database.connect() as conn:
+        latest, _ = _latest_completed(conn, program["id"])
+        where, args = _url_filter(program["id"], _url_scope(scan, latest), q, None, tag, verification, None, None, min_score, include_static)
+        if host:
+            clean = host.lower()
+            where += " AND (u.url LIKE ? ESCAPE '\\' OR u.url LIKE ? ESCAPE '\\')"
+            args += [f"%://{_like(clean)}/%", f"%://{_like(clean)}"]
+        rows = conn.execute("SELECT u.url,u.score,u.verification,u.tags_json,u.first_seen_scan,u.last_seen_scan FROM url u WHERE " + where
+                            + " LIMIT ?", (*args, MAX_ROWS + 1)).fetchall()
+    truncated_rows = len(rows) > MAX_ROWS
+    parsed = parse_rows(rows[:MAX_ROWS])
+    segments = [part for part in prefix.split("/") if part]
+    budget = Budget(MAX_NODES)
+    nodes, total = build_level(parsed, host.lower() if host else None, segments if host else [], depth=depth, sort=sort,
+                               folders_first=folders_first, limit=limit, offset=offset, latest=latest, budget=budget)
+    return {"scan": scan, "scan_id": latest, "host": host, "prefix": "/" + "/".join(segments) if segments else "/",
+            "nodes": nodes, "total": total, "truncated": truncated_rows or budget.truncated}
+
+
 @router.get("/{slug}/urls/export")
 def urls_export(slug: str, request: Request, q: str = Query("", max_length=500), host: str | None = None, tag: str | None = Query(None, max_length=20),
                 verification: Literal["historical", "observed", "live"] | None = None, shape: str | None = Query(None, max_length=200),

@@ -4,6 +4,7 @@ import type { UrlRow, UrlSummary } from "../api/types";
 import { explain } from "../lib/errors";
 import { when } from "../lib/format";
 import { Chip } from "./layout";
+import { SitemapTree } from "./SitemapTree";
 import { CopyButton, EmptyState, ErrorBox, Pager } from "./ui";
 
 const TAG_LABEL: Record<string, string> = {
@@ -25,6 +26,7 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
   const [shape, setShape] = useState(initial?.shape || "");
   const [minScore, setMinScore] = useState(initial?.min_score || "1");  // default: hide plain content pages
   const [offset, setOffset] = useState(0);
+  const [mode, setMode] = useState<"table" | "tree">(initial?.view === "tree" ? "tree" : "table");
   // Which scans the list speaks for: the newest completed one, everything on record, or what was known as of scan N.
   const [scope, setScope] = useState(initial?.scan || "latest");
   const limit = 50;
@@ -53,6 +55,7 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
     return p;
   }, [term, tag, verification, shape, minScore, scope]);
   useEffect(() => {
+    if (mode === "tree") return;   // the tree loads its own levels
     let live = true;
     const p = new URLSearchParams(query);
     p.set("limit", String(limit));
@@ -63,7 +66,7 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
     return () => {
       live = false;
     };
-  }, [base, query, offset]);
+  }, [base, query, offset, mode]);
 
   const funnel = summary?.funnel;
   const active = [tag && `nhãn ${TAG_LABEL[tag] || tag}`, verification && VERIFY_LABEL[verification], shape && `nhóm ${shape}`, term && `"${term}"`, minScore !== "1" && (minScore === "0" ? "mọi điểm" : `điểm ≥ ${minScore}`)].filter(Boolean);
@@ -91,6 +94,11 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
             {asOf && <>URL đã ghi nhận từ scan #{scope} trở về trước (có thể đã không còn xuất hiện ở scan sau).</>}
           </span>
         )}
+      </div>
+      <div className="viewswitch" role="group" aria-label="Kiểu hiển thị URL">
+        <button type="button" className={mode === "table" ? "small" : "secondary small"} aria-pressed={mode === "table"} onClick={() => setMode("table")}>Bảng</button>
+        <button type="button" className={mode === "tree" ? "small" : "secondary small"} aria-pressed={mode === "tree"}
+          onClick={() => { setMode("tree"); if (minScore === "1") setMinScore("0"); }}>Cây sitemap</button>
       </div>
       {noneInLatest && (
         <p className="warnbox" role="status" data-testid="url-history-cta">
@@ -153,11 +161,13 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
           ))}
         </div>
       )}
-      {minScore === "1" && summary && rows && summary.total > rows.total && !term && !tag && !verification && !shape && (
+      {mode === "table" && minScore === "1" && summary && rows && summary.total > rows.total && !term && !tag && !verification && !shape && (
         <p className="muted">Đang ẩn <strong>{(summary.total - rows.total).toLocaleString("vi-VN")}</strong> URL thông thường (trang nội dung, điểm &lt; 1). <button className="linklike" onClick={() => { setMinScore("0"); setOffset(0); }}>Hiện tất cả</button></p>
       )}
       {active.length > 0 && <p className="muted">Đang lọc: {active.join(" · ")} <button className="linklike" onClick={clear}>✕ Bỏ lọc</button></p>}
       <ErrorBox text={error} />
+      {mode === "tree" ? <SitemapTree base={base} query={query} searching={!!term} /> : (
+        <>
       {rows === null ? <p className="muted">Đang tải…</p> : rows.items.length === 0 ? (
         <EmptyState title="Không có URL phù hợp">{summary?.total ? "Thử bỏ bớt bộ lọc." : noneInLatest ? "Scan mới nhất không thu được URL; xem phần lịch sử ở trên." : "Chưa có URL: scan chưa thu thập URL, hoặc chưa có scan hoàn tất."}</EmptyState>
       ) : (
@@ -183,6 +193,8 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
         </div>
       )}
       {rows && <Pager total={rows.total} limit={limit} offset={offset} onChange={setOffset} />}
+        </>
+      )}
     </div>
   );
 }
