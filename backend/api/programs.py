@@ -431,7 +431,7 @@ def urls_tree(slug: str, request: Request, host: str | None = Query(None, max_le
             clean = host.lower()
             where += " AND (u.url LIKE ? ESCAPE '\\' OR u.url LIKE ? ESCAPE '\\')"
             args += [f"%://{_like(clean)}/%", f"%://{_like(clean)}"]
-        rows = conn.execute("SELECT u.url,u.score,u.verification,u.tags_json,u.first_seen_scan,u.last_seen_scan FROM url u WHERE " + where
+        rows = conn.execute("SELECT u.url,u.source,u.score,u.verification,u.tags_json,u.first_seen_scan,u.last_seen_scan FROM url u WHERE " + where
                             + " LIMIT ?", (*args, MAX_ROWS + 1)).fetchall()
     truncated_rows = len(rows) > MAX_ROWS
     parsed = parse_rows(rows[:MAX_ROWS])

@@ -445,7 +445,7 @@ describe("Portfolio", () => {
   });
 
   test("cards show NEW, attention flags and link to the program", async () => {
-    stubFetch((path) => (path === "/api/programs" ? [card()] : path === "/api/drafts" ? [] : health()));
+    stubFetch((path) => (path.split("?")[0] === "/api/programs" ? [card()] : path === "/api/drafts" ? [] : health()));
     render(<App />);
     expect(await screen.findByRole("heading", { name: "acme" })).toBeInTheDocument();
     expect(screen.getByText("+3 NEW")).toBeInTheDocument();
@@ -454,7 +454,7 @@ describe("Portfolio", () => {
   });
 
   test("empty state explains the 3 steps and offers the first action", async () => {
-    stubFetch((path) => (path === "/api/programs" || path === "/api/drafts" ? [] : health()));
+    stubFetch((path) => (path.split("?")[0] === "/api/programs" || path === "/api/drafts" ? [] : health()));
     render(<App />);
     expect(await screen.findByText("Chưa có program nào")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Thêm program đầu tiên" })).toHaveAttribute("href", "#/new");
@@ -464,7 +464,7 @@ describe("Portfolio", () => {
     let drafts: object[] = [{ id: 5, slug: "x", source: "raw", depth: "light", created_at: null, in: 2, out: 1 }];
     const fetch = stubFetch((path, init) => {
       if (init?.method === "DELETE") { drafts = []; return { deleted: 5 }; }
-      return path === "/api/programs" ? [] : path === "/api/drafts" ? drafts : health();
+      return path.split("?")[0] === "/api/programs" ? [] : path === "/api/drafts" ? drafts : health();
     });
     vi.stubGlobal("confirm", () => true);
     render(<App />);
@@ -475,7 +475,7 @@ describe("Portfolio", () => {
   });
 
   test("API failure shows an error with retry", async () => {
-    stubFetch((path) => (path === "/api/programs" ? { __error: { status: 500, message: "boom" } } : path === "/api/drafts" ? [] : health()));
+    stubFetch((path) => (path.split("?")[0] === "/api/programs" ? { __error: { status: 500, message: "boom" } } : path === "/api/drafts" ? [] : health()));
     render(<App />);
     expect(await screen.findByRole("alert")).toHaveTextContent("boom");
     expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
@@ -1175,12 +1175,31 @@ describe("Sitemap tree (Data › URL › Cây sitemap)", () => {
     fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" });
     const zeta = (await screen.findByText("zeta")).closest("[data-row]") as HTMLElement;
     expect(within(zeta).queryByRole("button", { name: /Mở zeta|Thu zeta/ })).not.toBeInTheDocument();
-    expect(within(zeta).getByRole("link", { name: /trong tab mới/ })).toHaveAttribute("rel", "noopener noreferrer");
-    expect(within(zeta).getByRole("button", { name: "Chép" })).toBeInTheDocument();
+    expect(within(zeta).queryByRole("link")).not.toBeInTheDocument();                 // rows stay compact: arrow, icon, name, count
+    fireEvent.click(zeta);                                                            // the details (and the actions) live in the side panel
+    const detail = await screen.findByTestId("tree-detail");
+    expect(within(detail).getByRole("link", { name: /trong tab mới/ })).toHaveAttribute("rel", "noopener noreferrer");
+    expect(within(detail).getByRole("button", { name: "Chép URL" })).toBeInTheDocument();
+    expect(detail).toHaveTextContent("a.example.com/zeta");
+    expect(detail).toHaveTextContent(/Lịch sử — chỉ cho biết URL từng tồn tại/);
   });
 
-  test("sorting asks the server; 'Mở tới cấp 2' opens everything it returned; searching opens the matching branches by itself", async () => {
-    const fetch = stub();
+  test("sorting asks the server; 'Mở tới cấp 2' opens everything it returned; searching shows a flat list by host and can reveal the URL in the tree", async () => {
+    const fetch = stubFetch((path) => {
+      if (/\/urls\?/.test(path) && path.includes("q=alpha")) {
+        return { __total: 2, body: [
+          { id: 1, url: "https://a.example.com/Alpha/x", host: "a.example.com", source: "katana", score: 4, verification: "observed", shape: null, tags: ["api"], first_seen_scan: 1, last_seen_scan: 2, is_new: false },
+          { id: 2, url: "https://a.example.com/alpha-two", host: "a.example.com", source: "gau", score: 2, verification: "historical", shape: null, tags: [], first_seen_scan: 1, last_seen_scan: 1, is_new: true }] };
+      }
+      if (path.includes("/urls/tree")) {
+        if (path.includes("prefix=%2FAlpha")) return level([node({ name: "x", display: "x", kind: "file", path: "/Alpha/x", url: "https://a.example.com/Alpha/x" })], { host: "a.example.com" });
+        if (path.includes("host=a.example.com")) return level(kids, { host: "a.example.com" });
+        if (path.includes("depth=2") || path.includes("depth=3") || path.includes("depth=12")) return level([{ ...hosts[0], children: kids, children_total: 2 }, hosts[1]]);
+        return level(hosts);
+      }
+      if (path.includes("/urls/summary")) return { scan_id: 2, total: 6, history_total: 6, funnel: null, by_tag: {}, top_shapes: [], hosts: [], latest: { id: 2, depth: "light", status: "done", finished_at: null } };
+      return {};
+    });
     await open();
     await screen.findByRole("tree", { name: "Sitemap" });
     fireEvent.change(screen.getByLabelText("Sắp xếp cây"), { target: { value: "score" } });
@@ -1192,8 +1211,21 @@ describe("Sitemap tree (Data › URL › Cây sitemap)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Thu hết" }));
     await waitFor(() => expect(screen.queryByText("Alpha/")).not.toBeInTheDocument());
     fireEvent.change(screen.getByLabelText("Tìm URL"), { target: { value: "alpha" } });
-    expect(await screen.findByText("Alpha/")).toBeInTheDocument();                       // opened without any click
-    expect(fetch.mock.calls.some((c) => String(c[0]).includes("q=alpha") && String(c[0]).includes("depth=12"))).toBe(true);
+    const results = await screen.findByTestId("tree-results");                                    // a list, not hundreds of opened branches
+    await waitFor(() => expect(results).toHaveTextContent(/2.*URL khớp, nhóm theo host/));
+    expect(within(results).getByRole("heading", { name: /a\.example\.com/ })).toBeInTheDocument();
+    expect(screen.queryByRole("tree", { name: "Sitemap" })).not.toBeInTheDocument();
+    expect(fetch.mock.calls.some((c) => /\/urls\/tree\?/.test(String(c[0])) && String(c[0]).includes("q=alpha"))).toBe(false);   // the tree is not asked to search
+    fireEvent.click(within(results).getByText(/a\.example\.com\/Alpha\/x/));
+    const detail = await screen.findByTestId("tree-detail");
+    expect(detail).toHaveTextContent("a.example.com › Alpha › x");                               // breadcrumb
+    expect(detail).toHaveTextContent("katana");                                                  // source
+    fireEvent.click(within(detail).getByRole("button", { name: "Xem trong cây" }));
+    const tree = await screen.findByRole("tree", { name: "Sitemap" });                           // search cleared, tree walks to the folder
+    await waitFor(() => expect(tree.querySelector(".tree-row.selected")).toBeTruthy());
+    expect((tree.querySelector(".tree-row.selected .tree-name") as HTMLElement).textContent).toBe("x");     // the file itself, with its folders opened above it
+    expect(tree.querySelector('li[aria-level="2"]')).toHaveAttribute("aria-expanded", "true");
+    expect((screen.getByLabelText("Tìm URL") as HTMLInputElement).value).toBe("");
   });
 });
 
@@ -1310,7 +1342,7 @@ describe("Drafts cleanup and program lifecycle (archive / restore / delete)", ()
     ];
     const fetch = stubFetch((path, init) => {
       if (path === "/api/drafts/delete") { drafts = drafts.filter((d: any) => d.id === 7); return { deleted: [5], skipped: [{ id: 6, reason: "launched" }] }; }
-      return path === "/api/programs" ? [] : path === "/api/drafts" ? drafts : health();
+      return path.split("?")[0] === "/api/programs" ? [] : path === "/api/drafts" ? drafts : health();
     });
     vi.stubGlobal("confirm", () => true);
     render(<App />);
@@ -1323,15 +1355,19 @@ describe("Drafts cleanup and program lifecycle (archive / restore / delete)", ()
     expect(await screen.findByText(/Đã xoá 1/)).toBeInTheDocument();
   });
 
-  test("Portfolio: archived programs stay hidden until asked for, then are marked", async () => {
-    const fetch = stubFetch((path) => path.startsWith("/api/programs") ? (path.includes("archived=include")
-      ? [{ id: 1, slug: "old", source: "h1", asset_count: 1, new_count: 0, finding_count: 0, draft_count: 0, monitoring: false, archived_at: "2026-10-01T00:00:00Z", latest_scan: null }] : [])
-      : path === "/api/drafts" ? [] : health());
+  test("Portfolio: archived programs live under their own tab with a count, hidden from the main list", async () => {
+    const live = { id: 2, slug: "live", source: "h1", asset_count: 3, new_count: 0, finding_count: 0, draft_count: 0, monitoring: false, archived_at: null, latest_scan: null };
+    const old = { id: 1, slug: "old", source: "h1", asset_count: 1, new_count: 0, finding_count: 0, draft_count: 0, monitoring: false, archived_at: "2026-10-01T00:00:00Z", latest_scan: null };
+    stubFetch((path) => path.startsWith("/api/programs") ? [live, old] : path === "/api/drafts" ? [] : health());
     render(<App />);
-    expect(await screen.findByText("Chưa có program nào")).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText(/lưu trữ/i));
-    expect(await screen.findByText("Đã lưu trữ")).toBeInTheDocument();
-    expect(calls(fetch, "archived=include").length).toBeGreaterThan(0);
+    expect(await screen.findByRole("heading", { name: "live" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "old" })).not.toBeInTheDocument();
+    const views = screen.getByTestId("portfolio-views");
+    expect(views).toHaveTextContent("Đang hoạt động (1)");
+    fireEvent.click(within(views).getByRole("button", { name: "Đã lưu trữ (1)" }));
+    expect(await screen.findByRole("heading", { name: "old" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "live" })).not.toBeInTheDocument();
+    expect(screen.getByText("Đã lưu trữ", { selector: ".badge, span" })).toBeInTheDocument();
   });
 
   test("Program: archive asks first, then the banner offers restore", async () => {
@@ -1359,7 +1395,7 @@ describe("Drafts cleanup and program lifecycle (archive / restore / delete)", ()
       if (path.endsWith("/delete-preview")) return { slug: "acme", archived: true, counts: { scans: 3, drafts: 0, asset: 40, url: 900, finding: 2, diff_event: 7 }, has_schedule: true,
         folder: { path: "/t/acme", files: 12, bytes: 20480 }, blockers: [] };
       if (init?.method === "DELETE") return { deleted: "acme" };
-      if (path === "/api/programs" || path === "/api/drafts") return [];
+      if (path.split("?")[0] === "/api/programs" || path === "/api/drafts") return [];
       return path.endsWith("/summary") ? summaryOf({ archived_at: "2026-10-01T00:00:00Z", schedule: { interval: "daily", depth: "light", enabled: 0, next_run_at: null, paused_by_archive: 1 } }) : {};
     });
     location.hash = "/program/acme";
@@ -1547,5 +1583,23 @@ describe("Review: coverage by asset type, apex and repo confirmations", () => {
     fireEvent.click(screen.getByRole("button", { name: "Launch scan" }));
     await waitFor(() => expect(calls(fetch, "/launch")).toHaveLength(1));
     expect(JSON.parse(calls(fetch, "/launch")[0][1]!.body as string).config.source_full_repo_ok).toEqual(["repo:https://github.com/circlefin/malachite"]);
+  });
+});
+
+describe("Run/Overview: what the scan did with each asset", () => {
+  test("Run lists assets that were not scanned in full, with the reason", async () => {
+    stubFetch((path) => path.endsWith("/phases") ? { scan_id: 65, slug: "arc", status: "done_partial", depth: "strong", missing_tools: [], phases: [], funnel: null, stages: [], coverage: null,
+      asset_coverage: [
+        { pattern: "*.arc.io", category: "wildcard", mode: "recon", label: "Recon", detail: "x" },
+        { pattern: "repo:https://github.com/circlefin/malachite", category: "source_code", mode: "manual_confirm", label: "Khóa", detail: "BBASM chưa giới hạn được theo thư mục" },
+        { pattern: "app:com.arc", category: "mobile", mode: "manual", label: "Làm tay", detail: "BBASM không tải app" }] }
+      : path.endsWith("/review") ? baseReview({ scan: { id: 65, depth: "strong", status: "done_partial" } }) : { id: 65, status: "done_partial", depth: "strong" });
+    location.hash = "/scan/65";
+    render(<App />);
+    const note = await screen.findByTestId("asset-coverage");
+    expect(note).toHaveTextContent("1/3 asset được recon tự động");
+    expect(note).toHaveTextContent("2 asset không được quét đầy đủ");
+    expect(note).toHaveTextContent("khóa — chờ xác nhận");
+    expect(note).toHaveTextContent("BBASM chưa giới hạn được theo thư mục");
   });
 });

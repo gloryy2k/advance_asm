@@ -39,6 +39,10 @@ def _summary(entries, depth_index, latest):
     for entry in exact:
         if best is None or (entry[3]["score"] or 0) > (best[3]["score"] or 0):
             best = entry
+    sources = defaultdict(int)
+    for _, _, _, row in entries:
+        if row["source"]:
+            sources[row["source"]] += 1
     firsts = [e[3]["first_seen_scan"] for e in entries if e[3]["first_seen_scan"] is not None]
     lasts = [e[3]["last_seen_scan"] for e in entries if e[3]["last_seen_scan"] is not None]
     return {
@@ -53,6 +57,7 @@ def _summary(entries, depth_index, latest):
         "first_seen_scan": min(firsts) if firsts else None,
         "last_seen_scan": max(lasts) if lasts else None,
         "url": best[3]["url"] if best else None,
+        "sources": [name for name, _ in sorted(sources.items(), key=lambda kv: (-kv[1], kv[0]))][:3],
     }
 
 

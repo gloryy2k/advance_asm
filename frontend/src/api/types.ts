@@ -336,6 +336,7 @@ export type TreeNode = {
   first_seen_scan: number | null;
   last_seen_scan: number | null;
   url: string | null;
+  sources?: string[];
   children: TreeNode[] | null;
   children_total?: number;
 };

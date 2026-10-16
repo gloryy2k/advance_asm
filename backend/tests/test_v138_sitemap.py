@@ -141,3 +141,14 @@ def test_a_search_can_open_a_path_as_deep_as_it_needs(settings):
         assert client.get("/api/programs/tree/urls/tree?scan=all&depth=13").status_code == 422
     finally:
         client.__exit__(None, None, None)
+
+
+def test_a_node_names_where_its_urls_came_from(settings):
+    client = seeded(settings)
+    with client.app.state.database.connect() as conn, conn:
+        conn.execute("UPDATE url SET source='katana' WHERE url LIKE '%/Alpha/x?id=1'")
+    hosts = client.get("/api/programs/tree/urls/tree?min_score=0&scan=all").json()["nodes"]
+    a = next(n for n in hosts if n["display"] == "a.example.com")
+    assert a["sources"][0] == "gau" and "katana" in a["sources"]
+    alpha = client.get("/api/programs/tree/urls/tree?host=a.example.com&prefix=/&min_score=0&scan=all").json()["nodes"]
+    assert next(n for n in alpha if n["display"] == "Alpha")["sources"] == ["gau", "katana"] or "katana" in next(n for n in alpha if n["display"] == "Alpha")["sources"]

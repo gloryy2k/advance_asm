@@ -687,3 +687,15 @@ Cây sitemap: dữ liệu và thao tác PASS (mở/thu, Xem thêm 150 mục, bà
 ### v1.5.5 — kết quả host QA `d5d5ac9` cho v1.5.4
 14/15 PASS (templates qua `--force-recreate`, cập nhật lỗi giữ bộ cũ, template riêng, dọn draft, archive/restore/delete, khôi phục sau gián đoạn, biểu đồ, health). **FAIL R2:** ZIP `filtered` giữ dòng `127.0.0.2/admin [200]` dù `/admin` thuộc OUT: IP literal chỉ được trích phần địa chỉ, mất phần `:port/đường dẫn`. Sửa: `IP_TOKEN` nay lấy cả `:port` và đường dẫn và đưa `http://<ip><đường dẫn>` vào kiểm gate như URL (host dạng tên đã được xử lý đúng từ v1.3.8). Test: `test_v137_scope_selection.py` (+1, và các ca token IP).
 - CI `frontend-build` đỏ ở nhánh kết quả test không do mã sản phẩm: test Run dùng `getByText(/52/)` trong khi thời gian "đã chạy" của scan giả tính theo đồng hồ thật (ngày 16/10 ra "52.2 giờ"). Test nay chỉ khớp phần tử `strong` của funnel.
+
+
+## v1.6.0 — xử lý audit arc-bbp Strong #65
+Chi tiết từng mục, trạng thái và quyết định còn mở: `ARC_BBP_TRIAGE.md`. Điểm chính:
+- **Takeover (F1):** `backend/asm/takeover.py`; ứng viên subjack là `subjack:<SERVICE>`, Medium, chưa xác minh. `backend/repair.py` sửa dữ liệu cũ lúc khởi động (sao lưu `bbasm.db.pre-repair-*` trước, tạo lại Brief, ghi `stats.repairs`, hiện ghi chú trên UI). Có thể chạy lại an toàn.
+- **nmap/ffuf:** probe không còn nmap; shim `nmap` (`--host-timeout`, tổng thời gian) và `ffuf` (`-ac`, `-maxtime`); biến `BBASM_NMAP_TIMEOUT`, `BBASM_NMAP_HOST_TIMEOUT`, `BBASM_FFUF_MAXTIME`, `BBASM_PROBE_BATCH` (50). Cấu hình theo scan: `nmap_timeout`, `ffuf_maxtime`, `deep_hosts`.
+- **Độ phủ & ngân sách:** mỗi lệnh có trần theo phần còn lại của stage; coverage `attempted/responded/completed/unreached`; `stats.unprobed_hosts`; stage ghi `commands_ok/timeout/skipped`. Trần stage: 25/45/62/95%.
+- **Kết quả đọc đúng:** `backend/asm/results.py` (nmap greppable, ffuf, nhận diện CDN); phase `partial`.
+- **Scope/asset:** `backend/coverage.py`, `POST /api/scans/{id}/coverage`; repo có hướng dẫn giới hạn bị khóa (`source_full_repo_ok`); domain gốc tường minh (`include_apex` + `apex_confirmed`, server từ chối nếu thiếu xác nhận, cả lịch giám sát).
+- **Funnel:** `in_scope + from_probe = stored`. **Nhãn auth** theo segment. **F6:** “ghi nhận lần đầu”.
+- **UI:** panel độ phủ ở Review/Run/Tổng quan, cây sitemap mới, tab program lưu trữ.
+- Tests: `test_v160_takeover.py`, `test_v160_p1.py`, `test_v160_results.py`, tích hợp `test_v13_pipeline.py` (+1), Vitest +6.

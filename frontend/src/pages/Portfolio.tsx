@@ -21,11 +21,14 @@ function attention(p: ProgramCard): string[] {
 export function Portfolio() {
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState("");
-  const [showArchived, setShowArchived] = useState(false);
-  const programs = useData<ProgramCard[]>("/api/programs" + (showArchived ? "?archived=include" : ""), revision);
+  const [view, setView] = useState<"active" | "archived">("active");
+  const programs = useData<ProgramCard[]>("/api/programs?archived=include", revision);
   const drafts = useData<Draft[]>("/api/drafts", revision);
   const health = useHealth();
-  const list = programs.data || [];
+  const everything = programs.data || [];
+  const archivedCount = everything.filter((p) => p.archived_at).length;
+  // A program that was archived must be easy to find again: a tab with a count, not a hidden checkbox.
+  const list = everything.filter((p) => (view === "archived") === !!p.archived_at);
   const totalNew = list.reduce((n, p) => n + p.new_count, 0);
 
   async function remove(id: number) {
@@ -104,7 +107,13 @@ export function Portfolio() {
           {shownDrafts.length === 0 && <p className="muted">Không có bản nháp nào khớp bộ lọc.</p>}
         </section>
       )}
-      <label className="check inline"><input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />Hiện cả program đã lưu trữ</label>
+      {archivedCount > 0 && (
+        <div className="segmented" role="group" aria-label="Danh mục program" data-testid="portfolio-views">
+          <button type="button" className={view === "active" ? "on" : ""} aria-pressed={view === "active"} onClick={() => setView("active")}>Đang hoạt động ({everything.length - archivedCount})</button>
+          <button type="button" className={view === "archived" ? "on" : ""} aria-pressed={view === "archived"} onClick={() => setView("archived")}>Đã lưu trữ ({archivedCount})</button>
+        </div>
+      )}
+      {view === "archived" && archivedCount > 0 && <p className="muted">Program đã lưu trữ bị ẩn khỏi danh mục chính và lịch giám sát đã tạm dừng; mở một program để khôi phục hoặc xóa vĩnh viễn.</p>}
       <State data={programs.data} error={programs.error} retry={() => setRevision((v) => v + 1)}>
         {list.length > 0 && (
           <div className="metrics">
@@ -135,7 +144,13 @@ export function Portfolio() {
             );
           })}
         </div>
-        {list.length === 0 && (
+        {list.length === 0 && view === "active" && archivedCount > 0 && (
+          <EmptyState title="Mọi program đang được lưu trữ"
+            action={<button type="button" onClick={() => setView("archived")}>Xem {archivedCount} program đã lưu trữ</button>}>
+            Danh mục chính trống vì mọi program đã được lưu trữ. Mở một program trong mục “Đã lưu trữ” để khôi phục.
+          </EmptyState>
+        )}
+        {list.length === 0 && !(view === "active" && archivedCount > 0) && view === "active" && (
           <EmptyState
             title="Chưa có program nào"
             action={<a className="button" href="#/new">Thêm program đầu tiên</a>}

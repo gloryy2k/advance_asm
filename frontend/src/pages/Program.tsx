@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import { api, apiPage } from "../api/client";
 import type { Asset, ChartsData, DataNote, Depth, Profile, Summary, Trust, UrlSummary } from "../api/types";
 import { Distributions, SeverityMatrix, TrendChart } from "../components/Charts";
-import { ScanProgress } from "../components/ScanProgress";
+import { AssetCoverageNote, ScanProgress } from "../components/ScanProgress";
 import { HuntCard } from "../components/HuntCard";
 import { Chip, PageHead, Panel, Segmented, TrustBadge } from "../components/layout";
 import { ArchivedBanner } from "../components/ProgramLifecycle";
@@ -144,6 +144,7 @@ function Overview({ slug, summary, detail, urls, reload }: { slug: string; summa
           {" "}<a href={"#/scan/" + (active ? active.id : dataScan.id)}>Mở scan #{active ? active.id : dataScan.id} →</a>
         </p>
       )}
+      {dataScan && dataScan.status !== "done_partial" && <AssetCoverageNote rows={dataStats.asset_coverage} />}
       {(summary.data_notes || []).length > 0 && (
         <div className="notice" role="note" data-testid="data-notes">
           <strong>Số liệu của scan này đã được tính lại sau khi nâng cấp:</strong>
@@ -564,7 +565,7 @@ export function Program({ slug, tab, view }: { slug: string; tab: string; view: 
     } catch (e) { setError(explain(e)); }
   }
   async function archive() {
-    if (!window.confirm(`Lưu trữ “${slug}”? Program sẽ bị ẩn khỏi danh sách chính và lịch giám sát tạm dừng. Dữ liệu vẫn còn và khôi phục được.`)) return;
+    if (!window.confirm(`Lưu trữ “${slug}”? Program sẽ bị ẩn khỏi danh sách chính và lịch giám sát tạm dừng. Dữ liệu vẫn còn; tìm lại ở Danh mục → “Đã lưu trữ” để khôi phục.`)) return;
     try { await api(base + "/archive", { method: "POST" }); setRevision((v) => v + 1); } catch (e) { setError(explain(e)); }
   }
   const s = summary.data;

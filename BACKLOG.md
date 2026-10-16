@@ -40,3 +40,11 @@ Không làm: đồ thị quan hệ subdomain/IP (nặng, ít giá trị); treema
   giới hạn kích thước, tắt entity ngoài; mọi URL phải qua cổng scope (`effective_gate`) và dữ liệu OUT bị bỏ, ghi nguồn `burp`.
 - So sánh hai cây (BBASM vs Burp): chỉ có ở BBASM / chỉ có ở Burp / có ở cả hai (khác status/mime), khoá nút = host + đường dẫn chuẩn hóa + tên tham số.
   Xem dưới dạng cây có màu + bảng, xuất danh sách khác biệt. Thiết kế V1 để API cây chấp nhận nguồn dữ liệu bất kỳ (scan hoặc import).
+
+## Còn mở sau audit arc-bbp #65 (xem ARC_BBP_TRIAGE.md, mục “Cần quyết định”)
+1. Cưỡng chế giới hạn thư mục của repo (trufflehog `--include-paths`, sửa `secrets_hunter.sh` ở submodule); hiện chỉ khóa + xác nhận cả repo.
+2. “Probe tiếp” phần chưa quét từ `stats.unprobed_hosts`: cần chốt ngữ nghĩa diff/Brief/lịch.
+3. Adapter riêng cho mobile / source code (SAST, dependency) / other (smart contract, cloud, ASN…), quyền theo từng asset.
+4. Nhập kết quả ffuf và nmap vào bảng dữ liệu có cấu trúc (tab “Đường dẫn dò được”, “Cổng/Dịch vụ”).
+5. Ngân sách tự co giãn theo số host khám phá.
+6. Sửa `open_ports.txt` ở engine (submodule): parse đúng từng cặp host/cổng (BBASM đã bù ở tầng đọc).

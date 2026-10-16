@@ -1,4 +1,4 @@
-import type { ScanProgressData, StageRecord } from "../api/types";
+import type { AssetCoverage, ScanProgressData, StageRecord } from "../api/types";
 import { Chip } from "./layout";
 
 const STAGE_TONE: Record<string, string> = { ok: "good", running: "warn", error: "warn", timeout: "bad", skipped_budget: "bad", empty: "muted" };
@@ -30,16 +30,43 @@ function StageTimeline({ stages }: { stages: StageRecord[] }) {
   );
 }
 
+const MODE_LABEL: Record<string, string> = {
+  recon: "recon đầy đủ", recon_host: "recon trên cả host", secrets_only: "chỉ quét bí mật repo", passive_only: "chỉ nguồn công khai",
+  manual: "chỉ lưu để làm tay", manual_confirm: "khóa — chờ xác nhận", off: "đã tắt",
+};
+
+/** What the scan did with each asset of the scope: Strong never means "everything was scanned". */
+export function AssetCoverageNote({ rows }: { rows?: AssetCoverage[] }) {
+  if (!rows || rows.length === 0) return null;
+  const auto = rows.filter((r) => r.mode === "recon" || r.mode === "recon_host");
+  const rest = rows.filter((r) => !(r.mode === "recon" || r.mode === "recon_host"));
+  return (
+    <details className={rest.length ? "notice" : ""} open={rest.length > 0} data-testid="asset-coverage">
+      <summary>
+        Độ phủ theo loại asset: <strong>{auto.length}/{rows.length}</strong> asset được recon tự động
+        {rest.length > 0 && <> · {rest.length} asset không được quét đầy đủ</>}
+      </summary>
+      <ul className="coverage-list">
+        {rows.map((r) => (
+          <li key={r.pattern} data-mode={r.mode}><code>{r.pattern}</code> <Chip tone={r.mode === "manual_confirm" ? "bad" : r.mode === "recon" ? "good" : "muted"}>{MODE_LABEL[r.mode] || r.mode}</Chip>
+            {r.mode !== "recon" && <p className="muted">{r.detail}</p>}</li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 /** How far a scan really got: which stage ran how long, how many discovered hosts were probed, which sources failed. */
 export function ScanProgress({ data, partial }: { data: ScanProgressData; partial?: boolean }) {
   const stages = data.stages || [];
   const coverage = data.coverage;
   const failedSources = (data.sources || []).filter((s) => s.status !== "ok");
   const pathRules = Object.entries(data.path_rule_hosts || {});
-  const hasAnything = stages.length > 0 || !!coverage || failedSources.length > 0 || pathRules.length > 0 || (data.partial_inputs || []).length > 0;
+  const hasAnything = (data.asset_coverage || []).length > 0 || stages.length > 0 || !!coverage || failedSources.length > 0 || pathRules.length > 0 || (data.partial_inputs || []).length > 0;
   if (!hasAnything) return null;
   return (
     <div data-testid="scan-progress">
+      <AssetCoverageNote rows={data.asset_coverage} />
       {coverage && coverage.discovered > 0 && (
         <div className={coverage.unprobed > 0 ? "warnbox" : ""} aria-label="Phủ host khám phá">
           <p>

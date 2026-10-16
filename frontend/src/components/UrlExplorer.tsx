@@ -106,6 +106,81 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
           <button className="linklike" onClick={() => { setScope("all"); setMinScore("0"); setOffset(0); }}>Xem URL lịch sử →</button>
         </p>
       )}
+      {mode === "tree" ? (
+        <>
+      <div className="filters">
+        <input aria-label="Tìm URL" placeholder="Tìm trong URL…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select aria-label="Mức kiểm chứng" value={verification} onChange={(e) => { setVerification(e.target.value); setOffset(0); }}>
+          <option value="">Mọi nguồn</option>
+          <option value="observed">Đã crawl thấy</option>
+          <option value="historical">Lịch sử (archive)</option>
+        </select>
+        <select aria-label="Điểm tối thiểu" value={minScore} onChange={(e) => { setMinScore(e.target.value); setOffset(0); }}>
+          <option value="1">Đáng xem (điểm ≥ 1) — mặc định</option>
+          <option value="0">Mọi URL (kể cả trang thường)</option>
+          <option value="3">Điểm ≥ 3 (đáng xem)</option>
+          <option value="5">Điểm ≥ 5 (ưu tiên)</option>
+        </select>
+        <a className="button secondary small" href={exportHref} download>Tải danh sách .txt ↓</a>
+      </div>
+          <details className="adv" data-testid="url-stats">
+            <summary>Thống kê URL, nhóm đường dẫn và nhãn</summary>
+      {funnel && (
+        <div className="funnel" aria-label="Phễu URL">
+          <div><strong>{funnel.raw.toLocaleString("vi-VN")}</strong><span>URL do tool tìm thấy</span></div>
+          <span className="arrow" aria-hidden="true">→</span>
+          <div className="good"><strong>{funnel.in_scope.toLocaleString("vi-VN")}</strong><span>từ recon, qua scope gate</span></div>
+          {!!funnel.from_probe && (
+            <>
+              <span className="arrow" aria-hidden="true">+</span>
+              <div className="good"><strong>{funnel.from_probe.toLocaleString("vi-VN")}</strong><span>từ probe HTTP (host trả lời)</span></div>
+            </>
+          )}
+          {funnel.stored !== undefined && (
+            <>
+              <span className="arrow" aria-hidden="true">=</span>
+              <div className="good"><strong>{funnel.stored.toLocaleString("vi-VN")}</strong><span>URL của scan này (đang xem)</span></div>
+            </>
+          )}
+          <span className="arrow" aria-hidden="true">+</span>
+          <div className={funnel.out_of_scope ? "warn" : ""}><strong>{funnel.out_of_scope.toLocaleString("vi-VN")}</strong><span>ngoài scope — đã loại</span></div>
+          {!!funnel.excluded_by_rule && <div><strong>{funnel.excluded_by_rule}</strong><span>loại theo mẫu của bạn</span></div>}
+        </div>
+      )}
+      {funnel?.out_of_scope_hosts && funnel.out_of_scope_hosts.length > 0 && (
+        <p className="muted">Host ngoài scope bị loại nhiều nhất: {funnel.out_of_scope_hosts.slice(0, 4).map((h) => `${h.host} (${h.count})`).join(", ")}.</p>
+      )}
+      <p className="notice">URL lấy từ archive là <strong>lịch sử</strong>: chỉ cho biết URL từng tồn tại, chưa chứng minh còn chạy hay có lỗi. URL “đã crawl thấy” là do katana tìm được trên host đang chạy.</p>
+
+      {summary && summary.top_shapes.length > 0 && (
+        <details className="shapes" open={!shape && !tag && !term}>
+          <summary>Nhóm URL theo dạng đường dẫn ({summary.top_shapes.length} nhóm nổi bật) — bấm để lọc</summary>
+          <ul>
+            {summary.top_shapes.map((s) => (
+              <li key={s.shape}>
+                <button className={"shape " + (shape === s.shape ? "on" : "")} onClick={() => { setShape(shape === s.shape ? "" : s.shape); setOffset(0); }}>
+                  <code>{s.shape}</code> <span>{s.count.toLocaleString("vi-VN")} URL</span>
+                  {s.max_score >= 3 && <Chip tone="warn">điểm cao nhất {s.max_score}</Chip>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {summary && (
+        <div className="chips-row" role="group" aria-label="Lọc theo nhãn">
+          {Object.entries(summary.by_tag).filter(([t, n]) => n > 0 && TAG_LABEL[t]).sort((a, b) => b[1] - a[1]).map(([t, n]) => (
+            <button key={t} className={"tagbtn " + (tag === t ? "on" : "")} aria-pressed={tag === t} onClick={() => { setTag(tag === t ? "" : t); setOffset(0); }}>
+              {TAG_LABEL[t]} <small className="inline">{n.toLocaleString("vi-VN")}</small>
+            </button>
+          ))}
+        </div>
+      )}
+          </details>
+        </>
+      ) : (
+        <>
       {funnel && (
         <div className="funnel" aria-label="Phễu URL">
           <div><strong>{funnel.raw.toLocaleString("vi-VN")}</strong><span>URL do tool tìm thấy</span></div>
@@ -173,12 +248,14 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
           ))}
         </div>
       )}
+        </>
+      )}
       {mode === "table" && minScore === "1" && summary && rows && summary.total > rows.total && !term && !tag && !verification && !shape && (
         <p className="muted">Đang ẩn <strong>{(summary.total - rows.total).toLocaleString("vi-VN")}</strong> URL thông thường (trang nội dung, điểm &lt; 1). <button className="linklike" onClick={() => { setMinScore("0"); setOffset(0); }}>Hiện tất cả</button></p>
       )}
       {active.length > 0 && <p className="muted">Đang lọc: {active.join(" · ")} <button className="linklike" onClick={clear}>✕ Bỏ lọc</button></p>}
       <ErrorBox text={error} />
-      {mode === "tree" ? <SitemapTree base={base} query={query} searching={!!term} /> : (
+      {mode === "tree" ? <SitemapTree base={base} query={query} term={term} onClearSearch={() => { setQ(""); setTerm(""); }} /> : (
         <>
       {rows === null ? <p className="muted">Đang tải…</p> : rows.items.length === 0 ? (
         <EmptyState title="Không có URL phù hợp">{summary?.total ? "Thử bỏ bớt bộ lọc." : noneInLatest ? "Scan mới nhất không thu được URL; xem phần lịch sử ở trên." : "Chưa có URL: scan chưa thu thập URL, hoặc chưa có scan hoàn tất."}</EmptyState>

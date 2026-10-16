@@ -321,24 +321,53 @@ table.stages th { color: var(--muted); font-weight: 600; font-size: 12px; text-t
 .scopebar { align-items: center; gap: 12px; }
 .scopebar label { display: flex; align-items: center; gap: 6px; }
 
-/* sitemap tree */
-.tree-wrap { border: 1px solid var(--border); border-radius: 8px; padding: 6px; background: var(--panel); overflow-x: auto; }
+/* sitemap tree: compact rows, thin CSS connectors (no box-drawing characters), detail panel on the side */
+.tree-split { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 12px; align-items: start; }
+.tree-panel, .tree-side { min-width: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+.tree-side { padding: 14px 16px; position: sticky; top: 8px; max-height: calc(100vh - 24px); overflow: auto; }
+.tree-wrap { padding: 6px 6px 12px; overflow-x: auto; --tree-row: 34px; --tree-line: color-mix(in srgb, var(--muted) 45%, transparent); }
 .tree-root, .tree-group { list-style: none; margin: 0; padding: 0; }
-.tree-row { display: flex; align-items: center; gap: 8px; padding: 3px 6px; border-radius: 6px; min-height: 30px; white-space: nowrap; }
-.tree-row:hover, .tree-row:focus { background: var(--panel-2); outline: none; }
+.tree-group { margin-left: 17px; padding-left: 14px; }
+.tree-group > li { position: relative; }
+.tree-group > li::before { content: ""; position: absolute; left: -14px; top: 0; bottom: 0; border-left: 1px solid var(--tree-line); }
+.tree-group > li:last-child::before { bottom: auto; height: calc(var(--tree-row) / 2); }
+.tree-group > li > .tree-row::after { content: ""; position: absolute; left: -14px; top: 50%; width: 12px; border-top: 1px solid var(--tree-line); }
+.tree-row { position: relative; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 4px; border-radius: 6px; min-height: var(--tree-row); white-space: nowrap; cursor: pointer; }
+.tree-row:hover { background: var(--panel-2); }
+.tree-row:focus { outline: none; }
 .tree-row:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
-.tree-arrow { width: 24px; height: 24px; padding: 0; border: 0; background: transparent; color: var(--text); font-size: 14px; cursor: pointer; flex: none; }
+.tree-row.selected { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.tree-arrow { width: 22px; height: 22px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 13px; cursor: pointer; flex: none; }
 .tree-arrow.spacer { display: inline-block; cursor: default; }
-.tree-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; overflow: hidden; text-overflow: ellipsis; max-width: 46ch; }
-.tree-count { color: var(--muted); min-width: 3ch; text-align: right; }
-.tree-actions { margin-left: auto; display: inline-flex; gap: 6px; }
-.tree-more { margin: 4px 0 6px 30px; }
-.viewswitch { display: inline-flex; gap: 6px; margin: 8px 0; }
+.tree-icon { flex: none; color: var(--muted); }
+.tree-icon.host, .tree-icon.dir { color: var(--accent); }
+.tree-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 auto; }
+.tree-count { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; padding-left: 8px; flex: none; }
+.tree-more { margin: 2px 0 6px 40px; }
+.tree-label { margin: 0 0 6px; font-size: 10px; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.tree-fullpath { margin: 0 0 8px; font-size: 15px; font-weight: 650; line-height: 1.4; overflow-wrap: anywhere; }
+.tree-crumb { margin: 0 0 12px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.tree-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin: 0 0 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.tree-facts dt { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+.tree-facts dd { margin: 0; font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
+.tree-tags { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
+.tree-url { margin: 0 0 10px; overflow-wrap: anywhere; font-size: 12px; }
+.tree-results { padding: 8px; }
+.tree-filter-note { margin: 0 0 8px; padding: 8px 10px; border-radius: 7px; background: color-mix(in srgb, var(--accent) 12%, transparent); font-size: 12px; }
+.result-group { margin-bottom: 8px; }
+.result-host { margin: 8px 0 2px; font-size: 12px; color: var(--accent); }
+.result-host small { color: var(--muted); font-weight: 400; }
+.result { display: block; width: 100%; text-align: left; border: 0; border-top: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 0; padding: 9px 8px; font-weight: 400; }
+.result:hover { background: var(--panel-2); }
+.result.selected { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.result-url { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; overflow-wrap: anywhere; }
+.result-crumb { display: block; margin-top: 3px; color: var(--muted); overflow-wrap: anywhere; }
+@media (max-width: 900px) { .tree-split { grid-template-columns: 1fr; } .tree-side { position: static; max-height: none; } }
+
 .sitemap .filters { align-items: center; }
 .sitemap .filters label { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; margin: 0; }
 .sitemap .filters label select { width: auto; min-width: 0; }
 .sitemap .filters label.check input { width: auto; margin: 0; }
-.tree-name { min-width: 22ch; flex: 0 1 auto; }
 .sitemap .filters label.treecheck { gap: 6px; }
 .sitemap .filters label.treecheck input { min-width: 0; width: 16px; height: 16px; flex: none; margin: 0; }
 
@@ -384,3 +413,4 @@ table.stages th { color: var(--muted); font-weight: 600; font-size: 12px; text-t
 .coverage-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .coverage-list p { margin: 4px 0 0; font-size: 13px; }
 .apex { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+.result-host small { display: inline; }
