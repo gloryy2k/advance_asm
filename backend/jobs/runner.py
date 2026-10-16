@@ -147,7 +147,7 @@ class JobRunner:
             raise ScopeError("scan_timeout exceeds configured depth hard limit")
         for pattern in config.excluded_hosts:
             try:
-                normalize_pattern(pattern)
+                normalize_pattern(pattern, deny=True)   # same rule the gate applies to an OUT entry
             except ValueError:
                 raise ScopeError("Invalid excluded scope pattern") from None
 
@@ -193,9 +193,14 @@ class JobRunner:
         """Launch is the moment the reviewed scope becomes the program's scope (schedules read it) -- including what the
         user un-ticked or excluded by hand, so Rescan and schedules do not quietly bring it back."""
         row = conn.execute("SELECT program_id,stats_json FROM scan_run WHERE id=?", (scan_id,)).fetchone()
-        entries = json.loads(row["stats_json"] or "{}").get("resolved_scope") or []
+        stats = json.loads(row["stats_json"] or "{}")
+        entries = stats.get("resolved_scope") or []
         if not entries:
             return
+        if stats.get("policy_snapshot") is not None:
+            # Scope and policy travel together: launching a draft makes ITS policy the program's, like its scope.
+            conn.execute("UPDATE program SET policy_json=?,updated_at=? WHERE id=?",
+                         (json.dumps(stats["policy_snapshot"]), utc_now(), row["program_id"]))
         if config is not None:
             from backend.scope_selection import selection_from_config
             conn.execute("UPDATE program SET scope_selection_json=? WHERE id=?",
@@ -218,7 +223,16 @@ class JobRunner:
                 raise ScopeError("Scan not found", "scan_not_found")
             program = conn.execute("SELECT * FROM program WHERE id=?", (scan["program_id"],)).fetchone()
         stats = json.loads(scan["stats_json"] or "{}")
-        policy = json.loads(program["policy_json"] or "{}")
+        # A draft is judged against the policy it was resolved with; the program's current policy is only used for
+        # drafts and scans that predate snapshots.
+        policy = stats.get("policy_snapshot")
+        if policy is None:
+            policy = json.loads(program["policy_json"] or "{}")
+        newer = None
+        if scan["status"] == "draft" and stats.get("policy_snapshot_at") and (program["updated_at"] or "") > stats["policy_snapshot_at"]:
+            with self.database.connect() as conn:
+                newer = conn.execute("SELECT max(id) FROM scan_run WHERE program_id=? AND status='draft' AND id>?",
+                                     (scan["program_id"], scan_id)).fetchone()[0] or 0
         text = policy.get("policy_text") or (policy.get("program") or {}).get("policy") or policy.get("policy") or ""
         return {
             "scan": {key: scan[key] for key in ("id", "depth", "status", "trigger", "started_at", "finished_at", "error")},
@@ -229,6 +243,8 @@ class JobRunner:
             # The gate was computed from the data this very draft was resolved with.
             "launch_gate": stats.get("launch_gate") or launch_gate(program["source"], policy),
             "request_header_hints": required_headers(policy),
+            # set when the program has been re-resolved or another draft launched since this draft was made
+            "policy_newer": newer is not None, "newest_draft": newer or None,
             "scope": stats.get("resolved_scope", []), "warnings": stats.get("warnings", []),
             "automation_ack": stats.get("automation_ack"),
             "policy": {"text": text if isinstance(text, str) else "", "source": policy.get("policy_source"),

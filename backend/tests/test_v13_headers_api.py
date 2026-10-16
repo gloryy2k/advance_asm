@@ -52,11 +52,11 @@ def test_program_default_is_saved_validated_and_seeds_the_next_draft(settings):
         assert client.put("/api/programs/nope/request-headers", json={"headers": []}).status_code == 422
 
 
-def test_review_shows_header_hints_from_the_stored_policy(settings):
+def test_review_shows_header_hints_from_the_drafts_policy(settings):
+    from backend.models import ResolveRequest
     from backend.tests.p2_helpers import environment
-    db, resolver, result = environment(settings, ["a.example.com"])
-    with db.connect() as conn, conn:
-        conn.execute("UPDATE program SET policy_json=? WHERE slug=?", (json.dumps({"policy_text": "Send X-HackerOne-Research: [username]"}), "a.example.com"))
+    db, resolver, _ = environment(settings, ["a.example.com"])
+    result = resolver.resolve(ResolveRequest(input="raw", scope=["a.example.com"], policy_text="Send X-HackerOne-Research: [username]"))
     with TestClient(create_app(settings)) as client:
         assert client.get(f"/api/scans/{result.scan_id}/review").json()["request_header_hints"] == ["X-HackerOne-Research"]
 

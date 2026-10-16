@@ -192,6 +192,13 @@ export function Review({ id }: { id: string }) {
       />
       <ErrorBox text={error} />
       {review.warnings.map((w) => <p className="warnbox" key={w}>⚠ {w}</p>)}
+      {isDraft && review.policy_newer && (
+        <p className="warnbox" role="note" data-testid="policy-newer">
+          Program đã được Resolve lại sau bản nháp này, nên policy/scope bên dưới là của lúc tạo nháp, không phải bản mới nhất.
+          {review.newest_draft ? <> <a href={"#/scan/" + review.newest_draft + "/review"}>Mở bản nháp mới nhất (#{review.newest_draft}) →</a></> : null}{" "}
+          Launch bản này sẽ đặt lại scope và policy của program về bản này.
+        </p>
+      )}
 
       <PolicyPanel review={review} />
 

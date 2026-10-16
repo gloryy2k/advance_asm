@@ -231,7 +231,10 @@ class ScopeResolver:
                 config = program_config(self.settings, conn, existing, entries)
                 scan_id = conn.execute("INSERT INTO scan_run(program_id,depth,status,trigger,stats_json) VALUES(?,?,'draft','manual',?)", (
                     program_id, config.depth, json.dumps({"resolved_scope": [e.model_dump() for e in entries], "warnings": warnings,
-                                "launch_gate": launch_gate(source, policy)}),
+                                "launch_gate": launch_gate(source, policy),
+                                # The policy this draft was resolved with. Review, the header check and launch use it, so a
+                                # newer Resolve of the same program cannot change what an older draft is judged against.
+                                "policy_snapshot": policy, "policy_snapshot_at": now}),
                 )).lastrowid
                 conn.execute(
                     "INSERT INTO scan_config(scan_run_id,depth,threads,rate_limit,scan_timeout,nuclei_severity,skip_nmap,skip_nuclei,skip_active_crawl,categories_enabled_json,excluded_hosts_json,options_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",

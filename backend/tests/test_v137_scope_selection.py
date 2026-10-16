@@ -156,3 +156,44 @@ def test_f3_dispatch_rechecks_the_launch_gate_and_says_why_on_the_schedule(setti
             conn.execute("UPDATE program SET source='raw'")
         assert tick() is not None
         assert client.get("/api/programs/gated/summary").json()["schedule"]["last_error"] is None
+
+
+def test_f4_a_draft_keeps_the_policy_it_was_resolved_with(settings):
+    with TestClient(create_app(settings)) as client:
+        first = client.post("/api/scope/resolve", json={"input": "raw", "scope": ["a.example.com"], "name": "pol",
+                                                         "policy_text": "POLICY_ONE: add header X-HackerOne-Research: u"}).json()["scan_id"]
+        second = client.post("/api/scope/resolve", json={"input": "raw", "scope": ["a.example.com"], "name": "pol",
+                                                          "policy_text": "POLICY_TWO: nothing special"}).json()["scan_id"]
+        r1, r2 = (client.get(f"/api/scans/{n}/review").json() for n in (first, second))
+        assert r1["policy"]["user_text"].startswith("POLICY_ONE") and r1["request_header_hints"] == ["X-HackerOne-Research"]
+        assert r2["policy"]["user_text"].startswith("POLICY_TWO") and r2["request_header_hints"] == []
+        assert r1["policy_newer"] is True and r1["newest_draft"] == second       # the older draft says a newer one exists
+        assert r2["policy_newer"] is False and r2["newest_draft"] is None
+        # the older draft is still judged by its own policy: Light without the header it names is refused
+        client.put(f"/api/scans/{first}/config", json=client.get(f"/api/scans/{first}/config").json() | {"depth": "light"})
+        blocked = client.post(f"/api/scans/{first}/launch", json={"automation_ack": True})
+        assert blocked.status_code == 422 and blocked.json()["error"]["code"] == "header_required"
+        # launching a draft makes its policy the program's, together with its scope
+        client.put(f"/api/scans/{first}/config", json=client.get(f"/api/scans/{first}/config").json() | {"depth": "passive", "scan_timeout": 300,
+                                                                                                          "skip_nuclei": True, "skip_active_crawl": True})
+        assert client.post(f"/api/scans/{first}/launch", json={}).status_code in (200, 422)
+        policy = client.get("/api/programs/pol").json()["policy"]
+        assert policy["user_policy_text"].startswith("POLICY_ONE")
+
+
+def test_f5_out_globs_are_accepted_consistently_and_never_widen(settings):
+    from backend.jobs.scope_parse import parse_box
+    from backend.scope_gate import ScopeGate
+    result = parse_box(["api*.example.com", "https://*.example.com/admin", "*.cdn.example.com"], box="out", default_kind="out")
+    assert [r.status for r in result] == ["ok", "error", "ok"]       # host globs yes; glob host + path stays refused, with a reason
+    assert "đường dẫn" in result[1].note or "Wildcard" in result[1].note
+    inside = parse_box(["api*.example.com"], box="in", default_kind="in")[0]
+    assert inside.status == "error"                                  # an IN glob would widen the scope: still refused
+    with TestClient(create_app(settings.model_copy(update={"BBASM_RECON_DISABLED": True}))) as client:
+        made = client.post("/api/scope/resolve", json={"input": "raw", "scope": ["*.example.com"], "scope_out": ["api*.example.com"], "name": "globs"})
+        assert made.status_code == 200
+        scan = made.json()["scan_id"]
+        cfg = client.get(f"/api/scans/{scan}/config").json() | {"excluded_hosts": ["admin*.example.com"]}
+        assert client.put(f"/api/scans/{scan}/config", json=cfg).status_code == 200       # same rule as the gate (was 422)
+        cfg["excluded_hosts"] = ["*bad host"]
+        assert client.put(f"/api/scans/{scan}/config", json=cfg).status_code == 422

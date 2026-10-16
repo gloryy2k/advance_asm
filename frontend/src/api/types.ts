@@ -200,6 +200,8 @@ export type ReviewData = {
   hunt_note: string;
   scope: ScopeEntry[];
   request_header_hints?: string[];
+  policy_newer?: boolean;
+  newest_draft?: number | null;
   warnings: string[];
   automation_ack: string | null;
   policy: {

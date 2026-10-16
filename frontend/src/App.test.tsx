@@ -1106,4 +1106,13 @@ describe("UI/logic audit fixes (V134_UI_LOGIC_AUDIT)", () => {
     expect(await screen.findByText(/đang có 2/)).toBeInTheDocument();
     expect(screen.getByText(/lưu cho program: Scan lại và lịch giám sát dùng lại/)).toBeInTheDocument();
   });
+
+  test("F4: an older draft says a newer one exists and links to it", async () => {
+    stubFetch((path) => path === "/api/health" ? health() : path.endsWith("/review") ? baseReview({ policy_newer: true, newest_draft: 9 }) : path.endsWith("/config") ? baseConfig : {});
+    location.hash = "/scan/4/review";
+    render(<App />);
+    const note = await screen.findByTestId("policy-newer");
+    expect(note).toHaveTextContent(/Resolve lại sau bản nháp này/);
+    expect(within(note).getByRole("link", { name: /#9/ })).toHaveAttribute("href", "#/scan/9/review");
+  });
 });

@@ -626,3 +626,9 @@ Chưa kiểm: export mọi chế độ, mobile (không làm), H1 thật, Light/S
 
 ### v1.3.7.1 — kết quả host QA `14cfbed` cho F1–F3
 F1 PASS (Rescan và lịch giữ 2 loại trừ, Review hiển thị), F3 PASS (lịch bị bỏ qua, có `last_error`, Program hiện cảnh báo), F2 FAIL một ca: JSONL có URL escape **hai tầng**. Sửa: bộ lọc ZIP bỏ mọi chuỗi dấu `\` đứng trước `/`, đọc JSON/JSONL theo từng chuỗi đã giải mã (kể cả `\u002f` và JSON lồng trong chuỗi), URL token không còn nuốt dấu `\` ở cuối. Test hồi quy trong `test_v137_scope_selection.py`.
+
+
+## v1.3.8 — F4 (policy theo draft) và F5 (glob OUT)
+- **F4:** mỗi draft lưu `policy_snapshot` + `policy_snapshot_at` lúc Resolve. Review, hint header, trust và kiểm header lúc launch đều dùng bản chụp của draft đó, không dùng policy mới nhất của program. Draft cũ khi program đã được Resolve lại (hoặc draft khác đã launch) hiện cảnh báo `policy_newer` kèm link tới draft mới nhất. Launch một draft đặt policy của program về bản chụp của nó cùng lúc với scope (scope và policy luôn đi cùng nhau).
+- **F5:** ô OUT chấp nhận mẫu host glob (`api*.example.com`) như gate; cấu hình scan (`excluded_hosts`) dùng cùng quy tắc `normalize_pattern(deny=True)`. IN glob vẫn bị từ chối (sẽ mở rộng scope); OUT glob kèm đường dẫn (`https://*.x.com/admin`) vẫn từ chối, nay có thông báo rõ.
+- Tests: `test_v137_scope_selection.py` (+2), Vitest +1.

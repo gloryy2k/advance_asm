@@ -78,8 +78,14 @@ def _token(raw, token, kind, box, line, results):
         if lowered.startswith(("http://*.", "https://*.")):
             value = value.split("://", 1)[1]
             notes.append("Bỏ scheme khỏi wildcard")
+        if "*" in value and "/" in value and "://" not in value and not value.lower().startswith(("repo:", "app:")) \
+                and re.match(r"[^/]*\*", value):
+            raise ScopeError("Wildcard host kèm đường dẫn chưa được hỗ trợ; viết host cụ thể kèm đường dẫn, hoặc wildcard không kèm đường dẫn")
         if "*" in value and not value.startswith("*."):
-            raise ScopeError("Wildcard chỉ hỗ trợ ở đầu dạng *.domain")
+            if kind == "out" and "/" not in value and ":" not in value:
+                pass   # "api*.example.com" as an exclusion: it can only remove more, never widen the scope
+            else:
+                raise ScopeError("Wildcard chỉ hỗ trợ ở đầu dạng *.domain (ô OUT còn nhận mẫu host như api*.example.com, không kèm đường dẫn)")
         if re.fullmatch(r"(?:https?://)?(?:github\.com|gitlab\.com|bitbucket\.org)/[^\s?#]+", value, re.I):
             value = "repo:" + (value if "://" in value else "https://" + value)
             notes.append("Tự thêm repo: cho kho mã")

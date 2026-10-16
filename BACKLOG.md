@@ -39,7 +39,7 @@ Chưa có mục nào được triển khai, trừ khi ghi "ĐÃ LÀM".
 
 ## Đã chốt sau audit luồng input→output (không làm)
 - R1–R7 (chặn request tới endpoint OUT theo đường dẫn): bỏ. Quy tắc của người dùng: **GET tới endpoint OUT trong domain được chấp nhận**, chỉ cần tránh POST/PUT/PATCH/DELETE. Giữ nguyên logic hiện tại (host có path OUT mặc định chỉ probe, có ô cho phép quét chủ động). Không merge phần hạn chế của commit `2d540fd` (xóa ô cho phép, ép probe-only vĩnh viễn).
-- Còn nếu quay lại: nuclei là công cụ duy nhất có thể gửi request không phải GET (template POST) nên khi bật quét chủ động trên host có path OUT có thể cân nhắc `-fhr`; F4 (policy theo draft), F5 (glob OUT), xóa URL OUT cũ trong DB.
+- Còn nếu quay lại: nuclei là công cụ duy nhất có thể gửi request không phải GET (template POST) nên khi bật quét chủ động trên host có path OUT có thể cân nhắc `-fhr`; xóa URL OUT cũ trong DB. (F4, F5: ĐÃ LÀM, xem NOTES v1.3.8.)
 
 ## Visualization (thêm 2026-10-16, chưa làm)
 **V1 — Sitemap dạng cây như Burp Suite (ưu tiên cao).** Tab Dữ liệu › URL có thêm chế độ "Cây sitemap" cạnh bảng hiện tại.
