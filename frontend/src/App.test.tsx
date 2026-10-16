@@ -299,7 +299,7 @@ describe("Run", () => {
     const nuclei = screen.getByText("Nuclei").closest("li")!;
     expect(within(nuclei).getByText(/không có nghĩa là an toàn/)).toBeInTheDocument();  // 0 results is not "safe"
     expect(screen.getByText(/Công cụ không có trên máy chủ: nmap/)).toBeInTheDocument();
-    expect(screen.getByText(/52/)).toBeInTheDocument();  // URL funnel
+    expect(screen.getByText("52", { selector: "strong" })).toBeInTheDocument();  // URL funnel
     expect(screen.queryByText(/cd "/)).not.toBeInTheDocument();
     status = "done";
     act(() => FakeSocket.instances[0].emit({ id: 2, type: "done", status: "done" }));

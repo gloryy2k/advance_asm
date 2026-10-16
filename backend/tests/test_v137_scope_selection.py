@@ -80,6 +80,9 @@ def test_f2_every_token_on_a_line_is_checked():
         '{"host":"in.example","matched-at":"https:\\/\\/out.example\\/x"}': ["https://out.example/x", "http://in.example"],
         "10.0.0.5 in.example": ["10.0.0.5", "http://in.example"],
         "see app.js and readme.md": [],            # file names are not hosts
+        "127.0.0.2/admin [200]": ["127.0.0.2", "http://127.0.0.2/admin"],               # v1.5.4 host QA: an IP literal with a path
+        "127.0.0.2:8080/admin/x": ["127.0.0.2", "http://127.0.0.2/admin/x"],
+        "127.0.0.2:8080 up": ["127.0.0.2"],
     }
     for line, expected in cases.items():
         assert sorted(line_tokens(line)) == sorted(expected), line
@@ -264,3 +267,19 @@ def test_ingest_removes_urls_stored_before_an_out_path_rule_existed(settings):
     with db.connect() as conn:
         urls = {r[0] for r in conn.execute("SELECT url FROM url")}
     assert urls == {"https://wolt.com/keep/me", "https://wolt.com/new"} and stats["url_funnel"]["purged_stale"] == 2
+
+
+def test_f2_ip_literal_with_an_out_path_is_dropped_from_the_filtered_export(settings, tmp_path):
+    """v1.5.4 host QA: IN 127.0.0.2, OUT http://127.0.0.2/admin kept the line `127.0.0.2/admin [200]`."""
+    from backend.brief.export import _line_allowed
+    from backend.scope_gate import ScopeGate
+    from backend.config import PROJECT_ROOT
+    gate = ScopeGate(["127.0.0.2"], ["http://127.0.0.2/admin"], tmp_path / "audit.jsonl", settings.model_copy(update={"BBASM_BBROOT": PROJECT_ROOT / "vendor/claude-bug-bounty"}))
+    allowed = lambda line: _line_allowed(line, gate, {})
+    assert allowed("http://127.0.0.2/safe")
+    assert allowed("127.0.0.2/safe [200]")
+    assert allowed("127.0.0.2:8080 up")
+    assert not allowed("http://127.0.0.2/admin/x")
+    assert not allowed("127.0.0.2/admin [200]")
+    assert not allowed("127.0.0.2:8080/admin/x [200]")
+    assert not allowed('{"host":"127.0.0.2","matched-at":"127.0.0.2\\/admin\\/x"}')

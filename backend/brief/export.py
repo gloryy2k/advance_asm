@@ -14,7 +14,7 @@ from backend.jobs.scope_resolver import ScopeError
 # A line is kept only if EVERY host, IP and URL on it is in scope (a line that names an OUT host anywhere is dropped,
 # not just one whose first token is). Lines that name no host at all carry nothing to attribute and are kept.
 URL_TOKEN = re.compile(r"https?://[^\s\]\"'<>)\\]+", re.I)
-IP_TOKEN = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.]*\w)")
+IP_TOKEN = re.compile(r"(?<![\w.])((?:\d{1,3}\.){3}\d{1,3})(?![\w.]*\w)(?::\d{1,5})?(/[^\s\]\"'<>)]*)?")
 HOST_TOKEN = re.compile(r"(?<![\w.@/-])((?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,24})(?::\d{1,5})?(/[^\s\]\"'<>)]*)?(?![\w-])")
 # file names that look like hosts ("app.js", "readme.md"): not network names
 FILE_EXTENSIONS = {"js", "json", "jsonl", "txt", "md", "html", "htm", "css", "xml", "png", "jpg", "jpeg", "gif", "svg", "ico", "log",
@@ -66,7 +66,10 @@ def line_tokens(line):
 def _text_tokens(text):
     found = [m.group(0).rstrip(".,;:'\"") for m in URL_TOKEN.finditer(text)]
     rest = URL_TOKEN.sub(" ", text)
-    found += [m.group(0) for m in IP_TOKEN.finditer(rest)]
+    for m in IP_TOKEN.finditer(rest):
+        found.append(m.group(1))
+        if m.group(2):
+            found.append("http://" + m.group(1) + m.group(2))   # 127.0.0.2/admin [200]: judged like the URL it stands for
     for m in HOST_TOKEN.finditer(rest):
         host, path = m.group(1), m.group(2)
         if host.rsplit(".", 1)[-1].lower() in FILE_EXTENSIONS and not path:
