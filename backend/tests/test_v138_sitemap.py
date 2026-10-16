@@ -121,3 +121,23 @@ def test_a_large_inventory_is_served_one_level_at_a_time(settings):
         assert len(capped["nodes"]) == 200 and capped["total"] == 500           # a folder with 500 children is paged, never dumped
     finally:
         client.__exit__(None, None, None)
+
+
+def test_a_search_can_open_a_path_as_deep_as_it_needs(settings):
+    """Host QA (24f0c03): a file under 4 nested folders must be reachable by one search request."""
+    client = seeded(settings)
+    try:
+        with client.app.state.database.connect() as conn, conn:
+            pid = conn.execute("SELECT id FROM program").fetchone()[0]
+            conn.execute("INSERT INTO url(program_id,url,source,first_seen_scan,last_seen_scan,score,verification,tags_json) VALUES(?,?,?,?,?,?,?,?)",
+                         (pid, "https://alpha.example.com/a7/b9/c3/d5/e1/f2/item0999?v=0", "gau", 2, 2, 1, "historical", "[]"))
+        r = client.get("/api/programs/tree/urls/tree?scan=all&q=item0999&depth=12").json()
+        node = r["nodes"][0]
+        trail = [node["display"]]
+        while node["children"]:
+            node = node["children"][0]
+            trail.append(node["display"])
+        assert trail == ["alpha.example.com", "a7", "b9", "c3", "d5", "e1", "f2", "item0999"] and r["matched"] == 1 and r["truncated"] is False
+        assert client.get("/api/programs/tree/urls/tree?scan=all&depth=13").status_code == 422
+    finally:
+        client.__exit__(None, None, None)

@@ -639,3 +639,6 @@ F1 PASS (Rescan và lịch giữ 2 loại trừ, Review hiển thị), F3 PASS (
 - UI `SitemapTree`: mũi tên ▸/▾ mở/thu và tải con khi mở; "Thu hết", "Mở tới cấp 2/3", "Mở hết"; bàn phím ↑↓ Home End, → mở/vào con, ← thu/lên cha, Enter/Space; `role="tree"`/`treeitem`/`aria-expanded`; "Xem thêm" khi một nút có > 200 con; tìm kiếm tự mở các nhánh khớp; chép URL và mở tab mới (`noopener noreferrer`). Lần đầu chuyển sang cây, mức điểm đổi thành "mọi URL".
 - Chưa làm: nhớ trạng thái mở khi rời trang; xác định method/status/length (dữ liệu chưa có cho mọi URL).
 - Tests: `test_v138_sitemap.py` (5, gồm 20.000 URL < 2 s và phân trang), Vitest +3 (69). Kiểm bằng trình duyệt thật 1366px với 1.500 URL: không cuộn ngang, không lỗi JS.
+
+### v1.4.1 — kết quả host QA `24f0c03` cho cây sitemap, F4, F5
+Cây sitemap: dữ liệu và thao tác PASS (mở/thu, Xem thêm 150 mục, bàn phím, "Mở tới cấp 3" 302 ms), F4 PASS, F5 PASS. **FAIL một ca:** tìm kiếm chỉ tự mở tới cấp 3 nên file nằm sau 4 thư mục không hiện. Sửa: tìm kiếm và "Mở hết" yêu cầu `depth=12` (API nhận 1–12); khi vượt ngân sách 3000 nút thì ghi rõ số URL khớp (`matched`) và cách thu hẹp. Đã kiểm bằng trình duyệt thật: `item0999` sau 5 thư mục hiện ngay sau một lần tìm. Test: `test_v138_sitemap.py` (+1), Vitest cập nhật.

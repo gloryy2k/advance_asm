@@ -348,7 +348,7 @@ def urls_tree(slug: str, request: Request, host: str | None = Query(None, max_le
               verification: Literal["historical", "observed", "live"] | None = None, min_score: float = Query(0, ge=0, le=10),
               include_static: bool = True, scan: str = Query("latest", max_length=12),
               sort: Literal["az", "score", "count"] = "az", folders_first: bool = False,
-              depth: int = Query(1, ge=1, le=6), limit: int = Query(200, ge=1, le=500), offset: int = Query(0, ge=0)):
+              depth: int = Query(1, ge=1, le=12), limit: int = Query(200, ge=1, le=500), offset: int = Query(0, ge=0)):
     """One level of the sitemap: the hosts (no `host`), or the folders/files under `host`+`prefix`. Same filters and scan
     scope as /urls. `depth` > 1 returns nested levels (capped), used by "expand to level N" and by search."""
     from backend.sitemap import MAX_NODES, MAX_ROWS, Budget, build_level, parse_rows
@@ -370,7 +370,7 @@ def urls_tree(slug: str, request: Request, host: str | None = Query(None, max_le
     nodes, total = build_level(parsed, host.lower() if host else None, segments if host else [], depth=depth, sort=sort,
                                folders_first=folders_first, limit=limit, offset=offset, latest=latest, budget=budget)
     return {"scan": scan, "scan_id": latest, "host": host, "prefix": "/" + "/".join(segments) if segments else "/",
-            "nodes": nodes, "total": total, "truncated": truncated_rows or budget.truncated}
+            "nodes": nodes, "total": total, "matched": len(parsed), "truncated": truncated_rows or budget.truncated}
 
 
 @router.get("/{slug}/urls/export")

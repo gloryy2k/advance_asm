@@ -311,4 +311,4 @@ export type TreeNode = {
   children: TreeNode[] | null;
   children_total?: number;
 };
-export type TreeLevel = { scan: string; scan_id: number | null; host: string | null; prefix: string; nodes: TreeNode[]; total: number; truncated: boolean };
+export type TreeLevel = { scan: string; scan_id: number | null; host: string | null; prefix: string; nodes: TreeNode[]; total: number; matched?: number; truncated: boolean };

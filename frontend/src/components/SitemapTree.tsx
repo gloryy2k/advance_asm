@@ -14,6 +14,7 @@ const TAG_LABEL: Record<string, string> = {
 const keyOf = (host: string, path: string) => host + "\u0000" + path;
 const nodeKey = (n: TreeNode) => keyOf(n.host, n.path);
 const PAGE = 200;
+const DEEP = 12;   // deep enough for any real path; the server stops at its node budget and says so
 
 /** URL inventory as a sitemap (host → folders → files), loaded one level at a time. */
 export function SitemapTree({ base, query, searching }: { base: string; query: URLSearchParams; searching: boolean }) {
@@ -60,7 +61,7 @@ export function SitemapTree({ base, query, searching }: { base: string; query: U
   useEffect(() => {
     const mine = ++generation.current;
     setError(""); setNote("");
-    const depth = searching ? 3 : 1;
+    const depth = searching ? DEEP : 1;
     fetchLevel(null, "", { depth: String(depth) }).then((r) => {
       if (mine !== generation.current) return;
       const next: Record<string, Level> = {};
@@ -68,7 +69,7 @@ export function SitemapTree({ base, query, searching }: { base: string; query: U
       ingest(next, open, "", r.nodes, r.total);
       setLevels(next);
       setExpanded(open || new Set());
-      if (r.truncated) setNote("Kết quả rất lớn nên chỉ hiện một phần; thu hẹp bằng bộ lọc.");
+      if (r.truncated) setNote(`${(r.matched ?? 0).toLocaleString("vi-VN")} URL khớp nhưng cây quá lớn để mở hết cùng lúc: chỉ một phần được mở. Thu hẹp từ khóa/bộ lọc hoặc mở từng nhánh.`);
       setFocus((f) => f || (r.nodes[0] ? nodeKey(r.nodes[0]) : ""));
     }).catch((e) => mine === generation.current && setError(explain(e)));
   }, [fetchLevel, ingest, searching]);
@@ -108,7 +109,7 @@ export function SitemapTree({ base, query, searching }: { base: string; query: U
       const open = new Set<string>();
       ingest(next, open, "", r.nodes, r.total);
       setLevels(next); setExpanded(open);
-      if (r.truncated) setNote("Cây quá lớn nên chỉ mở được một phần; mở từng nhánh hoặc thu hẹp bằng bộ lọc.");
+      if (r.truncated) setNote(`Cây có ${(r.matched ?? 0).toLocaleString("vi-VN")} URL, quá lớn để mở hết cùng lúc: chỉ một phần được mở. Mở từng nhánh hoặc thu hẹp bằng bộ lọc.`);
     } catch (e) { setError(explain(e)); }
   }
 
@@ -189,7 +190,7 @@ export function SitemapTree({ base, query, searching }: { base: string; query: U
         <button type="button" className="secondary small" onClick={() => setExpanded(new Set())}>Thu hết</button>
         <button type="button" className="secondary small" onClick={() => expandTo(2)}>Mở tới cấp 2</button>
         <button type="button" className="secondary small" onClick={() => expandTo(3)}>Mở tới cấp 3</button>
-        <button type="button" className="secondary small" onClick={() => expandTo(6)}>Mở hết</button>
+        <button type="button" className="secondary small" onClick={() => expandTo(DEEP)}>Mở hết</button>
       </div>
       <ErrorBox text={error} />
       {note && <p className="muted" role="status">{note}</p>}

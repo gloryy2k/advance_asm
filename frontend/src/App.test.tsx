@@ -1129,7 +1129,7 @@ describe("Sitemap tree (Data › URL › Cây sitemap)", () => {
   const stub = () => stubFetch((path) => {
     if (path.includes("/urls/tree")) {
       if (path.includes("host=a.example.com")) return level(kids, { host: "a.example.com" });
-      if (path.includes("depth=2") || path.includes("depth=3")) return level([{ ...hosts[0], children: kids, children_total: 2 }, hosts[1]]);
+      if (path.includes("depth=2") || path.includes("depth=3") || path.includes("depth=12")) return level([{ ...hosts[0], children: kids, children_total: 2 }, hosts[1]]);
       return level(hosts);
     }
     if (path.includes("/urls/summary")) return { scan_id: 2, total: 6, history_total: 6, funnel: null, by_tag: {}, top_shapes: [], hosts: [], latest: { id: 2, depth: "light", status: "done", finished_at: null } };
@@ -1190,6 +1190,6 @@ describe("Sitemap tree (Data › URL › Cây sitemap)", () => {
     await waitFor(() => expect(screen.queryByText("Alpha/")).not.toBeInTheDocument());
     fireEvent.change(screen.getByLabelText("Tìm URL"), { target: { value: "alpha" } });
     expect(await screen.findByText("Alpha/")).toBeInTheDocument();                       // opened without any click
-    expect(fetch.mock.calls.some((c) => String(c[0]).includes("q=alpha") && String(c[0]).includes("depth=3"))).toBe(true);
+    expect(fetch.mock.calls.some((c) => String(c[0]).includes("q=alpha") && String(c[0]).includes("depth=12"))).toBe(true);
   });
 });
