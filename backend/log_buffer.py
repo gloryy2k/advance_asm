@@ -27,6 +27,14 @@ class LogBuffer:
     def close(self):
         self._io.shutdown(wait=True)
 
+    def forget(self, scan_id):
+        """Drop a scan's journal and memory (its program was deleted; the number may be reused)."""
+        self.flush()
+        self.events.pop(scan_id, None)
+        self.conditions.pop(scan_id, None)
+        self.counts.pop(scan_id, None)
+        (self.directory / f"{int(scan_id)}.jsonl").unlink(missing_ok=True)
+
     @staticmethod
     def _append(path, line):
         path.parent.mkdir(parents=True, exist_ok=True)

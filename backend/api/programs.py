@@ -31,13 +31,15 @@ def decoded(row):
 
 
 @router.get("")
-def portfolio(request: Request, include_drafts: bool = False):
+def portfolio(request: Request, include_drafts: bool = False, archived: Literal["exclude", "include", "only"] = "exclude"):
     database = request.app.state.database
     if not database.path.exists():
         return []
     result = []
     with database.connect() as conn:
-        for program in conn.execute("SELECT * FROM program"):
+        for program in conn.execute("SELECT * FROM program WHERE deleting_at IS NULL"):
+            if (archived == "exclude" and program["archived_at"]) or (archived == "only" and not program["archived_at"]):
+                continue
             row = decoded(program)
             scan = conn.execute("SELECT * FROM scan_run WHERE program_id=? AND status!='draft' ORDER BY id DESC LIMIT 1", (row["id"],)).fetchone()
             row["draft_count"] = conn.execute("SELECT count(*) FROM scan_run WHERE program_id=? AND status='draft'", (row["id"],)).fetchone()[0]
@@ -147,7 +149,7 @@ def summary(slug: str, request: Request):
         schedule = conn.execute("SELECT * FROM schedule WHERE program_id=?", (program["id"],)).fetchone()
         drafts = conn.execute("SELECT count(*) FROM scan_run WHERE program_id=? AND status='draft'", (program["id"],)).fetchone()[0]
     from backend.trust import required_headers, scope_trust
-    return {"slug": slug, "source": program["source"], "handle": program["handle"],
+    return {"slug": slug, "source": program["source"], "handle": program["handle"], "archived_at": program.get("archived_at"),
             "trust": scope_trust(program["source"], program["handle"], json.loads(program.get("policy_json") or "{}")),
             "default_profile_id": program.get("default_profile_id"),
             "request_headers": json.loads(program.get("request_headers_json") or "[]"),
@@ -181,7 +183,8 @@ def set_request_headers(slug: str, body: RequestHeaders, request: Request):
     """Default headers for every request to this program's targets (e.g. the one its policy requires)."""
     from backend.models import validate_header
     database = request.app.state.database
-    program_row(database, slug)
+    from backend.lifecycle import require_active
+    require_active(program_row(database, slug))
     try:
         headers = [validate_header(item) for item in body.headers]
     except ValueError as exc:
@@ -215,6 +218,8 @@ async def schedule(slug: str, body: ScheduleRequest, request: Request):
         if row:
             return state.scheduler.configure(program["id"], row["interval"], ScanConfig.model_validate_json(row["config_json"]), False)
     else:
+        from backend.lifecycle import require_active
+        require_active(program)
         require_ack(config.depth, body.automation_ack)
         require_gate(config.depth, launch_gate(program["source"], policy))
         require_headers(config, required_headers(policy))
@@ -389,3 +394,42 @@ def urls_export(slug: str, request: Request, q: str = Query("", max_length=500),
         rows = conn.execute("SELECT u.url FROM url u LEFT JOIN asset a ON a.id=u.asset_id WHERE " + where + " ORDER BY COALESCE(u.score,0) DESC,u.url LIMIT ?", (*args, limit)).fetchall()
     name = f"{slug}-urls" + ("" if scan == "latest" else f"-{scan}") + (f"-{tag}" if tag else "") + ".txt"
     return PlainTextResponse("\n".join(r[0] for r in rows) + "\n", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+class ConfirmDelete(BaseModel):
+    confirm_slug: str = Field(max_length=200)
+
+
+@router.post("/{slug}/archive")
+def archive_program(slug: str, request: Request):
+    """Hide the program from the portfolio and pause its schedule. History, Diff, findings and files stay."""
+    from backend import lifecycle
+    state = request.app.state
+    program_row(state.database, slug)
+    return lifecycle.archive(state.database, state.scheduler, state.settings, slug)
+
+
+@router.post("/{slug}/restore")
+def restore_program(slug: str, request: Request):
+    from backend import lifecycle
+    state = request.app.state
+    program_row(state.database, slug)
+    return lifecycle.restore(state.database, state.settings, slug)
+
+
+@router.get("/{slug}/delete-preview")
+def delete_preview(slug: str, request: Request):
+    """What a permanent delete would remove, for the confirmation screen. Deletes nothing."""
+    from backend import lifecycle
+    state = request.app.state
+    program_row(state.database, slug)
+    return lifecycle.preview(state.database, state.settings, slug)
+
+
+@router.delete("/{slug}")
+def delete_program(slug: str, body: ConfirmDelete, request: Request):
+    """Permanent delete of an ARCHIVED program: database rows, files under targets/<slug>, logs. Needs the program's name typed."""
+    from backend import lifecycle
+    state = request.app.state
+    program_row(state.database, slug)
+    return lifecycle.delete(state.database, state.scheduler, state.runner, state.settings, slug, body.confirm_slug)

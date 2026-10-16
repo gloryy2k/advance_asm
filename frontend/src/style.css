@@ -341,3 +341,8 @@ table.stages th { color: var(--muted); font-weight: 600; font-size: 12px; text-t
 .tree-name { min-width: 22ch; flex: 0 1 auto; }
 .sitemap .filters label.treecheck { gap: 6px; }
 .sitemap .filters label.treecheck input { min-width: 0; width: 16px; height: 16px; flex: none; margin: 0; }
+
+.card.archived { opacity: .65; }
+.card.archived:hover { opacity: 1; }
+.archived-banner .delete-panel { margin-top: .8rem; padding-top: .8rem; border-top: 1px solid var(--line, #8884); }
+.archived-banner input { max-width: 28rem; }

@@ -37,6 +37,13 @@ MIGRATIONS: dict[int, list[str]] = {
         "ALTER TABLE schedule ADD COLUMN last_error TEXT",
         "ALTER TABLE schedule ADD COLUMN last_error_at TEXT",
     ],
+    5: [
+        # Archive hides a program from the portfolio without touching its history; deleting_at marks a permanent delete in flight.
+        "ALTER TABLE program ADD COLUMN archived_at TEXT",
+        "ALTER TABLE program ADD COLUMN deleting_at TEXT",
+        # A schedule that archiving paused (restore offers to turn it back on; it never does so by itself).
+        "ALTER TABLE schedule ADD COLUMN paused_by_archive INTEGER DEFAULT 0",
+    ],
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 

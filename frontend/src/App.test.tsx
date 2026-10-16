@@ -1294,3 +1294,97 @@ describe("Nuclei templates panel and per-scan custom templates", () => {
     expect(JSON.parse(calls(fetch, "/launch")[0][1]!.body as string).config.nuclei_custom).toEqual(["my-check"]);
   });
 });
+
+describe("Drafts cleanup and program lifecycle (archive / restore / delete)", () => {
+  const summaryOf = (over: object = {}) => ({
+    slug: "acme", source: "h1", handle: "acme", target_path: "/t/acme", hunt_command: "cd x", hunt_note: "",
+    latest_scan: { id: 2, status: "done", depth: "light" }, last_completed_scan: { id: 2, status: "done", depth: "light" },
+    changes: { new: 0, changed: 0, gone: 0 }, findings_by_severity: {}, assets_active: 1, top_surface: [], draft_count: 0, schedule: null, ...over,
+  });
+
+  test("Portfolio: filter drafts by name, select what is shown, delete in one request and report skipped ones", async () => {
+    let drafts: object[] = [
+      { id: 5, slug: "alpha-one", source: "raw", depth: "light", created_at: null, in: 1, out: 0 },
+      { id: 6, slug: "alpha-two", source: "raw", depth: "light", created_at: null, in: 1, out: 0 },
+      { id: 7, slug: "beta", source: "h1", depth: "light", created_at: null, in: 1, out: 0 },
+    ];
+    const fetch = stubFetch((path, init) => {
+      if (path === "/api/drafts/delete") { drafts = drafts.filter((d: any) => d.id === 7); return { deleted: [5], skipped: [{ id: 6, reason: "launched" }] }; }
+      return path === "/api/programs" ? [] : path === "/api/drafts" ? drafts : health();
+    });
+    vi.stubGlobal("confirm", () => true);
+    render(<App />);
+    fireEvent.change(await screen.findByLabelText("Lọc bản nháp theo tên"), { target: { value: "alpha" } });
+    expect(screen.queryByLabelText("Chọn bản nháp #7")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Chọn các bản đang hiện \(2\)/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Xoá 2 bản đã chọn" }));
+    await waitFor(() => expect(calls(fetch, "/api/drafts/delete", "POST")).toHaveLength(1));
+    expect(JSON.parse(calls(fetch, "/api/drafts/delete", "POST")[0][1]!.body as string).ids.sort()).toEqual([5, 6]);
+    expect(await screen.findByText(/Đã xoá 1/)).toBeInTheDocument();
+  });
+
+  test("Portfolio: archived programs stay hidden until asked for, then are marked", async () => {
+    const fetch = stubFetch((path) => path.startsWith("/api/programs") ? (path.includes("archived=include")
+      ? [{ id: 1, slug: "old", source: "h1", asset_count: 1, new_count: 0, finding_count: 0, draft_count: 0, monitoring: false, archived_at: "2026-10-01T00:00:00Z", latest_scan: null }] : [])
+      : path === "/api/drafts" ? [] : health());
+    render(<App />);
+    expect(await screen.findByText("Chưa có program nào")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText(/lưu trữ/i));
+    expect(await screen.findByText("Đã lưu trữ")).toBeInTheDocument();
+    expect(calls(fetch, "archived=include").length).toBeGreaterThan(0);
+  });
+
+  test("Program: archive asks first, then the banner offers restore", async () => {
+    let archived: string | null = null;
+    const fetch = stubFetch((path, init) => {
+      if (path.endsWith("/archive")) { archived = "2026-10-16T00:00:00Z"; return { slug: "acme", archived_at: archived }; }
+      if (path.endsWith("/restore")) { archived = null; return { slug: "acme", archived_at: null }; }
+      return path.endsWith("/summary") ? summaryOf({ archived_at: archived }) : {};
+    });
+    vi.stubGlobal("confirm", () => true);
+    location.hash = "/program/acme";
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Lưu trữ" }));
+    const banner = await screen.findByTestId("archived-banner");
+    expect(banner).toHaveTextContent(/Program đã lưu trữ/);
+    expect(screen.queryByRole("button", { name: "Scan lại" })).not.toBeInTheDocument();
+    fireEvent.click(within(banner).getByRole("button", { name: "Khôi phục" }));
+    await waitFor(() => expect(screen.queryByTestId("archived-banner")).not.toBeInTheDocument());
+    expect(calls(fetch, "/archive", "POST")).toHaveLength(1);
+    expect(calls(fetch, "/restore", "POST")).toHaveLength(1);
+  });
+
+  test("Program: permanent delete lists what goes and needs the name typed", async () => {
+    const fetch = stubFetch((path, init) => {
+      if (path.endsWith("/delete-preview")) return { slug: "acme", archived: true, counts: { scans: 3, drafts: 0, asset: 40, url: 900, finding: 2, diff_event: 7 }, has_schedule: true,
+        folder: { path: "/t/acme", files: 12, bytes: 20480 }, blockers: [] };
+      if (init?.method === "DELETE") return { deleted: "acme" };
+      if (path === "/api/programs" || path === "/api/drafts") return [];
+      return path.endsWith("/summary") ? summaryOf({ archived_at: "2026-10-01T00:00:00Z", schedule: { interval: "daily", depth: "light", enabled: 0, next_run_at: null, paused_by_archive: 1 } }) : {};
+    });
+    location.hash = "/program/acme";
+    render(<App />);
+    expect(await screen.findByTestId("schedule-archived")).toHaveTextContent(/tạm dừng/);
+    fireEvent.click(await screen.findByRole("button", { name: "Xóa vĩnh viễn…" }));
+    const panel = await screen.findByTestId("delete-panel");
+    expect(panel).toHaveTextContent(/900 URL/);
+    expect(panel).toHaveTextContent(/\/t\/acme/);
+    const button = within(panel).getByRole("button", { name: "Xóa vĩnh viễn" });
+    expect(button).toBeDisabled();
+    fireEvent.change(within(panel).getByLabelText("Gõ tên program để xác nhận xóa"), { target: { value: "acm" } });
+    expect(button).toBeDisabled();
+    fireEvent.change(within(panel).getByLabelText("Gõ tên program để xác nhận xóa"), { target: { value: "acme" } });
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    await waitFor(() => expect(calls(fetch, "/api/programs/acme", "DELETE")).toHaveLength(1));
+    expect(JSON.parse(calls(fetch, "/api/programs/acme", "DELETE")[0][1]!.body as string)).toEqual({ confirm_slug: "acme" });
+    await waitFor(() => expect(location.hash).toMatch(/^#?\/?$/));
+  });
+
+  test("Review: an archived program is flagged as restored by launching", async () => {
+    stubFetch((path) => path === "/api/health" ? health() : path.endsWith("/review") ? baseReview({ archived: true }) : path.endsWith("/config") ? baseConfig : {});
+    location.hash = "/scan/4/review";
+    render(<App />);
+    expect(await screen.findByTestId("review-archived")).toHaveTextContent(/khôi phục/);
+  });
+});

@@ -5,6 +5,7 @@ import type { Asset, Depth, Profile, Summary, Trust, UrlSummary } from "../api/t
 import { ScanProgress } from "../components/ScanProgress";
 import { HuntCard } from "../components/HuntCard";
 import { Chip, PageHead, Panel, Segmented, TrustBadge } from "../components/layout";
+import { ArchivedBanner } from "../components/ProgramLifecycle";
 import { UrlExplorer } from "../components/UrlExplorer";
 import { Badge, CopyButton, EmptyState, ErrorBox, Loading, Pager, SeverityBadge, State, StatusBadge } from "../components/ui";
 import { useData } from "../hooks/useData";
@@ -166,6 +167,11 @@ function Overview({ slug, summary, detail, urls, reload }: { slug: string; summa
         <Panel id="mon-h" title="Giám sát liên tục" hint={enabled ? `Đang bật (${summary.schedule!.interval}, mức ${summary.schedule!.depth}). Lần kế tiếp: ${when(summary.schedule!.next_run_at)}.` : "Tự quét lại theo lịch với scope hiện hành, không qua xem lại từng lần. Chỉ bật cho program cho phép automation."}
           output="Mỗi lần chạy tạo một scan mới trong Lịch sử và cập nhật Diff.">
           <ErrorBox text={error} />
+          {summary.archived_at && (
+            <p className="warnbox" role="note" data-testid="schedule-archived">
+              Program đã lưu trữ nên không đổi được lịch.{summary.schedule?.paused_by_archive ? " Lịch trước đó đã bị tạm dừng; khôi phục program rồi bật lại giám sát nếu cần." : ""}
+            </p>
+          )}
           {enabled && summary.schedule?.last_error && (
             <p className="warnbox" role="alert" data-testid="schedule-error">
               Lần chạy theo lịch gần nhất ({when(summary.schedule.last_error_at)}) <strong>đã bị bỏ qua</strong>: {summary.schedule.last_error}
@@ -201,7 +207,7 @@ function Overview({ slug, summary, detail, urls, reload }: { slug: string; summa
             )}
             {depth !== "passive" && <label className="check"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />Program cho phép scan tự động theo lịch ở mức này.</label>}
             <div className="actions">
-              <button disabled={depth !== "passive" && (!ack || (hintsOpen.length > 0 && !skipHeader))} onClick={() => schedule(true)}>{enabled ? "Cập nhật lịch" : "Bật giám sát"}</button>
+              <button disabled={!!summary.archived_at || (depth !== "passive" && (!ack || (hintsOpen.length > 0 && !skipHeader)))} onClick={() => schedule(true)}>{enabled ? "Cập nhật lịch" : "Bật giám sát"}</button>
               {enabled && <button className="secondary" onClick={() => schedule(false)}>Tắt giám sát</button>}
             </div>
           </div>
@@ -531,12 +537,18 @@ export function Program({ slug, tab, view }: { slug: string; tab: string; view: 
       go("/scan/" + made.scan_id + "/review");
     } catch (e) { setError(explain(e)); }
   }
+  async function archive() {
+    if (!window.confirm(`Lưu trữ “${slug}”? Program sẽ bị ẩn khỏi danh sách chính và lịch giám sát tạm dừng. Dữ liệu vẫn còn và khôi phục được.`)) return;
+    try { await api(base + "/archive", { method: "POST" }); setRevision((v) => v + 1); } catch (e) { setError(explain(e)); }
+  }
   const s = summary.data;
+  const archived = !!s?.archived_at;
   return (
     <>
       <PageHead eyebrow="PROGRAM" title={slug}
         sub={<>{s?.source} · <StatusBadge status={s?.latest_scan?.status} />{s?.latest_scan && <> scan #{s.latest_scan.id} · {s.latest_scan.depth}</>}</>}
-        actions={<button onClick={rescan}>Scan lại</button>} />
+        actions={archived ? undefined : <><button onClick={rescan}>Scan lại</button> <button className="secondary" onClick={archive}>Lưu trữ</button></>} />
+      {s?.archived_at && <ArchivedBanner slug={slug} archivedAt={s.archived_at} reload={() => setRevision((v) => v + 1)} />}
       {s?.trust && s.trust.level !== "manual" && <TrustBadge trust={s.trust} />}
       <ErrorBox text={error} />
       <nav className="tabs" role="tablist" aria-label="Program">

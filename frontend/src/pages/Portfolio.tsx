@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api } from "../api/client";
 import type { Draft, Health, ProgramCard } from "../api/types";
 import { Badge, EmptyState, ErrorBox, State, StatusBadge } from "../components/ui";
@@ -21,7 +21,8 @@ function attention(p: ProgramCard): string[] {
 export function Portfolio() {
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState("");
-  const programs = useData<ProgramCard[]>("/api/programs", revision);
+  const [showArchived, setShowArchived] = useState(false);
+  const programs = useData<ProgramCard[]>("/api/programs" + (showArchived ? "?archived=include" : ""), revision);
   const drafts = useData<Draft[]>("/api/drafts", revision);
   const health = useHealth();
   const list = programs.data || [];
@@ -35,6 +36,28 @@ export function Portfolio() {
     } catch (e) {
       setError(explain(e));
     }
+  }
+  // Bulk cleanup: filter, sort and pick by hand. Nothing is selected for you.
+  const [find, setFind] = useState("");
+  const [sort, setSort] = useState<"new" | "old" | "name">("new");
+  const [origin, setOrigin] = useState("");
+  const [picked, setPicked] = useState<Set<number>>(new Set());
+  const [result, setResult] = useState("");
+  const shownDrafts = useMemo(() => {
+    const items = (drafts.data || []).filter((d) => (!origin || d.source === origin) && (!find || d.slug.toLowerCase().includes(find.toLowerCase())));
+    return [...items].sort((a, b) => sort === "name" ? a.slug.localeCompare(b.slug) : sort === "old" ? a.id - b.id : b.id - a.id);
+  }, [drafts.data, find, sort, origin]);
+  const toggle = (id: number) => setPicked((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  async function removePicked() {
+    const chosen = (drafts.data || []).filter((d) => picked.has(d.id));
+    if (!chosen.length) return;
+    if (!confirm(`Xoá ${chosen.length} bản nháp?\n` + chosen.slice(0, 15).map((d) => `#${d.id} ${d.slug}`).join("\n") + (chosen.length > 15 ? `\n… và ${chosen.length - 15} bản nữa` : ""))) return;
+    try {
+      const r = await api<{ deleted: number[]; skipped: { id: number; reason: string }[] }>("/api/drafts/delete", { method: "POST", body: JSON.stringify({ ids: chosen.map((d) => d.id) }) });
+      setResult(`Đã xoá ${r.deleted.length} bản nháp.` + (r.skipped.length ? ` Bỏ qua ${r.skipped.length} bản (đã được launch hoặc không còn): ${r.skipped.map((x) => "#" + x.id).join(", ")}.` : ""));
+      setPicked(new Set());
+      setRevision((v) => v + 1);
+    } catch (e) { setError(explain(e)); }
   }
   const toolsMissing = health.data?.missing_by_depth?.light?.length || 0;
   return (
@@ -52,17 +75,36 @@ export function Portfolio() {
       {(drafts.data?.length || 0) > 0 && (
         <section className="card" aria-labelledby="drafts-h">
           <h2 id="drafts-h">Bản nháp chờ review ({drafts.data!.length})</h2>
-          {drafts.data!.map((d) => (
+          <p className="muted">Bản nháp chưa launch tự bị xoá sau 7 ngày. Chọn tay những bản muốn xoá ngay; bản đã được launch sẽ không bị đụng tới.</p>
+          <div className="filters" role="group" aria-label="Lọc bản nháp">
+            <input aria-label="Lọc bản nháp theo tên" placeholder="Lọc theo tên program…" value={find} onChange={(e) => setFind(e.target.value)} />
+            <select aria-label="Nguồn bản nháp" value={origin} onChange={(e) => setOrigin(e.target.value)}>
+              <option value="">Mọi nguồn</option><option value="h1">HackerOne</option><option value="raw">Nhập tay</option>
+            </select>
+            <select aria-label="Sắp xếp bản nháp" value={sort} onChange={(e) => setSort(e.target.value as "new" | "old" | "name")}>
+              <option value="new">Mới nhất trước</option><option value="old">Cũ nhất trước</option><option value="name">Theo tên</option>
+            </select>
+            <button type="button" className="secondary small" onClick={() => setPicked(new Set(shownDrafts.map((d) => d.id)))}>Chọn các bản đang hiện ({shownDrafts.length})</button>
+            <button type="button" className="secondary small" onClick={() => setPicked(new Set())} disabled={picked.size === 0}>Bỏ chọn</button>
+            <button type="button" className="danger small" onClick={removePicked} disabled={picked.size === 0}>Xoá {picked.size} bản đã chọn</button>
+          </div>
+          {result && <p className="okline" role="status">{result}</p>}
+          {shownDrafts.map((d) => (
             <div className="draftrow" key={d.id}>
-              <span><strong>{d.slug}</strong> · scan #{d.id} · {d.in} IN / {d.out} OUT · {when(d.created_at)}</span>
+              <label className="check inline">
+                <input type="checkbox" aria-label={"Chọn bản nháp #" + d.id} checked={picked.has(d.id)} onChange={() => toggle(d.id)} />
+                <span><strong>{d.slug}</strong> · scan #{d.id} · {d.source} · {d.in} IN / {d.out} OUT · {when(d.created_at)}</span>
+              </label>
               <span>
                 <a className="button small" href={"#/scan/" + d.id + "/review"}>Tiếp tục review</a>{" "}
                 <button className="secondary small" onClick={() => remove(d.id)}>Xoá</button>
               </span>
             </div>
           ))}
+          {shownDrafts.length === 0 && <p className="muted">Không có bản nháp nào khớp bộ lọc.</p>}
         </section>
       )}
+      <label className="check inline"><input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />Hiện cả program đã lưu trữ</label>
       <State data={programs.data} error={programs.error} retry={() => setRevision((v) => v + 1)}>
         {list.length > 0 && (
           <div className="metrics">
@@ -75,9 +117,9 @@ export function Portfolio() {
           {list.map((p) => {
             const flags = attention(p);
             return (
-              <a className="card program" href={"#" + programPath(p.slug)} key={p.id}>
+              <a className={"card program" + (p.archived_at ? " archived" : "")} href={"#" + programPath(p.slug)} key={p.id}>
                 <div>
-                  <Badge>{p.source}</Badge>
+                  <Badge>{p.source}</Badge>{p.archived_at && <Badge tone="muted">Đã lưu trữ</Badge>}
                   <StatusBadge status={p.latest_scan?.status} />
                 </div>
                 <h2>{p.slug}</h2>

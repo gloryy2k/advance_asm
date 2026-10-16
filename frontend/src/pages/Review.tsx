@@ -197,6 +197,11 @@ export function Review({ id }: { id: string }) {
       />
       <ErrorBox text={error} />
       {review.warnings.map((w) => <p className="warnbox" key={w}>⚠ {w}</p>)}
+      {isDraft && review.archived && (
+        <p className="warnbox" role="note" data-testid="review-archived">
+          Program này đang được lưu trữ. Launch bản nháp này sẽ <strong>khôi phục</strong> program (lịch giám sát cũ vẫn tắt, bạn tự bật lại nếu cần).
+        </p>
+      )}
       {isDraft && review.policy_newer && (
         <p className="warnbox" role="note" data-testid="policy-newer">
           Program đã được Resolve lại sau bản nháp này, nên policy/scope bên dưới là của lúc tạo nháp, không phải bản mới nhất.

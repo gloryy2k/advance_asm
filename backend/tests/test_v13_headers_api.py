@@ -61,7 +61,7 @@ def test_review_shows_header_hints_from_the_drafts_policy(settings):
         assert client.get(f"/api/scans/{result.scan_id}/review").json()["request_header_hints"] == ["X-HackerOne-Research"]
 
 
-def test_schema_is_at_version_4_and_old_databases_gain_the_columns(tmp_path):
+def test_schema_is_at_version_5_and_old_databases_gain_the_columns(tmp_path):
     import sqlite3
     from backend.db import Database
     from backend.migrations import SCHEMA_VERSION
@@ -70,7 +70,9 @@ def test_schema_is_at_version_4_and_old_databases_gain_the_columns(tmp_path):
     build_v1(path)
     Database(path).migrate()
     conn = sqlite3.connect(path)
-    assert SCHEMA_VERSION == 4 and conn.execute("SELECT version FROM schema_meta").fetchone()[0] == 4
+    assert SCHEMA_VERSION == 5 and conn.execute("SELECT version FROM schema_meta").fetchone()[0] == 5
     assert "request_headers_json" in [r[1] for r in conn.execute("PRAGMA table_info(program)")]
     assert "scope_selection_json" in [r[1] for r in conn.execute("PRAGMA table_info(program)")]
     assert {"last_error", "last_error_at"} <= {r[1] for r in conn.execute("PRAGMA table_info(schedule)")}
+    assert {"archived_at", "deleting_at"} <= {r[1] for r in conn.execute("PRAGMA table_info(program)")}
+    assert "paused_by_archive" in {r[1] for r in conn.execute("PRAGMA table_info(schedule)")}

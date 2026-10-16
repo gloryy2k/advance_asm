@@ -76,6 +76,8 @@ class ScanScheduler:
             if config.depth != row["depth"]:
                 raise ScopeError("Schedule depth differs from stored config")
             program = conn.execute("SELECT * FROM program WHERE id=?", (program_id,)).fetchone()
+            if program is None or program["archived_at"] or program["deleting_at"]:
+                return None          # an archived program runs nothing in the background
             entries = [classify(r["pattern"], r["kind"], r["asset_type"])
                        for r in conn.execute("SELECT * FROM scope_rule WHERE program_id=?", (program_id,))]
             # What the user excluded at Review is the program's choice now; an unattended run must not bring it back.

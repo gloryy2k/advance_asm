@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from backend.models import LaunchRequest, ScanConfig
 from backend.models import ResolveRequest
 from backend.jobs.scope_resolver import default_config
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Literal
 from backend.jobs.scope_resolver import ScopeError
 
@@ -165,6 +165,17 @@ async def scan_artifact_download(scan_id: int, request: Request, path: str = Que
     return StreamingResponse(redacted_lines(target, ok["name"]), media_type="text/plain",
                              headers={"Content-Disposition": f'attachment; filename="scan{scan_id}-{ok["name"]}"'})
 
+
+
+class DeleteDrafts(BaseModel):
+    ids: list[int] = Field(min_length=1, max_length=200)
+
+
+@router.post("/api/drafts/delete")
+async def delete_drafts(body: DeleteDrafts, request: Request):
+    """Delete the chosen drafts. Each is re-checked inside the transaction (it may have been launched since the list was
+    shown); anything that is no longer a draft is skipped and reported, never deleted."""
+    return await asyncio.to_thread(request.app.state.runner.delete_drafts, body.ids)
 
 
 @router.get("/api/drafts")

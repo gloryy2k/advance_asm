@@ -118,6 +118,10 @@ def set_default_profile(slug: str, body: DefaultProfile, request: Request):
     with state.database.connect() as conn, conn:
         if body.profile_id is not None and not conn.execute("SELECT 1 FROM profile WHERE id=?", (body.profile_id,)).fetchone():
             raise ScopeError("Không tìm thấy profile", "profile_not_found")
-        if conn.execute("UPDATE program SET default_profile_id=? WHERE slug=?", (body.profile_id, slug)).rowcount == 0:
+        row = conn.execute("SELECT archived_at FROM program WHERE slug=?", (slug,)).fetchone()
+        if row is None:
             raise ScopeError("Program not found", "program_not_found")
+        if row["archived_at"]:
+            raise ScopeError("Program đã lưu trữ: khôi phục trước khi thay đổi.", "program_archived")
+        conn.execute("UPDATE program SET default_profile_id=? WHERE slug=?", (body.profile_id, slug))
     return {"slug": slug, "default_profile_id": body.profile_id}

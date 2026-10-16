@@ -203,6 +203,7 @@ export type ReviewData = {
   hunt_note: string;
   scope: ScopeEntry[];
   request_header_hints?: string[];
+  archived?: boolean;
   policy_newer?: boolean;
   newest_draft?: number | null;
   warnings: string[];
@@ -238,6 +239,7 @@ export type ProgramCard = {
   finding_count: number;
   draft_count: number;
   monitoring: boolean;
+  archived_at?: string | null;
   latest_scan: ScanRow | null;
 };
 
@@ -274,6 +276,7 @@ export type Summary = {
   default_profile_id?: number | null;
   request_headers?: string[];
   request_header_hints?: string[];
+  archived_at?: string | null;
   assets_live?: number;
   assets_gone?: number;
   latest_scan: ScanRow | null;
@@ -288,6 +291,7 @@ export type Summary = {
     depth: Depth;
     enabled: number;
     next_run_at: string | null;
+    paused_by_archive?: number | null;
     last_error?: string | null;
     last_error_at?: string | null;
     config?: { depth: Depth; threads: number; rate_limit: number; request_header_names: string[]; skipped_headers: string[] };
@@ -349,4 +353,13 @@ export type TemplateInfo = {
   version: string | null;
   job: { state: "idle" | "running" | "ok" | "failed"; started_at: string | null; finished_at: string | null; message: string; count: number | null } | null;
   custom: { id: string; name: string; enabled: boolean; bytes: number; added_at: string }[];
+};
+
+export type DeletePreview = {
+  slug: string;
+  archived: boolean;
+  counts: Record<string, number>;
+  has_schedule: boolean;
+  folder: { path: string; files: number; bytes: number };
+  blockers: string[];
 };

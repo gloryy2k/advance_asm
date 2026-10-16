@@ -199,6 +199,8 @@ class JobRunner:
         row = conn.execute("SELECT program_id,stats_json FROM scan_run WHERE id=?", (scan_id,)).fetchone()
         stats = json.loads(row["stats_json"] or "{}")
         entries = stats.get("resolved_scope") or []
+        # Launching is the user's explicit decision to work on this program again: an archived one comes back.
+        conn.execute("UPDATE program SET archived_at=NULL WHERE id=? AND archived_at IS NOT NULL", (row["program_id"],))
         if not entries:
             return
         if stats.get("policy_snapshot") is not None:
@@ -249,6 +251,7 @@ class JobRunner:
             "request_header_hints": required_headers(policy),
             # set when the program has been re-resolved or another draft launched since this draft was made
             "policy_newer": newer is not None, "newest_draft": newer or None,
+            "archived": bool(program["archived_at"]),
             "scope": stats.get("resolved_scope", []), "warnings": stats.get("warnings", []),
             "automation_ack": stats.get("automation_ack"),
             "policy": {"text": text if isinstance(text, str) else "", "source": policy.get("policy_source"),
@@ -283,6 +286,23 @@ class JobRunner:
             if row["status"] != "draft":
                 raise ScopeError("Only draft scans can be deleted", "invalid_state")
             self._drop_draft(conn, scan_id, row["program_id"])
+
+    def delete_drafts(self, ids):
+        deleted, skipped = [], []
+        if not self.database.path.exists():
+            return {"deleted": [], "skipped": [{"id": i, "reason": "not_found"} for i in ids]}
+        with self.database.connect() as conn, conn:
+            conn.execute("BEGIN IMMEDIATE")
+            for scan_id in dict.fromkeys(ids):
+                row = conn.execute("SELECT status,program_id FROM scan_run WHERE id=?", (scan_id,)).fetchone()
+                if row is None:
+                    skipped.append({"id": scan_id, "reason": "not_found"})
+                elif row["status"] != "draft":
+                    skipped.append({"id": scan_id, "reason": "not_draft"})   # launched meanwhile: never touched
+                else:
+                    self._drop_draft(conn, scan_id, row["program_id"])
+                    deleted.append(scan_id)
+        return {"deleted": deleted, "skipped": skipped}
 
     @staticmethod
     def _drop_draft(conn, scan_id, program_id):
