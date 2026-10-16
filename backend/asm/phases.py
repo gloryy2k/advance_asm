@@ -41,7 +41,8 @@ PHASES = [
      "what": "Thống kê tham số query từ URL đã thu thập, đánh dấu tên hay gặp lỗi (id, redirect, file…).",
      "files": ["params/unique_params.txt", "params/interesting_params.txt"], "count_label": "tham số", "view": {"kind": "urls", "label": "Xem URL có tham số", "filter": {"tag": "params"}}},
     {"key": "nuclei", "title": "Nuclei", "touches": True, "tools": ["nuclei", "nuclei-templates"], "all_required": True,
-     "what": "Chạy bộ mẫu kiểm tra lỗi đã biết theo mức nghiêm trọng bạn chọn.",
+     "what": "Chạy bộ mẫu kiểm tra lỗi đã biết theo mức nghiêm trọng bạn chọn. Mỗi lượt chỉ nhận tối đa 50 (Quick)/200 (đầy đủ) "
+             "URL đang sống — không phải mọi URL scan tìm được; Run báo số thực nhận sau khi chạy.",
      "files": ["nuclei/findings.jsonl"], "count_label": "finding", "view": {"kind": "findings", "label": "Xem findings", "filter": {"type": "nuclei"}}},
     {"key": "takeover", "title": "Takeover", "touches": True, "tools": ["subjack", "dnsreaper"],
      "what": "Tìm subdomain trỏ tới dịch vụ đã bị xoá (có thể bị chiếm).",
@@ -166,6 +167,25 @@ def structured_result(key, root):
             detail += (f". {ports['cdn_pairs']} cặp nằm trên IP của {', '.join(ports['cdn'])} (CDN/biên dùng chung): đây là cổng của CDN, "
                        "chưa chứng minh là cổng của máy chủ gốc (origin) hay của ứng dụng")
         return ports["pairs"], detail, not ports["complete"], ports
+    if key == "nuclei":
+        nuclei = results.summarize_nuclei(root)
+        if not nuclei["found"]:
+            return None
+        detail = f"{nuclei['given_urls']}/{nuclei['live_urls']} URL đang sống được đưa cho nuclei"
+        if nuclei["truncated"]:
+            detail += f" (giới hạn {nuclei['limit']} URL mỗi lượt — phần còn lại KHÔNG được quét)"
+        if nuclei["templates"] is not None:
+            detail += f"; nuclei tự báo đã chạy {nuclei['templates']} template"
+            if nuclei["requests"] is not None:
+                detail += f", {nuclei['requests']} request"
+            if nuclei["hosts"] is not None:
+                detail += f" trên {nuclei['hosts']} host"
+            detail += " (khác với số template ĐÃ CÀI trong Công cụ & môi trường)"
+        if nuclei["timed_out"]:
+            detail += " — DỞ DANG: nuclei bị cắt khi hết thời gian, số liệu trên chỉ tính tới lúc đó"
+        # "partial" (status "Chạy dở dang") is reserved for a run that was interrupted; the 50/200 cap is a designed
+        # limit, not an interruption, so a truncated-but-finished run stays "ran" and lets `detail` say the rest.
+        return nuclei["findings"], detail, nuclei["timed_out"], nuclei
     if key == "dir_fuzz":
         dirs = results.summarize_dirs(root)
         if not dirs["found"]:
@@ -222,7 +242,9 @@ def build_report(settings, database, scan_id, tools_missing=None):
         tools_out = [t for t in phase["tools"] if t in missing]
         if reason and not any((f["lines"] or 0) for f in mine):
             status, label = "skipped", "Bỏ qua theo cấu hình"
-        elif mine and any((f["lines"] or 0) for f in mine) and partial:
+        elif mine and partial:
+            # Checked before the "any lines" branches below: a run cut short with zero results so far is still cut
+            # short, not "ran — 0 kết quả" (nuclei timing out before its first match would otherwise say that).
             status, label, reason = "partial", "Chạy dở dang", "Công cụ dừng giữa chừng (hết thời gian hoặc bị ngắt): kết quả chỉ gồm phần đã xong, không đại diện cho mọi host."
         elif mine and any((f["lines"] or 0) for f in mine):
             status, label, reason = "ran", "Đã chạy", None

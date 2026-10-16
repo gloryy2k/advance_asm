@@ -2,7 +2,7 @@
 import json
 
 from backend.asm.phases import build_report, scan_root
-from backend.asm.results import cdn_of, read_ffuf, read_nmap_greppable, summarize_dirs, summarize_ports
+from backend.asm.results import cdn_of, read_ffuf, read_nmap_greppable, read_nuclei_coverage, summarize_dirs, summarize_nuclei, summarize_ports
 from backend.tests.p2_helpers import environment, write_output
 
 GREP_DONE = """# Nmap 7.94 scan initiated Thu Oct 16 07:55:00 2026
@@ -124,3 +124,74 @@ def test_auth_label_needs_an_endpoint_not_the_word_token_in_a_content_url():
                  "https://a.example.com/dang-nhap", "https://a.example.com/saml/callback", "https://a.example.com/Logout"]
     for url in endpoints:
         assert "auth" in classify_url(url)[0], url
+
+
+# v1.6.1 (NUCLEI_COVERAGE_FOLLOWUP.md / V160_HOST_AUDIT.md "N"): stats.nuclei_templates only ever recorded the template
+# set installed at launch (e.g. 14,036) — never what a run actually got through. recon_engine.sh Phase 9 now writes
+# nuclei/coverage.json; these readers turn it into the same kind of honest "X/Y" numbers nmap/ffuf already get.
+TRUNCATED_RUN = json.dumps({"live_urls": 60, "given_urls": 50, "limit": 50, "quick": True, "timed_out": False,
+                            "last_stats": {"duration": "0:00:12", "errors": "3", "hosts": "50", "matched": "2", "percent": "100",
+                                           "requests": "8200", "rps": "680", "startedAt": "2026-10-16T16:00:00Z", "templates": "120", "total": "8200"}})
+TIMED_OUT_RUN = json.dumps({"live_urls": 2, "given_urls": 2, "limit": 200, "quick": False, "timed_out": True, "last_stats": None})
+
+
+def test_read_nuclei_coverage_parses_the_engines_own_numbers(tmp_path):
+    path = tmp_path / "coverage.json"
+    path.write_text(TRUNCATED_RUN, encoding="utf-8")
+    info = read_nuclei_coverage(path)
+    assert info["live_urls"] == 60 and info["given_urls"] == 50 and info["limit"] == 50 and info["quick"] is True and info["timed_out"] is False
+    assert info["templates"] == 120 and info["requests"] == 8200 and info["hosts"] == 50 and info["matched"] == 2 and info["percent"] == 100
+    path.write_text(TIMED_OUT_RUN, encoding="utf-8")
+    timed_out = read_nuclei_coverage(path)
+    assert timed_out["timed_out"] is True and timed_out["templates"] is None             # killed before the first -stats-json tick
+    assert read_nuclei_coverage(tmp_path / "missing.json") is None
+
+
+def test_summarize_nuclei_merges_runs_and_counts_findings_separately_from_coverage(tmp_path):
+    write_output(tmp_path, "4/nuclei/coverage.json", TRUNCATED_RUN)
+    write_output(tmp_path, "4/nuclei/findings.jsonl", '{"template-id":"a"}\n{"template-id":"b"}\n')
+    write_output(tmp_path, "5/nuclei/coverage.json", TIMED_OUT_RUN)
+    write_output(tmp_path, "5/nuclei/findings.jsonl", '{"template-id":"c"}\n')
+    summary = summarize_nuclei(tmp_path)
+    assert summary["found"] and summary["findings"] == 3                                 # findings count, independent of coverage numbers
+    assert summary["live_urls"] == 62 and summary["given_urls"] == 52 and summary["truncated"] is True   # one of the two runs was capped
+    assert summary["timed_out"] is True                                                  # the other run was cut by the timeout
+    assert summary["templates"] == 120 and summary["requests"] == 8200 and summary["hosts"] == 50
+    assert summarize_nuclei(tmp_path / "empty")["found"] is False
+
+
+def test_run_report_shows_real_nuclei_coverage_not_the_installed_template_count(settings):
+    db, _, result = environment(settings, ["example.com"])
+    root = scan_root(settings, _slug(db, result.scan_id), result.scan_id)
+    write_output(root, "4/nuclei/coverage.json", TRUNCATED_RUN)
+    write_output(root, "4/nuclei/findings.jsonl", '{"template-id":"a"}\n{"template-id":"b"}\n')
+    with db.connect() as conn, conn:
+        conn.execute("UPDATE scan_run SET status='done' WHERE id=?", (result.scan_id,))
+    nuclei = {p["key"]: p for p in build_report(settings, db, result.scan_id)["phases"]}["nuclei"]
+    assert nuclei["count"] == 2 and nuclei["status"] == "ran"                             # truncation alone is not "partial": it ran to completion
+    assert "50/60 URL đang sống được đưa cho nuclei" in nuclei["detail"]
+    assert "giới hạn 50 URL mỗi lượt" in nuclei["detail"] and "KHÔNG được quét" in nuclei["detail"]
+    assert "120 template" in nuclei["detail"] and "8200 request" in nuclei["detail"]
+    assert "ĐÃ CÀI" in nuclei["detail"]                                                   # tells it apart from stats.nuclei_templates
+
+
+def test_run_report_flags_a_timed_out_nuclei_run_as_partial(settings):
+    db, _, result = environment(settings, ["example.com"])
+    root = scan_root(settings, _slug(db, result.scan_id), result.scan_id)
+    write_output(root, "4/nuclei/coverage.json", TIMED_OUT_RUN)
+    write_output(root, "4/nuclei/findings.jsonl", "")
+    with db.connect() as conn, conn:
+        conn.execute("UPDATE scan_run SET status='done_partial' WHERE id=?", (result.scan_id,))
+    nuclei = {p["key"]: p for p in build_report(settings, db, result.scan_id)["phases"]}["nuclei"]
+    assert nuclei["status"] == "partial" and "DỞ DANG" in nuclei["detail"]
+
+
+def test_run_report_falls_back_to_the_old_line_count_without_a_coverage_file(settings):
+    """Scans from before v1.6.1 (or BBASM_SKIP_NUCLEI) have no coverage.json; behaviour must stay exactly what it was."""
+    db, _, result = environment(settings, ["example.com"])
+    root = scan_root(settings, _slug(db, result.scan_id), result.scan_id)
+    write_output(root, "4/nuclei/findings.jsonl", '{"template-id":"a"}\n{"template-id":"b"}\n{"template-id":"c"}\n')
+    with db.connect() as conn, conn:
+        conn.execute("UPDATE scan_run SET status='done' WHERE id=?", (result.scan_id,))
+    nuclei = {p["key"]: p for p in build_report(settings, db, result.scan_id)["phases"]}["nuclei"]
+    assert nuclei["count"] == 3 and nuclei["detail"] is None and nuclei["status"] == "ran"

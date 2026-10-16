@@ -1527,6 +1527,22 @@ describe("arc-bbp #65 audit: partial results, coverage split, funnel, data notes
     expect(screen.queryByText(/so với scan trước\./)).not.toBeInTheDocument();
     expect(screen.getByTestId("data-notes")).toHaveTextContent(/124 dòng sạch bị lưu thành takeover High/);
   });
+
+  test("Run: nuclei says how many live URLs it actually got, not just the installed template count", async () => {
+    const nuclei = { key: "nuclei", title: "Nuclei", what: "nuclei", touches: true, status: "ran", status_label: "Đã chạy", reason: null,
+      detail: "50/60 URL đang sống được đưa cho nuclei (giới hạn 50 URL mỗi lượt — phần còn lại KHÔNG được quét); nuclei tự báo đã chạy 120 template, 8200 request trên 50 host (khác với số template ĐÃ CÀI trong Công cụ & môi trường)",
+      count: 2, count_label: "finding", partial: false, files: [], view: { kind: "findings", label: "Xem findings", filter: { type: "nuclei" } } };
+    stubFetch((path) => path.endsWith("/phases") ? report({ phases: [nuclei] }) : path.endsWith("/review") ? baseReview({ scan: { id: 65, depth: "strong", status: "done" } }) : { id: 65, status: "done", depth: "strong", program_id: 1 });
+    location.hash = "/scan/65";
+    render(<App />);
+    const detail = await screen.findByTestId("detail-nuclei");
+    expect(detail).toHaveTextContent(/50\/60 URL đang sống được đưa cho nuclei/);
+    expect(detail).toHaveTextContent(/giới hạn 50 URL mỗi lượt.*KHÔNG được quét/);
+    expect(detail).toHaveTextContent(/120 template.*8200 request/);
+    expect(detail).toHaveTextContent(/ĐÃ CÀI/);
+    const row = document.querySelector('[data-step="nuclei"]') as HTMLElement;
+    expect(within(row).getByText("Đã chạy")).toBeInTheDocument();     // truncation alone is not "Chạy dở dang"
+  });
 });
 
 describe("Review: coverage by asset type, apex and repo confirmations", () => {

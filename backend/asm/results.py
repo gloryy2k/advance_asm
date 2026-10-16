@@ -1,7 +1,12 @@
-"""Structured, honest readings of what nmap and ffuf wrote. They only read files; nothing here touches a target.
+"""Structured, honest readings of what nmap, ffuf and nuclei wrote. They only read files; nothing here touches a target.
 
 Why this exists (arc-bbp Strong #65): the Run page counted LINES of a file instead of results, took an nmap file that stopped
-mid-scan for a finished one, listed only the last port of each host, and showed 24 identical 403 block pages as 24 "paths"."""
+mid-scan for a finished one, listed only the last port of each host, and showed 24 identical 403 block pages as 24 "paths".
+
+The nuclei readers (v1.6.1, test/v160-host-audit + NUCLEI_COVERAGE_FOLLOWUP.md) answer a related complaint: a scan's
+`stats.nuclei_templates` only ever recorded the template set *installed* when the scan was launched (e.g. 14,036), never
+how many URLs nuclei was actually given — `recon_engine.sh` silently truncates to 50/200 per run — or whether nuclei ran to
+completion. `coverage.json` is written by the engine itself once it has that information; these functions just read it."""
 import ipaddress
 import json
 import re
@@ -125,3 +130,58 @@ def summarize_dirs(root):
     noise = sum(h["noise"] for h in hosts)
     return {"found": bool(hosts), "hosts": hosts, "total": total, "noise": noise, "significant": total - noise,
             "blocked_only": [h["host"] for h in hosts if h["total"] and set(h["by_status"]) <= {"403"}]}
+
+
+def _int_or_none(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def read_nuclei_coverage(path):
+    """One `nuclei/coverage.json` (one recon_engine.sh invocation that reached Phase 9). `last_stats` is nuclei's own
+    final -stats-json line (None if nuclei never produced one, e.g. it was killed before the first interval)."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    last = data.get("last_stats") if isinstance(data.get("last_stats"), dict) else {}
+    return {"live_urls": _int_or_none(data.get("live_urls")) or 0, "given_urls": _int_or_none(data.get("given_urls")) or 0,
+            "limit": _int_or_none(data.get("limit")) or 0, "quick": bool(data.get("quick")), "timed_out": bool(data.get("timed_out")),
+            "templates": _int_or_none(last.get("templates")), "requests": _int_or_none(last.get("requests")),
+            "hosts": _int_or_none(last.get("hosts")), "matched": _int_or_none(last.get("matched")), "percent": _int_or_none(last.get("percent"))}
+
+
+def summarize_nuclei(root):
+    """Merge every `nuclei/coverage.json` under a scan folder. `found=False` means no run of the current engine wrote
+    one yet (BBASM_SKIP_NUCLEI, no live URLs, or data from before this reader existed) — callers fall back to the
+    plain line count of `nuclei/findings.jsonl`, same as before v1.6.1."""
+    files, runs = [], []
+    for path in sorted(Path(root).glob("*/nuclei/coverage.json")):
+        if path.is_symlink():
+            continue
+        item = read_nuclei_coverage(path)
+        if item is not None:
+            files.append(path.relative_to(root).as_posix())
+            runs.append(item)
+    findings = 0
+    for path in sorted(Path(root).glob("*/nuclei/findings.jsonl")):
+        if path.is_symlink():
+            continue
+        try:
+            with path.open("rb") as stream:
+                findings += sum(1 for _ in stream)
+        except OSError:
+            pass
+    if not runs:
+        return {"found": False, "findings": findings}
+    live, given = sum(r["live_urls"] for r in runs), sum(r["given_urls"] for r in runs)
+    return {"found": True, "files": files, "findings": findings, "runs": runs,
+            "live_urls": live, "given_urls": given, "truncated": given < live, "limit": runs[0]["limit"],
+            "timed_out": any(r["timed_out"] for r in runs),
+            "templates": max((r["templates"] for r in runs if r["templates"] is not None), default=None),
+            "requests": sum((r["requests"] for r in runs if r["requests"] is not None)) or None,
+            "hosts": sum((r["hosts"] for r in runs if r["hosts"] is not None)) or None}
