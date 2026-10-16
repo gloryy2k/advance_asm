@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     BBASM_SOURCE_TIMEOUT: int = Field(default=45, ge=5, le=600)       # per curl call to a passive source (crt.sh, Wayback)
     BBASM_SUBFINDER_TIMEOUT: int = Field(default=120, ge=30, le=1800)  # whole subfinder run
     BBASM_PROBE_BATCH: int = Field(default=150, ge=10, le=1000)       # discovered hosts probed per batch
+    BBASM_NMAP_TIMEOUT: int = Field(default=900, ge=0)                 # seconds per nmap run (0 = no cap); output so far is kept
+    BBASM_NMAP_HOST_TIMEOUT: int = Field(default=120, ge=10)           # seconds per host, so one slow host cannot hold the run
+    BBASM_FFUF_MAXTIME: int = Field(default=300, ge=0)                 # seconds per ffuf run (0 = no cap)
     BBASM_DEEP_HOSTS: int = Field(default=50, ge=1, le=500)            # live discovered hosts given the full Light/Strong pass
     BBASM_NUCLEI_TEMPLATES: Path | None = None   # managed templates dir; default <BBASM_DATA>/nuclei-templates (a volume in compose)
     BBASM_UPDATE_TEMPLATES: str = "auto"           # 0 never at boot; 1 every boot (background); auto only when none are installed yet

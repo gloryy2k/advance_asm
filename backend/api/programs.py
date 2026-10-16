@@ -209,7 +209,9 @@ def summary(slug: str, request: Request):
         schedule = conn.execute("SELECT * FROM schedule WHERE program_id=?", (program["id"],)).fetchone()
         drafts = conn.execute("SELECT count(*) FROM scan_run WHERE program_id=? AND status='draft'", (program["id"],)).fetchone()[0]
     from backend.trust import required_headers, scope_trust
+    notes = (json.loads(scan["stats_json"] or "{}").get("repairs") or []) if scan else []
     return {"slug": slug, "source": program["source"], "handle": program["handle"], "archived_at": program.get("archived_at"),
+            "data_notes": notes,
             "trust": scope_trust(program["source"], program["handle"], json.loads(program.get("policy_json") or "{}")),
             "default_profile_id": program.get("default_profile_id"),
             "request_headers": json.loads(program.get("request_headers_json") or "[]"),

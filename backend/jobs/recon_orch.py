@@ -12,6 +12,7 @@ from uuid import uuid4
 from urllib.parse import urlsplit
 
 from backend.framework import load_module
+from backend.coverage import entry_coverage, scope_coverage
 from backend.models import ScanConfig, ScopeEntry
 from backend.scope_gate import ScopeGate, audit, normalize_host, normalize_pattern
 
@@ -66,6 +67,9 @@ class ReconPlan:
     coverage: dict = field(default_factory=lambda: {"discovered": 0, "probed": 0, "unprobed": 0, "explicit": 0, "batches": 0, "batches_done": 0})
     probed_hosts: set = field(default_factory=set)         # hosts whose probe batch finished
     path_rules: dict = field(default_factory=dict)         # host -> OUT paths (rules the crawlers cannot honour)
+    asset_coverage: list = field(default_factory=list)     # per scope entry: what BBASM will do with it (see backend/coverage.py)
+    manual_assets: list = field(default_factory=list)      # in-scope assets deliberately left for hand work, with the reason
+    takeover_summary: dict = field(default_factory=dict)   # subjack: candidates / clean results / unreadable lines
 
 
 def read_config(row):
@@ -78,6 +82,7 @@ def read_config(row):
 
 
 SHIM_DIR = Path(__file__).resolve().parent.parent / "shims"
+WRAPPED_TOOLS = ("curl", "subfinder", "katana", "nuclei", "nmap", "ffuf")
 # Same semantics as coreutils timeout; the only difference is that the command word katana/curl/subfinder runs our wrapper.
 TIMEOUT_FUNCTION = """() {  local a=("$@") i=0
     while [ "$i" -lt "${#a[@]}" ]; do
@@ -88,7 +93,7 @@ TIMEOUT_FUNCTION = """() {  local a=("$@") i=0
         esac
     done
     i=$((i+1))
-    case "${a[$i]:-}" in katana|curl|subfinder|nuclei) a[$i]="$BBASM_SHIM_DIR/${a[$i]}" ;; esac
+    case "${a[$i]:-}" in katana|curl|subfinder|nuclei|nmap|ffuf) a[$i]="$BBASM_SHIM_DIR/${a[$i]}" ;; esac
     command timeout "${a[@]}"
 }"""
 
@@ -130,15 +135,19 @@ def recon_env(settings, config, output, *, discovery=False, skip_historical=Fals
         "BBASM_SKIP_FFUF": str(int(config.depth != "strong" or config.skip_ffuf)),
         "BBASM_SKIP_CICD": "1",  # No automatic org expansion from discovered links.
         "BBASM_NMAP_CONNECT": "1",  # Portable -sT, including WSL2/no raw capabilities.
+        "BBASM_NMAP_TIMEOUT": str(settings.BBASM_NMAP_TIMEOUT), "BBASM_NMAP_HOST_TIMEOUT": str(settings.BBASM_NMAP_HOST_TIMEOUT),
+        "BBASM_FFUF_MAXTIME": str(settings.BBASM_FFUF_MAXTIME),
     })
     env["BBASM_SHIM_DIR"] = str(SHIM_DIR)
-    for tool in ("curl", "subfinder", "katana", "nuclei"):   # exported shell functions beat the engine's own PATH rewriting
+    for tool in WRAPPED_TOOLS:   # exported shell functions beat the engine's own PATH rewriting
         env[f"BASH_FUNC_{tool}%%"] = f'() {{  {shlex.quote(str(SHIM_DIR / tool))} "$@"\n}}'
     # `timeout 300 katana ...` execs the binary directly, past any function. Resolve the wrapped tool names here.
     env["BASH_FUNC_timeout%%"] = TIMEOUT_FUNCTION
     if probe_only:
         # Probe stage: liveness and fingerprint only. No archives, crawling, config-file checks, templates or fuzzing.
-        env.update(BBASM_SKIP_HISTORICAL="1", BBASM_SKIP_ACTIVE_CRAWL="1", BBASM_SKIP_NUCLEI="1", BBASM_SKIP_FFUF="1")
+        # nmap -sV over 1000 ports of every discovered host used to run here and ate the whole stage budget (arc-bbp #65):
+        # port scanning belongs to the deep pass, on the few hosts that proved to be alive.
+        env.update(BBASM_SKIP_HISTORICAL="1", BBASM_SKIP_ACTIVE_CRAWL="1", BBASM_SKIP_NUCLEI="1", BBASM_SKIP_FFUF="1", BBASM_SKIP_NMAP="1")
     if config.request_headers and not passive:
         # Only commands that actually reach the target carry the policy header; discovery and passive never do.
         env["BBHUNT_AUTH_HEADERS"] = "\n".join(config.request_headers)
@@ -255,12 +264,14 @@ class ReconOrchestrator:
         warnings = self._claim_output(scan_id, root)
         plan = ReconPlan(scan_id, scan["program_id"], scan["slug"], config, root, target / "audit.jsonl", gate)
         plan.warnings.extend(warnings)
+        plan.asset_coverage = scope_coverage(entries, config)
         seeds = []
         for entry in entries:
             if entry.kind != "in":
                 continue
             if entry.category in {"mobile", "other"}:
                 plan.warnings.append(f"Manual asset: {entry.pattern}")
+                plan.manual_assets.append({"pattern": entry.pattern, "reason": entry.category})
                 continue
             if entry.category not in config.categories_enabled:
                 continue
@@ -273,6 +284,13 @@ class ReconOrchestrator:
                     plan.discoveries.append(command)
             elif gate.in_scope(entry.pattern):
                 if entry.category == "source_code":
+                    cover = entry_coverage(entry.model_dump(), config)
+                    if cover["mode"] == "manual_confirm":
+                        # The scope text limits the repo and a secrets scan reads all of it: nothing automatic until the user says so.
+                        plan.warnings.append(f"Repo {entry.pattern} chưa được quét tự động: scope có hướng dẫn giới hạn (\"{cover['instruction'][:160]}\") "
+                                             "mà BBASM không cưỡng chế được. Làm tay phần được phép, hoặc xác nhận cho phép quét cả repo ở Review.")
+                        plan.manual_assets.append({"pattern": entry.pattern, "reason": "restricted_source"})
+                        continue
                     self._source(plan, entry.pattern)
                 elif entry.category == "cidr":
                     self._recon(plan, entry.pattern, target_type="cidr")

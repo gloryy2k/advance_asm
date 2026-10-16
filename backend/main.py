@@ -36,6 +36,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await asyncio.to_thread(app.state.templates.recover)
         from backend.lifecycle import finish_pending
         await asyncio.to_thread(finish_pending, app.state.database, app.state.scheduler, app.state.runner, settings)
+        from backend.repair import run_repairs
+        await asyncio.to_thread(run_repairs, app.state.database, settings)
         mode = settings.BBASM_UPDATE_TEMPLATES.strip().lower()
         if mode == "1" or (mode == "auto" and not app.state.templates.describe()["installed"]):
             try:

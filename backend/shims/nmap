@@ -1,0 +1,27 @@
+#!/bin/bash
+# BBASM wrapper. The engine runs `nmap -sV --top-ports 1000` with no time limit: one slow or filtered host held a whole stage
+# until the scan's own timeout killed it and left a half-written result (arc-bbp #65). The wrapper caps each host and the whole
+# run, keeps whatever nmap wrote, and records WHY it stopped so the Run page can say "partial" instead of "done".
+. "$(dirname "$0")/_common.sh"
+shim_dir="$(cd "$(dirname "$0")" && pwd)"
+real="$(bbasm_real nmap "$shim_dir")" || { echo "nmap: not found" >&2; exit 127; }
+
+args=("$@")
+have() { local a; for a in "${args[@]}"; do case "$a" in "$1"|"$1"=*) return 0 ;; esac; done; return 1; }
+have --host-timeout || args=(--host-timeout "${BBASM_NMAP_HOST_TIMEOUT:-120}s" "${args[@]}")
+have --max-retries || args=(--max-retries 1 "${args[@]}")
+
+limit="${BBASM_NMAP_TIMEOUT:-0}"
+start=$(date +%s)
+if [ "$limit" -gt 0 ] 2>/dev/null; then
+    timeout "$limit" "$real" "${args[@]}"
+else
+    "$real" "${args[@]}"
+fi
+code=$?
+elapsed=$(( $(date +%s) - start ))
+if [ "$code" = 124 ]; then
+    bbasm_note nmap "dừng sau ${elapsed}s (giới hạn ${limit}s): kết quả cổng là DỞ DANG, chỉ gồm các host đã quét xong"
+    exit 0
+fi
+exit "$code"

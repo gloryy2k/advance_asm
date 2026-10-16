@@ -429,8 +429,11 @@ class JobRunner:
                 plan.coverage["unprobed"] = max(0, plan.coverage["discovered"] - plan.coverage["probed"])
                 stats["coverage"] = plan.coverage
                 stats["path_rule_hosts"] = plan.path_rules
+                stats["asset_coverage"], stats["manual_assets"] = plan.asset_coverage, plan.manual_assets
                 stats["request_headers"] = [h.partition(":")[0] for h in plan.config.request_headers]  # names only, never values
                 stats["monitor_findings"] = await self._post(plan, "monitors", "Nạp kết quả monitor", self.monitors.ingest, plan, timeout=self.POST_LIMITS["monitors"], soft=errors, default=0)
+                if plan.takeover_summary:
+                    stats["takeover"] = plan.takeover_summary
                 stats["findings"] = await self._thread(self._finding_count, plan)
                 complete = not errors and bool(plan.commands) and plan.coverage["unprobed"] == 0
                 stats["diff"] = await self._post(plan, "diff", "So sánh với scan trước", self._diff, plan, stats.get("observations", {}), complete,

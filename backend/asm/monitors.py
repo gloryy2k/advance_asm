@@ -6,6 +6,7 @@ import shutil
 from urllib.parse import urlsplit
 
 from backend.jobs.ingest import lines
+from backend.asm.takeover import parse_subjack
 from backend.jobs.recon_orch import Command, recon_env
 from backend.scope_gate import normalize_host
 
@@ -85,12 +86,17 @@ class Monitors:
             target = row.get("domain") or row.get("host") or row.get("subdomain")
             if target:
                 add(target, "takeover", "high", "dnsreaper:" + str(row.get("service") or row.get("signature") or "candidate"), {"source": "dnsreaper", "candidate": True})
-        for filename in ("subjack.txt", "fingerprint_grep.txt"):
-            for line in lines(root / "takeover" / filename):
-                # subjack prints "[SERVICE] host"; grep fallback prints "host service".
-                candidates = re.findall(r"(?:[a-zA-Z0-9-]+\.)+[a-zA-Z0-9-]+", line)
-                if candidates:
-                    add(candidates[0], "takeover", "high", filename + ":candidate", {"source": filename, "candidate": True})
+        # subjack prints one line for EVERY host it checked: "[Not Vulnerable] host" is a clean result, "[SERVICE] host" a
+        # possible takeover. Only the latter is kept, and it is a candidate (unverified), not a confirmed takeover.
+        candidates, clean, unreadable = parse_subjack(lines(root / "takeover" / "subjack.txt"))
+        plan.takeover_summary = {"candidates": len({h for h, _ in candidates}), "not_vulnerable": clean, "unreadable": unreadable}
+        for host, service in candidates:
+            add(host, "takeover", "medium", f"subjack:{service}", {"source": "subjack", "candidate": True, "verified": False, "service": service})
+        for line in lines(root / "takeover" / "fingerprint_grep.txt"):
+            # the curl fingerprint fallback prints "host service"
+            found = re.findall(r"(?:[a-zA-Z0-9-]+\.)+[a-zA-Z0-9-]+", line)
+            if found:
+                add(found[0], "takeover", "medium", "fingerprint_grep.txt:candidate", {"source": "fingerprint_grep.txt", "candidate": True, "verified": False})
         for filename in ("trufflehog.jsonl", "noseyparker.jsonl", "gitleaks.json"):
             for row in rows(root / "secret" / filename):
                 if not isinstance(row, dict):

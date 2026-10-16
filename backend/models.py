@@ -79,6 +79,10 @@ class ScanConfig(BaseModel):
     allow_active_on_path_rules: bool = False
     # The user confirmed the policy allows directory brute-forcing (ffuf) for THIS scan; Strong refuses to run ffuf otherwise.
     ffuf_confirmed: bool = False
+    # Repos (`repo:https://github.com/o/r`) whose scope text limits what may be tested (a sub-folder, "except …") and that the user
+    # nevertheless confirms may be scanned as a whole for THIS scan. BBASM cannot enforce such a limit on a secrets scan, so
+    # without this confirmation the repo is left for manual work.
+    source_full_repo_ok: list[str] = Field(default_factory=list, max_length=50)
     # Ids of the user's own nuclei templates to run in addition to the official set, for THIS scan only.
     nuclei_custom: list[str] = Field(default_factory=list, max_length=50)
     # Header names from the policy that the user read and knowingly does not send ("X-HackerOne-Research"). Names, not
@@ -88,7 +92,7 @@ class ScanConfig(BaseModel):
     skip_required_headers: bool = False
 
     def options(self) -> dict:
-        return {name: getattr(self, name) for name in (*OPTION_FIELDS, "request_headers", "allow_active_on_path_rules", "skipped_headers", "skip_required_headers", "ffuf_confirmed", "nuclei_custom")}
+        return {name: getattr(self, name) for name in (*OPTION_FIELDS, "request_headers", "allow_active_on_path_rules", "skipped_headers", "skip_required_headers", "ffuf_confirmed", "nuclei_custom", "source_full_repo_ok")}
 
     @field_validator("request_headers")
     @classmethod

@@ -1,0 +1,19 @@
+#!/bin/bash
+# BBASM wrapper. Two things the engine's ffuf call lacks:
+#  * -ac (auto-calibration): a host that answers every unknown path with the same 403/200 page used to yield dozens of
+#    "results" that are one block page (arc-bbp #65: 24 identical 403s). ffuf sends random paths first and filters that shape.
+#  * -maxtime: a bound on one run, so a single slow host cannot take the stage; results so far are still written.
+. "$(dirname "$0")/_common.sh"
+shim_dir="$(cd "$(dirname "$0")" && pwd)"
+real="$(bbasm_real ffuf "$shim_dir")" || { echo "ffuf: not found" >&2; exit 127; }
+
+args=("$@")
+have() { local a; for a in "${args[@]}"; do case "$a" in "$1"|"$1"=*) return 0 ;; esac; done; return 1; }
+if ! have -ac && ! have -acc && ! have -fs && ! have -fw && ! have -fl && ! have -fr; then
+    args=(-ac "${args[@]}")
+    bbasm_note ffuf "đã bật hiệu chuẩn tự động (-ac): trang trả lời giống nhau cho mọi đường dẫn lạ bị loại khỏi kết quả"
+fi
+if [ "${BBASM_FFUF_MAXTIME:-0}" -gt 0 ] 2>/dev/null && ! have -maxtime; then
+    args=(-maxtime "$BBASM_FFUF_MAXTIME" "${args[@]}")
+fi
+exec "$real" "${args[@]}"
