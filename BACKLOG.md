@@ -45,9 +45,9 @@ Không làm: đồ thị quan hệ subdomain/IP (nặng, ít giá trị); treema
 1. Cưỡng chế giới hạn thư mục của repo (trufflehog `--include-paths`, sửa `secrets_hunter.sh` ở submodule); hiện chỉ khóa + xác nhận cả repo.
 2. “Probe tiếp” phần chưa quét từ `stats.unprobed_hosts`: cần chốt ngữ nghĩa diff/Brief/lịch.
 3. Adapter riêng cho mobile / source code (SAST, dependency) / other (smart contract, cloud, ASN…), quyền theo từng asset.
-4. Nhập kết quả ffuf và nmap vào bảng dữ liệu có cấu trúc (tab “Đường dẫn dò được”, “Cổng/Dịch vụ”).
+4. ~~Nhập kết quả ffuf và nmap vào bảng dữ liệu có cấu trúc (tab “Đường dẫn dò được”, “Cổng/Dịch vụ”).~~ **ĐÃ LÀM (NOTES v1.6.3, UX-1):** `GET /api/programs/{slug}/ports|/dirs` + 2 tab trong Dữ liệu.
 5. Ngân sách tự co giãn theo số host khám phá.
-6. Sửa `open_ports.txt` ở engine (submodule): parse đúng từng cặp host/cổng (BBASM đã bù ở tầng đọc).
+6. ~~Sửa `open_ports.txt` ở engine (submodule): parse đúng từng cặp host/cổng (BBASM đã bù ở tầng đọc).~~ **ĐÃ LÀM (NOTES v1.6.3, ENG-1).**
 
 ## Độ phủ nuclei (NUCLEI_COVERAGE_FOLLOWUP.md → NOTES v1.6.1/v1.6.2) — quan sát đã sửa, giới hạn vẫn chờ quyết định
 **Đã sửa (quan sát, không đổi giới hạn):** `recon_engine.sh` giờ ghi `nuclei/coverage.json` (URL thật đưa vào, bị cắt bao nhiêu, template/request nuclei tự báo, timeout, lỗi); Run hiện số thật thay vì chỉ "14.036 template đã cài". Xem chi tiết NOTES v1.6.1, v1.6.2.

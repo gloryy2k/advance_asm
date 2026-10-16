@@ -713,3 +713,8 @@ Chi tiết từng mục, trạng thái và quyết định còn mở: `ARC_BBP_T
 - **Giới hạn sai khi gộp quick/full (C8):** `summarize_nuclei()` từng lấy `limit` của lượt đầu tiên (`runs[0]`), nên scan có cả lượt quick (50) và lượt full (200) báo sai "giới hạn 200" cho cả lượt bị cắt ở 50. Đổi field `limit` (số) thành `limits` (danh sách giá trị khác nhau thực sự dùng); Run hiện đúng "mỗi lượt có giới hạn riêng: 50, 200 URL" khi khác nhau, giữ câu cũ khi chỉ có một giá trị.
 - Submodule bump: `488d910` (tiếp `claude/nuclei-stats-coverage`).
 - Tests: `test_v160_results.py` (+4). 453 backend passed cả có/không nuclei+ffuf thật trên PATH; 89 Vitest passed, tsc sạch, build OK.
+
+## v1.6.3 — UX-1 (bảng Cổng/Dịch vụ, Đường dẫn dò được) + ENG-1 (open_ports.txt)
+- **UX-1 (BACKLOG mục 4):** `GET /api/programs/{slug}/ports`, `GET /api/programs/{slug}/dirs` (mới, `?scan=latest|<id>`) — đọc lại `backend.asm.results.summarize_ports`/`summarize_dirs` của một scan cụ thể, không có bảng DB riêng (dữ liệu nằm trên đĩa theo scan). Tab Dữ liệu › "Cổng/Dịch vụ" và "Đường dẫn dò được" mới, dùng đúng câu chữ Run đã có (cổng CDN, nmap dở dang, nhiễu ffuf, host chỉ có 403).
+- **ENG-1 (BACKLOG mục 6, NOTES FN2):** `recon_engine.sh` Phase 3 — `open_ports.txt` dùng `sed` tham lam chỉ giữ cổng cuối của mỗi dòng greppable (một host có nhiều cổng mở trên 1 dòng). Đổi sang `grep -oE '[0-9]+/open'` giữ đủ mọi cổng. `backend/asm/results.py` đã đọc `nmap_greppable.txt` trực tiếp từ v1.6.0 (FN2) nên số liệu BBASM hiển thị không sai; chỉ file tóm tắt thuần văn bản này sai. Submodule bump: `bfd61ba`.
+- Tests: `test_v163_ports_dirs_api.py` (4 mới), Vitest +3 (92). 457 backend passed cả có/không nuclei+ffuf thật trên PATH; tsc sạch, build OK.
