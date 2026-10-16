@@ -1,0 +1,41 @@
+{
+  "source_commit": "ab9abc4",
+  "submodule_commit": "6638e72",
+  "NUC-3": {
+    "elapsed_s": 321.79,
+    "nuclei_exit": 0,
+    "stats_lines": 66,
+    "stats_json_lines": 66,
+    "stats_bytes": 11794,
+    "given_urls": 80,
+    "live_urls": 80,
+    "requests": 80,
+    "estimated_1800s_lines": 369,
+    "estimated_1800s_bytes": 65972
+  },
+  "NUC-4": {
+    "scan_id_in_fixture_db": 1,
+    "scan_status": "done",
+    "elapsed_s": 12.78,
+    "phase_http": 200,
+    "phase_status": "ran",
+    "phase_count": 2,
+    "command_dirs_with_coverage": ["1", "3"],
+    "per_command_given_urls": [1, 1],
+    "per_command_live_urls": [1, 1],
+    "per_command_limit": [200, 200],
+    "per_command_failed": [false, false],
+    "aggregate_requests": 2,
+    "aggregate_hosts": 2,
+    "aggregate_limits": [200],
+    "aggregate_failed": false,
+    "fixture_requests": ["main.qa.test /nuclei-check", "deep.qa.test /nuclei-check"]
+  },
+  "regression": {
+    "backend_with_nuclei_ffuf": "453 passed, 33 deselected, 4 warnings; 54.31 s",
+    "backend_without_nuclei_ffuf": "453 passed, 33 deselected, 4 warnings; 52.99 s",
+    "frontend_vitest": "89 passed",
+    "frontend_tsc": "pass",
+    "frontend_build": "pass"
+  }
+}
