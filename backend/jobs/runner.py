@@ -531,13 +531,16 @@ class JobRunner:
     # Cumulative share of the scan budget by which each stage must be finished. Unused time rolls forward, an overrun
     # is cut at its deadline so later stages (probing what discovery found) always get their turn.
     STAGES = {"passive": (("discovery", 0.90),),
-              "active": (("discovery", 0.30), ("main", 0.55), ("probe", 0.85), ("deep", 0.97))}
+              # Probing (liveness only, no port scan) is cheap; the deep pass (crawl, templates, nmap, ffuf) is where time is spent.
+              # Unused time of a stage rolls forward, so these are ceilings, not allowances.
+              "active": (("discovery", 0.25), ("main", 0.45), ("probe", 0.62), ("deep", 0.95))}
     STAGE_LABELS = {"discovery": "Khám phá subdomain/URL", "main": "Host nêu trong scope", "probe": "Probe host đã khám phá",
                     "deep": "Quét sâu host đang sống", "monitor": "Theo dõi JS/secret"}
 
     async def _stage(self, plan, key, commands, deadline, parser, errors, on_success=None):
         label = self.STAGE_LABELS[key]
-        record = {"key": key, "label": label, "status": "running", "budget_s": 0, "used_s": 0, "commands": len(commands)}
+        record = {"key": key, "label": label, "status": "running", "budget_s": 0, "used_s": 0, "commands": len(commands),
+                  "commands_ok": 0, "commands_timeout": 0, "commands_skipped": 0}
         plan.stages.append(record)
         if not commands:
             record["status"] = "empty"
@@ -547,6 +550,9 @@ class JobRunner:
         record["budget_s"] = max(0, int(remaining))
         if remaining <= 0:
             record["status"] = "skipped_budget"
+            record["commands_skipped"] = len(commands)
+            for command in commands:
+                command.status = "skipped"
             errors.append(f"Giai đoạn '{label}' không chạy: hết ngân sách thời gian")
             await self.logs.emit(plan.scan_id, "stage", key=key, label=label, status="skipped_budget",
                                  message=f"▶ {label}: bỏ qua vì hết ngân sách thời gian")
@@ -556,8 +562,27 @@ class JobRunner:
         failures = len(errors)
 
         async def run():
-            for command in commands:
-                if await self._command(plan, command, parser, errors) and on_success:
+            for index, command in enumerate(commands):
+                # One command may not eat the whole stage: it gets its fair share of what is left, with some room to borrow, so a
+                # slow batch is cut (its output so far is kept) and the next one still gets its turn.
+                left = max(1.0, deadline - time.monotonic())
+                after = len(commands) - index
+                cap = left if after == 1 else min(left, (left / after) * 1.5)
+                command.status = "running"
+                began = time.monotonic()
+                try:
+                    ok = await asyncio.wait_for(self._command(plan, command, parser, errors), cap)
+                    command.status = "ok" if ok else "error"
+                except asyncio.TimeoutError:
+                    command.status, ok = "timeout", False
+                    record["commands_timeout"] += 1
+                    errors.append(f"Giai đoạn '{label}': lệnh {index + 1}/{len(commands)} dừng sau {int(cap)}s (giới hạn từng lệnh); phần kết quả đã có vẫn được nhập")
+                    await self.logs.emit(plan.scan_id, "stage", key=key, label=label, status="command_timeout",
+                                         message=f"■ {label}: lệnh {index + 1}/{len(commands)} dừng sau {int(cap)}s — tiếp tục lệnh sau")
+                command.used_s = int(time.monotonic() - began)
+                if command.status == "ok":
+                    record["commands_ok"] += 1
+                if ok and on_success:
                     on_success(command)
 
         try:
@@ -566,6 +591,13 @@ class JobRunner:
         except asyncio.TimeoutError:
             record["status"] = "timeout"
             errors.append(f"Giai đoạn '{label}' hết ngân sách {record['budget_s']}s (timeout); dữ liệu dở dang vẫn được nhập")
+        for command in commands:
+            if command.status == "running":
+                command.status = "timeout"
+                record["commands_timeout"] += 1
+            elif command.status == "pending":
+                command.status = "skipped"
+                record["commands_skipped"] += 1
         record["used_s"] = int(time.monotonic() - started)
         await self.logs.emit(plan.scan_id, "stage", key=key, label=label, status=record["status"], used_s=record["used_s"],
                              message=f"■ {label}: {record['status']} sau {record['used_s']}s")
@@ -580,17 +612,19 @@ class JobRunner:
         def deadline(key):
             return started + total * shares.get(key, 1.0)
 
+        plan_batches = []
+
         def done(command):
-            plan.probed_hosts.update(command.hosts)
-            plan.coverage["batches_done"] += 1
-            plan.coverage["probed"] = len(plan.probed_hosts)
+            self.orchestrator.refresh_coverage(plan, plan_batches)
 
         await self._stage(plan, "discovery", [c for c in initial if c.stage == "discovery"], deadline("discovery"), parser, errors)
         await self._stage(plan, "main", [c for c in initial if c.stage != "discovery"], deadline("main"), parser, errors)
         if plan.config.depth != "passive":
             hosts = await self._thread(self.orchestrator.discovered_hosts, plan)
             batches = await self._thread(self.orchestrator.probe_batches, plan, hosts)
+            plan_batches[:] = batches
             await self._stage(plan, "probe", batches, deadline("probe"), parser, errors, on_success=done)
+            await self._thread(self.orchestrator.refresh_coverage, plan, batches)     # also counts hosts that answered in a batch that was cut off
             deep = await self._thread(self.orchestrator.deep_command, plan, batches)
             await self._stage(plan, "deep", [deep] if deep else [], deadline("deep"), parser, errors)
         await self._stage(plan, "monitor", await self._thread(self.monitors.commands, plan), started + total, parser, errors)

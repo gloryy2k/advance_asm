@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     BBASM_HOST_TARGETS: str | None = None  # verbatim: a WSL/POSIX path must not be rewritten by Windows Path semantics
     BBASM_SOURCE_TIMEOUT: int = Field(default=45, ge=5, le=600)       # per curl call to a passive source (crt.sh, Wayback)
     BBASM_SUBFINDER_TIMEOUT: int = Field(default=120, ge=30, le=1800)  # whole subfinder run
-    BBASM_PROBE_BATCH: int = Field(default=150, ge=10, le=1000)       # discovered hosts probed per batch
+    BBASM_PROBE_BATCH: int = Field(default=50, ge=10, le=1000)        # discovered hosts probed per batch (a cut-off batch loses at most this many)
     BBASM_NMAP_TIMEOUT: int = Field(default=900, ge=0)                 # seconds per nmap run (0 = no cap); output so far is kept
     BBASM_NMAP_HOST_TIMEOUT: int = Field(default=120, ge=10)           # seconds per host, so one slow host cannot hold the run
     BBASM_FFUF_MAXTIME: int = Field(default=300, ge=0)                 # seconds per ffuf run (0 = no cap)

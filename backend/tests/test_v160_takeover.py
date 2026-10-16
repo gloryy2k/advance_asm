@@ -83,3 +83,21 @@ def test_without_the_original_file_nothing_stays_high(settings):
         items = client.get("/api/programs/arc/findings?type=takeover").json()
         assert len(items) == 3 and {f["severity"] for f in items} == {"info"}
         assert all(f["detail"]["legacy_unreliable"] for f in items)
+
+
+def test_stored_urls_lose_a_wrong_auth_label_once(settings):
+    from backend.repair import repair_url_auth_labels
+    settings = settings_for(settings)
+    with TestClient(create_app(settings)) as client:
+        scan = program(client, "arc")
+        db = client.app.state.database
+        with db.connect() as conn, conn:
+            pid = conn.execute("SELECT id FROM program WHERE slug='arc'").fetchone()[0]
+            aid = conn.execute("INSERT INTO asset(program_id,host,state,category) VALUES(?,?,?,?)", (pid, "arc.io", "active", "web")).lastrowid
+            for url in ("https://arc.io/arc-token-whitepaper", "https://arc.io/oauth/token"):
+                conn.execute("INSERT INTO url(program_id,asset_id,url,first_seen_scan,last_seen_scan,tags_json,score) VALUES(?,?,?,?,?,?,?)", (pid, aid, url, scan, scan, '["auth"]', 2.5))
+        assert repair_url_auth_labels(db)[0]["relabelled"] == 1
+        with db.connect() as conn:
+            rows = {r["url"]: r["tags_json"] for r in conn.execute("SELECT url,tags_json FROM url")}
+        assert rows["https://arc.io/arc-token-whitepaper"] == "[]" and rows["https://arc.io/oauth/token"] == '["auth"]'
+        assert repair_url_auth_labels(db) == []

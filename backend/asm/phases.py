@@ -21,7 +21,7 @@ PHASES = [
      "files": ["live/httpx_full.txt", "live/urls.txt"], "count_label": "host phản hồi", "view": {"kind": "hosts", "label": "Xem host + trạng thái"}},
     {"key": "port_scan", "title": "Quét cổng", "touches": True, "tools": ["nmap"],
      "what": "nmap tìm cổng mở và dịch vụ. Chỉ chạy ở mức Strong.",
-     "files": ["ports/nmap_greppable.txt", "ports/nmap_results.txt"], "count_label": "dòng", "view": {"kind": "file", "label": "Đọc kết quả nmap"}},
+     "files": ["ports/nmap_greppable.txt", "ports/nmap_results.txt"], "count_label": "cặp host/cổng", "view": {"kind": "file", "label": "Đọc kết quả nmap"}},
     {"key": "url_history", "title": "URL lịch sử", "touches": False, "tools": ["gau"],
      "what": "Lấy URL cũ từ archive (gau, Wayback). Chỉ cho biết URL từng tồn tại — chưa phải đang chạy.",
      "files": ["urls/gau.txt", "urls/wayback.txt"], "count_label": "URL thô", "view": {"kind": "urls", "label": "Xem URL đã lọc scope"}},
@@ -33,7 +33,7 @@ PHASES = [
      "files": ["js/endpoints.txt", "urls/js_files.txt", "js/potential_secrets.txt"], "count_label": "endpoint", "view": {"kind": "urls", "label": "Xem URL JS", "filter": {"tag": "js"}}},
     {"key": "dir_fuzz", "title": "Dò thư mục", "touches": True, "tools": ["ffuf"],
      "what": "ffuf thử danh sách đường dẫn phổ biến. Chỉ chạy ở mức Strong.",
-     "files": ["dirs/*.json"], "count_label": "đường dẫn", "view": {"kind": "file", "label": "Đọc kết quả ffuf"}},
+     "files": ["dirs/*.json"], "count_label": "kết quả đáng xem", "view": {"kind": "file", "label": "Đọc kết quả ffuf"}},
     {"key": "config_expose", "title": "File cấu hình lộ", "touches": True, "tools": ["curl"],
      "what": "Kiểm tra vài file hay bị lộ (.env, config.js…) trên host đang chạy.",
      "files": ["exposure/config_files.txt"], "count_label": "file lộ", "view": {"kind": "file", "label": "Đọc danh sách"}},
@@ -151,6 +151,41 @@ def count_lines(path):
         return None
 
 
+def structured_result(key, root):
+    """For steps whose output is more than a list of lines: (count, detail, partial, data). None when the step has no reader.
+    Reads files only. `partial` = the tool stopped before it finished, so the numbers cover only part of the targets."""
+    from backend.asm import results
+    from backend.asm.takeover import summarize
+    if key == "port_scan":
+        ports = results.summarize_ports(root)
+        if not ports["found"]:
+            return None
+        detail = (f"{ports['hosts']} host, {ports['pairs']} cặp host/cổng mở ({ports['unique_ports']} số cổng khác nhau)"
+                  + ("" if ports["complete"] else " — DỞ DANG: nmap dừng trước khi quét xong, chỉ gồm các host đã xong"))
+        if ports["cdn"]:
+            detail += (f". {ports['cdn_pairs']} cặp nằm trên IP của {', '.join(ports['cdn'])} (CDN/biên dùng chung): đây là cổng của CDN, "
+                       "chưa chứng minh là cổng của máy chủ gốc (origin) hay của ứng dụng")
+        return ports["pairs"], detail, not ports["complete"], ports
+    if key == "dir_fuzz":
+        dirs = results.summarize_dirs(root)
+        if not dirs["found"]:
+            return None
+        detail = f"{dirs['total']} phản hồi trên {len(dirs['hosts'])} host"
+        if dirs["noise"]:
+            detail += f"; {dirs['noise']} giống hệt nhau (trang chặn/trang mặc định chung) đã loại, còn {dirs['significant']} đáng xem"
+        if dirs["blocked_only"]:
+            detail += ". Chỉ có HTTP 403 ở: " + ", ".join(dirs["blocked_only"]) + " — 403 không chứng minh đường dẫn tồn tại"
+        return dirs["significant"], detail, False, dirs
+    if key == "takeover":
+        path = Path(root) / "monitors" / "takeover" / "subjack.txt"
+        if not path.is_file():
+            return None
+        info = summarize(path)
+        detail = f"{info['candidates']} ứng viên (chưa xác minh), {info['not_vulnerable']} host đã kiểm và sạch"
+        return info["candidates"], detail, False, info
+    return None
+
+
 def _matches(relative, pattern):
     return glob.fnmatch.fnmatch(relative, pattern)
 
@@ -178,10 +213,17 @@ def build_report(settings, database, scan_id, tools_missing=None):
             if any(_matches(local, pattern) for pattern in phase["files"]):
                 mine.append({"path": rel, "name": path.name, "label": local, "bytes": path.stat().st_size, "lines": count_lines(path)})
         total = sum(f["lines"] or 0 for f in mine if f["label"] == phase["files"][0]) if mine else 0
+        detail, partial, data = None, False, None
+        got = structured_result(phase["key"], root) if mine else None
+        if got:
+            total, detail, partial, data = got
+            total = len(total) if isinstance(total, list) else total
         reason = disabled_reason(config, phase["key"], historical_off=settings.BBASM_SKIP_HISTORICAL) if config else None
         tools_out = [t for t in phase["tools"] if t in missing]
         if reason and not any((f["lines"] or 0) for f in mine):
             status, label = "skipped", "Bỏ qua theo cấu hình"
+        elif mine and any((f["lines"] or 0) for f in mine) and partial:
+            status, label, reason = "partial", "Chạy dở dang", "Công cụ dừng giữa chừng (hết thời gian hoặc bị ngắt): kết quả chỉ gồm phần đã xong, không đại diện cho mọi host."
         elif mine and any((f["lines"] or 0) for f in mine):
             status, label, reason = "ran", "Đã chạy", None
         elif mine:
@@ -196,14 +238,16 @@ def build_report(settings, database, scan_id, tools_missing=None):
         else:
             status, label = "pending", "Chưa tới"
         report.append({"key": phase["key"], "title": phase["title"], "what": phase["what"], "touches": phase["touches"],
-                       "status": status, "status_label": label, "reason": reason, "count": total,
+                       "status": status, "status_label": label, "reason": reason, "count": total, "detail": detail, "partial": partial, "data": data,
                        "count_label": phase["count_label"], "files": mine, "view": phase["view"], "tools": phase["tools"]})
     return {"scan_id": scan_id, "slug": scan["slug"], "status": scan["status"], "depth": scan["depth"],
             "phases": report, "funnel": stats.get("url_funnel"), "missing_tools": sorted(missing),
             # How far the scan actually got: stages and their budgets, discovered/probed/unprobed, failed passive sources.
             "stages": stats.get("stages") or [], "coverage": stats.get("coverage"), "sources": stats.get("sources") or [],
             "path_rule_hosts": stats.get("path_rule_hosts") or {}, "partial_inputs": stats.get("partial_inputs") or [],
-            "missing_needed": stats.get("missing_needed") or [], "tool_notes": stats.get("tool_notes") or [], "request_headers": stats.get("request_headers") or []}
+            "missing_needed": stats.get("missing_needed") or [], "tool_notes": stats.get("tool_notes") or [], "request_headers": stats.get("request_headers") or [],
+            # what BBASM did with each asset type of the scope, and what an upgrade corrected on this scan after it ran
+            "asset_coverage": stats.get("asset_coverage") or [], "manual_assets": stats.get("manual_assets") or [], "repairs": stats.get("repairs") or []}
 
 
 # Credentials with a recognisable shape are hidden in every file, not only in scanner output.

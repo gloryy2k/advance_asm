@@ -9,13 +9,14 @@ export type StepRow = {
   status: string;           // plan: on|off|missing_tool · report: ran|empty|skipped|missing_tool|no_output|pending
   statusLabel: string;
   reason?: string | null;
+  detail?: string | null;
   count?: number;
   countLabel?: string;
   outputLabel?: string;
 };
 
 const TONE: Record<string, string> = {
-  on: "good", ran: "good", off: "muted", skipped: "muted", empty: "warn", missing_tool: "bad", no_output: "muted", timeout: "warn", pending: "muted",
+  on: "good", ran: "good", partial: "warn", off: "muted", skipped: "muted", empty: "warn", missing_tool: "bad", no_output: "muted", timeout: "warn", pending: "muted",
 };
 
 /** One row per function: what it does, whether it runs/ran, how much it found, where to read it. */
@@ -43,6 +44,7 @@ export function StepList({
               </div>
               <p className="step-what">{r.what}</p>
               {r.reason && <p className={"step-reason " + (TONE[r.status] || "")}>{r.reason}</p>}
+              {r.detail && <p className="step-detail" data-testid={"detail-" + r.key}>{r.detail}</p>}
               {r.outputLabel && <p className="output-note">📍 Kết quả: {r.outputLabel}</p>}
             </div>
           </div>

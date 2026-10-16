@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { api, apiPage } from "../api/client";
-import type { Asset, ChartsData, Depth, Profile, Summary, Trust, UrlSummary } from "../api/types";
+import type { Asset, ChartsData, DataNote, Depth, Profile, Summary, Trust, UrlSummary } from "../api/types";
 import { Distributions, SeverityMatrix, TrendChart } from "../components/Charts";
 import { ScanProgress } from "../components/ScanProgress";
 import { HuntCard } from "../components/HuntCard";
@@ -115,6 +115,8 @@ function Overview({ slug, summary, detail, urls, reload }: { slug: string; summa
     } catch (e) { setError(explain(e)); }
   }
   const c = summary.changes;
+  // The first completed scan has nothing to be compared with: its "changes" are the initial inventory, not a difference.
+  const firstScan = !!summary.last_completed_scan && (summary.last_completed_scan as any).baseline_scan_id == null;
   const total = Object.values(summary.findings_by_severity).reduce((a, b) => a + b, 0);
   const hotTags = [["api", "API"], ["admin", "quản trị"], ["sensitive", "nhạy cảm"], ["auth", "đăng nhập"]] as const;
   const tags = urls?.by_tag || {};
@@ -124,7 +126,7 @@ function Overview({ slug, summary, detail, urls, reload }: { slug: string; summa
   if (summary.trust && !summary.trust.verified && summary.trust.level === "public") todo.push({ text: "Đối chiếu scope và policy với trang chính thức (nguồn đang CHƯA XÁC MINH).", href: "#" + programPath(slug, "guide", "scope") });
   if (hot.length > 0) todo.push({ text: `Xem URL đáng chú ý: ${hot.join(" · ")}.`, href: `#/program/${encodeURIComponent(slug)}/data?v=urls&min_score=3` });
   if (total > 0) todo.push({ text: `Xem ${total} finding.`, href: "#" + programPath(slug, "findings") });
-  if (c.new + c.changed + c.gone > 0) todo.push({ text: `Xem ${c.new + c.changed + c.gone} thay đổi so với scan trước.`, href: "#" + programPath(slug, "history", "diff") });
+  if (c.new + c.changed + c.gone > 0) todo.push({ text: firstScan ? `Xem ${c.new + c.changed + c.gone} asset ghi nhận lần đầu (chưa có scan trước để so sánh).` : `Xem ${c.new + c.changed + c.gone} thay đổi so với scan trước.`, href: "#" + programPath(slug, "history", "diff") });
   if (summary.last_completed_scan && !enabled) todo.push({ text: "Bật giám sát nếu program cho phép quét tự động, để biết khi có asset mới." });
   const active = summary.latest_scan && ["queued", "running"].includes(summary.latest_scan.status) ? summary.latest_scan : null;
   const dataScan = summary.last_completed_scan;
@@ -142,12 +144,20 @@ function Overview({ slug, summary, detail, urls, reload }: { slug: string; summa
           {" "}<a href={"#/scan/" + (active ? active.id : dataScan.id)}>Mở scan #{active ? active.id : dataScan.id} →</a>
         </p>
       )}
+      {(summary.data_notes || []).length > 0 && (
+        <div className="notice" role="note" data-testid="data-notes">
+          <strong>Số liệu của scan này đã được tính lại sau khi nâng cấp:</strong>
+          <ul>{summary.data_notes!.map((n, i) => <li key={i}>{n.note}</li>)}</ul>
+        </div>
+      )}
       {dataScan?.status === "done_partial" && <ScanProgress data={dataStats} partial />}
       <div className="tiles">
         <Tile label="Host" value={summary.assets_active} sub={summary.assets_live !== undefined ? `trong inventory · ${summary.assets_live} có HTTP · ${Math.max(0, summary.assets_active - summary.assets_live)} chưa probe${summary.assets_gone ? ` · ${summary.assets_gone} biến mất` : ""}` : "trong inventory"} href={`#/program/${encodeURIComponent(slug)}/data?v=hosts`} />
         <Tile label="URL" value={(urls?.total ?? 0).toLocaleString("vi-VN")} sub={urls?.funnel ? `${urls.funnel.out_of_scope.toLocaleString("vi-VN")} ngoài scope đã loại` : "trong scope"} href={`#/program/${encodeURIComponent(slug)}/data?v=urls`} />
         <Tile label="Findings" value={total} sub={total ? Object.entries(summary.findings_by_severity).filter(([, n]) => n).map(([s, n]) => `${n} ${s}`).join(" · ") : "chưa có"} href={"#" + programPath(slug, "findings")} tone={total ? "warn" : ""} />
-        <Tile label="Thay đổi" value={c.new + c.changed + c.gone} sub={`${c.new} mới · ${c.changed} đổi · ${c.gone} mất`} href={"#" + programPath(slug, "history", "diff")} />
+        {firstScan
+          ? <Tile label="Ghi nhận lần đầu" value={c.new + c.changed + c.gone} sub="dữ liệu khởi tạo — chưa có scan trước để so sánh" href={"#" + programPath(slug, "history", "diff")} />
+          : <Tile label="Thay đổi" value={c.new + c.changed + c.gone} sub={`${c.new} mới · ${c.changed} đổi · ${c.gone} mất`} href={"#" + programPath(slug, "history", "diff")} />}
       </div>
       {todo.length > 0 && (
         <Panel id="todo-h" title="Việc nên làm tiếp">
@@ -293,7 +303,7 @@ function DataArea({ slug, view }: { slug: string; view: string }) {
 }
 
 /* ───────────── Phát hiện ───────────── */
-function FindingsTab({ base }: { base: string }) {
+function FindingsTab({ base, notes }: { base: string; notes?: DataNote[] }) {
   const params = routeParams();
   const [severity, setSeverity] = useState("");
   const [type, setType] = useState(params.get("type") || "");
@@ -301,7 +311,8 @@ function FindingsTab({ base }: { base: string }) {
   const result = useAssets(base + "/findings?" + new URLSearchParams({ limit: "50", offset: String(offset), ...(severity ? { severity } : {}), ...(type ? { type } : {}) }));
   return (
     <>
-      <p className="viewintro"><strong>Findings.</strong> Dấu hiệu lỗi hoặc rò rỉ do nuclei, takeover và quét bí mật tìm thấy. <span className="muted">0 finding không có nghĩa target an toàn — chỉ là công cụ đã chạy không thấy gì.</span></p>
+      <p className="viewintro"><strong>Findings.</strong> Dấu hiệu lỗi hoặc rò rỉ do nuclei, takeover và quét bí mật tìm thấy. <span className="muted">0 finding không có nghĩa target an toàn — chỉ là công cụ đã chạy không thấy gì. Takeover và secret là <em>ứng viên chưa xác minh</em>, không phải lỗi đã chứng minh.</span></p>
+      {(notes || []).length > 0 && <div className="notice" role="note" data-testid="findings-notes">{notes!.map((n, i) => <p key={i}>{n.note}</p>)}</div>}
       <div className="filters">
         <select aria-label="Mức nghiêm trọng" value={severity} onChange={(e) => { setSeverity(e.target.value); setOffset(0); }}>
           <option value="">Mọi mức</option>{["critical", "high", "medium", "low", "info"].map((s) => <option key={s}>{s}</option>)}
@@ -576,7 +587,7 @@ export function Program({ slug, tab, view }: { slug: string; tab: string; view: 
       <State data={s} error={summary.error} retry={() => setRevision((v) => v + 1)}>
         {s && (tab === "overview" ? <Overview slug={slug} summary={s} detail={detail.data} urls={urls.data} reload={() => setRevision((v) => v + 1)} />
           : tab === "data" ? <DataArea slug={slug} view={view} />
-          : tab === "findings" ? <FindingsTab base={base} />
+          : tab === "findings" ? <FindingsTab base={base} notes={s.data_notes} />
           : tab === "history" ? <HistoryArea slug={slug} view={view} summary={s} detail={detail.data} />
           : <GuideArea slug={slug} view={view} summary={s} detail={detail.data} reload={() => setRevision((v) => v + 1)} />)}
       </State>

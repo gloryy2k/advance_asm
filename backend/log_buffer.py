@@ -2,6 +2,7 @@
 
 import asyncio
 import re
+import shutil
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 import json
@@ -111,6 +112,7 @@ class ReconLogParser:
     def __init__(self, settings, config=None):
         self.dashboard = load_module(settings, "dashboard.py")
         self.config = config
+        self.settings = settings
 
     # What a skipped/failed line from the pinned scripts really means. The scripts say "not installed or no live hosts"
     # for ffuf even when ffuf was never going to run; the dashboard tells the three causes apart.
@@ -118,6 +120,11 @@ class ReconLogParser:
         depth = getattr(self.config, "depth", None)
         if "ffuf not installed or no live hosts" in clean and (depth != "strong" or getattr(self.config, "skip_ffuf", False)):
             return "skipped_config", "[!] Dò thư mục (ffuf): bỏ qua theo mức quét — chỉ chạy ở Strong"
+        if "ffuf not installed or no live hosts" in clean:
+            # Strong with ffuf switched on: the script cannot tell "binary missing" from "nothing alive yet"; we can.
+            if shutil.which("ffuf", path=self.settings.tool_search_path()) is None:
+                return "missing_tool", "[!] Dò thư mục (ffuf): chưa cài ffuf trên máy chủ nên bước này không chạy"
+            return "no_input", "[!] Dò thư mục (ffuf): lệnh này chưa có host đang sống để dò (các lệnh sau, khi đã probe xong, có thể dò)"
         if re.search(r"skipped \(BBASM\)|Skipping .* \(quick mode\)|skipped by BBASM", clean):
             return "skipped_config", clean.replace("(BBASM)", "theo cấu hình scan")
         if re.search(r"not installed|command not found|ProjectDiscovery httpx not found", clean, re.I):

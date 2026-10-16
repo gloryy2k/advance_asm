@@ -133,3 +133,25 @@ def test_ffuf_wrapper_calibrates_and_bounds_the_run(tmp_path):
     run_shim(tmp_path, "ffuf", ["-fs", "4547", "-u", "x"], env={"BBASM_FFUF_MAXTIME": "0"})
     argv = (bin_dir / "ffuf.argv").read_text().split()
     assert "-ac" not in argv and "-maxtime" not in argv and "-fs" in argv                            # the user's own filter wins
+
+
+def test_ffuf_log_line_tells_apart_missing_binary_no_live_host_and_config(settings, tmp_path, monkeypatch):
+    """arc-bbp #65 logged "ffuf not installed or no live hosts" in a stage where ffuf was installed and simply had no host yet."""
+    from backend.log_buffer import ReconLogParser
+    line = "[!] ffuf not installed or no live hosts — skipping directory fuzzing"
+    base = {"depth": "strong", "skip_ffuf": False}
+    cfg = lambda **o: type("C", (), {**base, **o})()
+    settings.BBASM_BBROOT = __import__("backend.config", fromlist=["PROJECT_ROOT"]).PROJECT_ROOT / "vendor/claude-bug-bounty"
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    monkeypatch.setattr(type(settings), "tool_search_path", lambda self: str(empty))
+    assert ReconLogParser(settings, cfg()).classify(line)[0] == "missing_tool"
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    (fake / "ffuf").write_text("#!/bin/sh\n")
+    (fake / "ffuf").chmod(0o755)
+    monkeypatch.setattr(type(settings), "tool_search_path", lambda self: str(fake))
+    tag, message = ReconLogParser(settings, cfg()).classify(line)
+    assert tag == "no_input" and "chưa có host đang sống" in message
+    assert ReconLogParser(settings, cfg(depth="light")).classify(line)[0] == "skipped_config"
+    assert ReconLogParser(settings, cfg(skip_ffuf=True)).classify(line)[0] == "skipped_config"

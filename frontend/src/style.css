@@ -377,3 +377,5 @@ table.stages th { color: var(--muted); font-weight: 600; font-size: 12px; text-t
 .changecols { max-width: 420px; max-height: 130px; }
 .bar-value small { display: inline; }
 .bars li { grid-template-columns: minmax(90px, 34%) 1fr minmax(max-content, 9rem); }
+.step-detail { margin: 2px 0 0; font-size: 13px; color: var(--text); }
+.coverage-split { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }

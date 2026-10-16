@@ -14,7 +14,29 @@ FILE_KEYS = {"file", "filename", "path", "page", "doc", "document", "template", 
 ID_KEYS = {"id", "uid", "userid", "user_id", "account", "accountid", "order", "orderid", "order_id", "pid", "cid", "uuid", "invoice"}
 
 _API = re.compile(r"(?:^|/)(?:api|rest|graphql|gql|rpc|ajax|service|services|json)(?:/|$)|/v\d+(?:/|$)|\.json$", re.I)
-_AUTH = re.compile(r"login|logout|signin|signup|sign-in|sign-up|register|oauth|sso|saml|token|password|passwd|reset|forgot|verify|otp|session|dang-nhap|dang-ky|quen-mat-khau", re.I)
+# Authentication endpoints are recognised by whole path SEGMENTS, not by a substring anywhere in the path: "/arc-token-whitepaper",
+# "/blog/tokenization" and "/ecosystem/imtoken" are content, "/oauth/token" and "/reset-password" are endpoints.
+_AUTH_WORDS = {"login", "logon", "logout", "signin", "signup", "signout", "sign", "register", "registration", "oauth", "oauth2", "sso", "saml",
+               "saml2", "openid", "oidc", "token", "tokens", "password", "passwd", "pwd", "reset", "forgot", "verify", "verification", "otp",
+               "session", "sessions", "auth", "authenticate", "authentication", "authorize", "authorise", "2fa", "mfa"}
+_AUTH_GLUE = {"email", "account", "user", "code", "link", "callback", "page", "form", "request", "confirm", "change", "update", "new", "in", "up",
+              "out", "sms", "phone", "app", "social", "with", "a", "the", "my", "your", "recovery", "endpoint", "start", "complete", "redirect"}
+_AUTH_PHRASES = {"dang-nhap", "dang-ky", "quen-mat-khau", "dangnhap", "dangky"}
+
+
+def _is_auth_path(path):
+    for segment in path.lower().split("/"):
+        segment = segment.rsplit(".", 1)[0] if "." in segment.rsplit("/", 1)[-1] else segment
+        if not segment:
+            continue
+        if segment in _AUTH_PHRASES:
+            return True
+        parts = [p for p in re.split(r"[-_]+", segment) if p]
+        if parts and any(p in _AUTH_WORDS for p in parts) and all(p in _AUTH_WORDS or p in _AUTH_GLUE for p in parts):
+            return True
+    return False
+
+
 _ADMIN = re.compile(r"(?:^|/)(?:admin|administrator|manage|manager|dashboard|console|backend|cpanel|wp-admin|phpmyadmin|internal|staff)(?:/|$|[-_.])", re.I)
 _SENSITIVE = re.compile(r"backup|config|credential|secret|id_rsa|phpinfo|debug|swagger|actuator|server-status|\.git(?:/|$)|\.env|wp-config|\.htaccess|\.DS_Store", re.I)
 _DOCS = re.compile(r"swagger|openapi|api-docs|redoc|graphiql|playground", re.I)
@@ -57,7 +79,7 @@ def classify_url(url: str) -> tuple[list[str], float]:
         return ["static"], 0.0
     if _API.search(path):
         tags.append("api")
-    if _AUTH.search(path):
+    if _is_auth_path(path):
         tags.append("auth")
     if _ADMIN.search(path):
         tags.append("admin")

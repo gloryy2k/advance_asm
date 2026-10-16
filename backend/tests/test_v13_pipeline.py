@@ -46,6 +46,10 @@ list=""; out=""; args=("$@")
 while [ $# -gt 0 ]; do case "$1" in -l) list="$2";; -o) out="$2";; esac; shift; done
 n=$(ls "$FAKE_LOG"/httpx.*.argv 2>/dev/null | wc -l); printf '%s\\n' "${args[@]}" > "$FAKE_LOG/httpx.$((n+1)).argv"
 cp "$list" "$FAKE_LOG/httpx.$((n+1)).hosts"
+if [ "${FAKE_HANG_CALL:-0}" = "$((n+1))" ]; then   # this call answers 3 hosts, then hangs: a batch that is cut off mid-way
+  head -n 3 "$list" | while read -r h; do echo "https://$h [200] [100] [Title $h] [nginx]"; done > "$out"
+  sleep 300
+fi
 sleep "${FAKE_HTTPX_DELAY:-0}"
 while read -r h; do
   if [ -n "${FAKE_PORT:-}" ]; then echo "http://$h:$FAKE_PORT [200] [100] [Title $h] [nginx]"; else echo "https://$h [200] [100] [Title $h] [nginx]"; fi
@@ -369,3 +373,26 @@ def test_the_engine_runs_katana_through_the_wrapper_and_the_scan_reports_it(sett
         assert stats["tool_notes"][0]["tool"] == "katana" and "known-files" in events and "tester-4711" not in events
     finally:
         recorder.close()
+
+
+@pytest.mark.integration
+def test_a_batch_cut_off_mid_way_keeps_its_answers_and_does_not_stop_the_other_batches(settings, tools):
+    """arc-bbp #65: one timed-out batch showed "0 probed, 126 unprobed" and stopped the deep pass. Now: each command has its own
+    cap, hosts that answered count as probed, and the next batches still run."""
+    settings.BBASM_PROBE_BATCH = 10
+    hosts = [f"h{i}.example.com" for i in range(25)]
+    db, scan_id, row, stats = run(settings, tools, ["*.example.com"], "light", hosts, timeout=60,
+                                  scan_env={"BBASM_SOURCE_TIMEOUT": 2, "FAKE_WAYBACK_HANG": "0", "FAKE_HANG_CALL": "1"},
+                                  config={"categories_enabled": ["web", "wildcard"]})
+    cov = stats["coverage"]
+    assert cov["discovered"] == 27 and cov["batches"] == 3 and cov["batches_timeout"] == 1 and cov["batches_done"] == 2
+    assert cov["attempted"] == 27 and cov["unreached"] == 0                                    # every batch got its turn
+    assert cov["completed"] == 17 and cov["responded"] == 20                                    # 17 from finished batches + 3 from the cut one
+    assert cov["probed"] == 20 and cov["unprobed"] == 7                                         # honest: the 7 silent ones are unknown, not "all 27"
+    probe = [s for s in stats["stages"] if s["key"] == "probe"][0]
+    assert probe["commands_timeout"] == 1 and probe["commands_ok"] == 2
+    assert row["status"] == "done_partial" and stats["diff"]["gone"] == 0
+    deep = [s for s in stats["stages"] if s["key"] == "deep"][0]
+    assert deep["commands"] == 1                                                                 # the deep pass is built from the answers of ALL batches
+    with db.connect() as conn:
+        assert conn.execute("SELECT count(*) FROM asset WHERE status_code=200").fetchone()[0] >= 20

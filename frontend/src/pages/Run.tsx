@@ -59,7 +59,7 @@ export function Run({ id }: { id: string }) {
   const good = status === "done" || status === "done_partial";
   const rows: StepRow[] = (report.data?.phases || []).map((p) => ({
     key: p.key, title: p.title, what: p.what, touches: p.touches, status: p.status, statusLabel: p.status_label,
-    reason: p.reason, count: p.count, countLabel: p.count_label,
+    reason: p.reason, detail: p.detail, count: p.count, countLabel: p.count_label,
   }));
   const byKey = new Map((report.data?.phases || []).map((p) => [p.key, p]));
   const funnel = report.data?.funnel;
@@ -130,7 +130,7 @@ export function Run({ id }: { id: string }) {
                 const hasFiles = phase.files.some((f) => (f.lines ?? 1) > 0);
                 return (
                   <span className="step-actions">
-                    {phase.view.kind !== "file" && (r.status === "ran" || r.status === "empty") && (
+                    {phase.view.kind !== "file" && (r.status === "ran" || r.status === "partial" || r.status === "empty") && (
                       <a className="button small" href={dataLink(slug, phase.view, urlScan)}>{phase.view.label} →</a>
                     )}
                     {hasFiles && (
@@ -152,6 +152,7 @@ export function Run({ id }: { id: string }) {
         <Panel id="funnel-h" title="URL thu được" hint="Chỉ URL qua scope gate mới được giữ. URL lịch sử chưa được kiểm chứng.">
           <p>
             <strong>{funnel.raw.toLocaleString("vi-VN")}</strong> URL do tool tìm thấy → <strong>{funnel.in_scope.toLocaleString("vi-VN")}</strong> trong scope
+            {!!funnel.from_probe && <> + <strong>{funnel.from_probe.toLocaleString("vi-VN")}</strong> URL từ probe HTTP (host trả lời) = <strong>{(funnel.stored ?? funnel.in_scope + funnel.from_probe).toLocaleString("vi-VN")}</strong> URL lưu cho scan này</>}
             {funnel.out_of_scope > 0 && <>, <Badge tone="medium">{funnel.out_of_scope.toLocaleString("vi-VN")} ngoài scope đã loại</Badge></>}
             {!!funnel.excluded_by_rule && <>, {funnel.excluded_by_rule} loại theo mẫu của bạn</>}
             {!!funnel.path_rule_blocked && <>, <Badge tone="medium">{funnel.path_rule_blocked.toLocaleString("vi-VN")} chặn theo OUT đường dẫn</Badge></>}.{" "}

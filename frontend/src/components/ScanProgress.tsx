@@ -41,14 +41,24 @@ export function ScanProgress({ data, partial }: { data: ScanProgressData; partia
   return (
     <div data-testid="scan-progress">
       {coverage && coverage.discovered > 0 && (
-        <p className={coverage.unprobed > 0 ? "warnbox" : ""} aria-label="Phủ host khám phá">
-          Host khám phá được: <strong>{coverage.discovered.toLocaleString("vi-VN")}</strong> · đã probe{" "}
-          <strong>{coverage.probed.toLocaleString("vi-VN")}</strong> · chưa probe{" "}
-          <strong>{coverage.unprobed.toLocaleString("vi-VN")}</strong>
-          {coverage.unprobed > 0 && (
-            <> — scan chưa đầy đủ. Host chưa probe <strong>không</strong> bị coi là đã biến mất khỏi diff.</>
+        <div className={coverage.unprobed > 0 ? "warnbox" : ""} aria-label="Phủ host khám phá">
+          <p>
+            Host khám phá được: <strong>{coverage.discovered.toLocaleString("vi-VN")}</strong> · đã probe{" "}
+            <strong>{coverage.probed.toLocaleString("vi-VN")}</strong> · chưa probe{" "}
+            <strong>{coverage.unprobed.toLocaleString("vi-VN")}</strong>
+            {coverage.unprobed > 0 && (
+              <> — scan chưa đầy đủ. Host chưa probe <strong>không</strong> bị coi là đã biến mất khỏi diff.</>
+            )}
+          </p>
+          {coverage.attempted !== undefined && (
+            <ul className="coverage-split" data-testid="coverage-split">
+              <li><strong>{(coverage.responded ?? 0).toLocaleString("vi-VN")}</strong> host đã trả lời HTTP (giữ kết quả, kể cả khi đợt chứa chúng bị cắt giờ)</li>
+              <li><strong>{(coverage.completed ?? 0).toLocaleString("vi-VN")}</strong> host thuộc đợt chạy xong ({coverage.batches_done}/{coverage.batches} đợt{coverage.batches_timeout ? `, ${coverage.batches_timeout} đợt bị cắt giờ` : ""})</li>
+              <li><strong>{(coverage.attempted ?? 0).toLocaleString("vi-VN")}</strong> host thuộc các đợt đã bắt đầu chạy · <strong>{(coverage.unreached ?? 0).toLocaleString("vi-VN")}</strong> host chưa tới lượt (hết ngân sách)</li>
+              {coverage.unprobed > 0 && (coverage.attempted ?? 0) > (coverage.responded ?? 0) && <li>Host đã thử nhưng không trả lời trước khi bị cắt giờ: chưa biết là host chết hay chưa kịp thử — không coi là đã biến mất.</li>}
+            </ul>
           )}
-        </p>
+        </div>
       )}
       {stages.length > 0 && <StageTimeline stages={stages} />}
       {stages.length > 0 && (
@@ -61,7 +71,7 @@ export function ScanProgress({ data, partial }: { data: ScanProgressData; partia
                 <td>{st.label}</td>
                 <td><Chip tone={STAGE_TONE[st.status]}>{STAGE_LABEL[st.status] || st.status}</Chip></td>
                 <td>{st.budget_s ? `${st.used_s}s / ${st.budget_s}s` : st.used_s ? `${st.used_s}s` : "—"}</td>
-                <td>{st.commands}</td>
+                <td>{st.commands}{!!st.commands_timeout && <small> · {st.commands_timeout} bị cắt giờ</small>}{!!st.commands_skipped && <small> · {st.commands_skipped} chưa chạy</small>}</td>
               </tr>
             ))}
           </tbody>

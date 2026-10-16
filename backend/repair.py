@@ -89,6 +89,30 @@ def repair_takeover(database, settings):
     return done
 
 
+def repair_url_auth_labels(database):
+    """v1.6.0: "token" anywhere in a path used to label content URLs (/arc-token-whitepaper) as login endpoints. Re-label stored
+    URLs that carry the tag; only rows whose tags change are touched, so this is a no-op once done."""
+    from backend.asm.urlintel import classify_url
+    changed = {}
+    with database.connect() as conn, conn:
+        conn.execute("BEGIN IMMEDIATE")
+        rows = conn.execute("SELECT id, program_id, url, tags_json, score FROM url WHERE tags_json LIKE '%\"auth\"%'").fetchall()
+        for row in rows:
+            tags, score = classify_url(row["url"])
+            if "auth" in tags:
+                continue
+            conn.execute("UPDATE url SET tags_json=?, score=? WHERE id=?", (json.dumps(tags), score, row["id"]))
+            changed[row["program_id"]] = changed.get(row["program_id"], 0) + 1
+        for program_id, count in changed.items():
+            scan = conn.execute("SELECT id, stats_json FROM scan_run WHERE program_id=? AND status IN ('done','done_partial') ORDER BY id DESC LIMIT 1", (program_id,)).fetchone()
+            if scan is not None:
+                stats = json.loads(scan["stats_json"] or "{}")
+                stats.setdefault("repairs", []).append({"fix": "url_auth_labels", "at": utc_now(), "relabelled": count,
+                                                        "note": f"{count} URL từng bị gắn nhãn “đăng nhập” chỉ vì có chữ “token” trong đường dẫn (bài viết, trang nội dung) đã được gỡ nhãn."})
+                conn.execute("UPDATE scan_run SET stats_json=? WHERE id=?", (json.dumps(stats), scan["id"]))
+    return [{"program_id": k, "relabelled": v} for k, v in changed.items()]
+
+
 def regenerate_stale_briefs(database, settings, repaired):
     """The brief of the latest completed scan quoted the wrong numbers; rewrite it (best effort, never blocks start-up)."""
     from backend.brief.generator import BriefGenerator
@@ -108,4 +132,5 @@ def run_repairs(database, settings):
     repaired = repair_takeover(database, settings)
     if repaired:
         regenerate_stale_briefs(database, settings, repaired)
+    repair_url_auth_labels(database)
     return repaired

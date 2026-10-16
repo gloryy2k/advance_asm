@@ -46,6 +46,8 @@ class Command:
     resource: str | None = None
     stage: str = "main"            # discovery | probe | main | deep | source | monitor
     hosts: tuple = ()               # hosts this command is responsible for (probe/deep batches)
+    status: str = "pending"         # pending | running | ok | error | timeout | skipped   (set by the runner)
+    used_s: int = 0
 
 
 @dataclass
@@ -64,8 +66,12 @@ class ReconPlan:
     tool_notes: list = field(default_factory=list)         # behaviour a wrapper changed (e.g. katana known-files off)
     sources: list = field(default_factory=list)            # outcome of each passive source: [{source,status,seconds,stage}]
     stages: list = field(default_factory=list)             # [{key,label,status,budget_s,used_s,commands}]
-    coverage: dict = field(default_factory=lambda: {"discovered": 0, "probed": 0, "unprobed": 0, "explicit": 0, "batches": 0, "batches_done": 0})
-    probed_hosts: set = field(default_factory=set)         # hosts whose probe batch finished
+    # discovered hosts, split by evidence (never by "did the whole batch finish"):
+    #   attempted = in a batch that started · responded = has an HTTP answer in the output · completed = batch finished ·
+    #   unreached = in a batch that never started · probed = completed or responded · unprobed = discovered - probed
+    coverage: dict = field(default_factory=lambda: {"discovered": 0, "attempted": 0, "responded": 0, "completed": 0, "unreached": 0,
+                                                    "probed": 0, "unprobed": 0, "explicit": 0, "batches": 0, "batches_done": 0, "batches_timeout": 0})
+    probed_hosts: set = field(default_factory=set)         # hosts that answered or whose probe batch finished
     path_rules: dict = field(default_factory=dict)         # host -> OUT paths (rules the crawlers cannot honour)
     asset_coverage: list = field(default_factory=list)     # per scope entry: what BBASM will do with it (see backend/coverage.py)
     manual_assets: list = field(default_factory=list)      # in-scope assets deliberately left for hand work, with the reason
@@ -434,15 +440,9 @@ class ReconOrchestrator:
             return None
         ranked = []
         for command in probe_commands:
-            if not command.hosts or not set(command.hosts) <= plan.probed_hosts:
-                continue
-            for line in lines_of(command.output / "live" / "httpx_full.txt"):
-                match = re.match(r"(\S+)\s+\[(\d{3})\]", line)
-                if not match:
-                    continue
-                host = urlsplit(match.group(1)).hostname
+            # A batch that was cut off still left valid lines for the hosts that answered: those are as good as a finished batch's.
+            for host, status in self.probe_answers(command):
                 if host and host not in plan.explicit_hosts and not self._probe_only_host(plan, host) and plan.gate.in_scope(host):
-                    status = int(match.group(2))
                     ranked.append((0 if status == 200 else 1 if status < 400 else 2, host.count("."), normalize_host(host)))
         chosen = []
         for _, _, host in sorted(ranked):
@@ -451,6 +451,32 @@ class ReconOrchestrator:
             if len(chosen) >= self.settings.BBASM_DEEP_HOSTS:
                 break
         return self._host_list(plan, chosen, stage="deep") if chosen else None
+
+    @staticmethod
+    def probe_answers(command):
+        """[(host, status)] of every host in this probe command's output that answered, however the command ended."""
+        allowed = set(command.hosts)
+        answers = []
+        for line in lines_of(command.output / "live" / "httpx_full.txt"):
+            match = re.match(r"(\S+)\s+\[(\d{3})\]", line)
+            if not match:
+                continue
+            host = urlsplit(match.group(1)).hostname
+            if host and (not allowed or normalize_host(host) in allowed):
+                answers.append((normalize_host(host), int(match.group(2))))
+        return answers
+
+    def refresh_coverage(self, plan, batches):
+        """Recompute what the probe stage reached from the batches' state and their output (idempotent)."""
+        discovered = {h for b in batches for h in b.hosts}
+        attempted = {h for b in batches if b.status not in {"pending", "skipped"} for h in b.hosts}
+        completed = {h for b in batches if b.status == "ok" for h in b.hosts}
+        responded = {h for b in batches for h, _ in self.probe_answers(b)}
+        plan.probed_hosts = completed | responded
+        plan.coverage.update(
+            discovered=len(discovered) or plan.coverage["discovered"], attempted=len(attempted), responded=len(responded), completed=len(completed),
+            unreached=len(discovered - attempted), probed=len(plan.probed_hosts), unprobed=max(0, len(discovered) - len(plan.probed_hosts)),
+            batches=len(batches), batches_done=sum(1 for b in batches if b.status == "ok"), batches_timeout=sum(1 for b in batches if b.status == "timeout"))
 
     def missing_tools(self):
         missing = [name for name in ("subfinder", "httpx", "nuclei", "nmap", "katana", "gau", "amass", "ffuf")

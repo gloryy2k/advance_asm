@@ -110,7 +110,19 @@ export function UrlExplorer({ slug, initial }: { slug: string; initial?: Record<
         <div className="funnel" aria-label="Phễu URL">
           <div><strong>{funnel.raw.toLocaleString("vi-VN")}</strong><span>URL do tool tìm thấy</span></div>
           <span className="arrow" aria-hidden="true">→</span>
-          <div className="good"><strong>{funnel.in_scope.toLocaleString("vi-VN")}</strong><span>trong scope (đang xem)</span></div>
+          <div className="good"><strong>{funnel.in_scope.toLocaleString("vi-VN")}</strong><span>từ recon, qua scope gate</span></div>
+          {!!funnel.from_probe && (
+            <>
+              <span className="arrow" aria-hidden="true">+</span>
+              <div className="good"><strong>{funnel.from_probe.toLocaleString("vi-VN")}</strong><span>từ probe HTTP (host trả lời)</span></div>
+            </>
+          )}
+          {funnel.stored !== undefined && (
+            <>
+              <span className="arrow" aria-hidden="true">=</span>
+              <div className="good"><strong>{funnel.stored.toLocaleString("vi-VN")}</strong><span>URL của scan này (đang xem)</span></div>
+            </>
+          )}
           <span className="arrow" aria-hidden="true">+</span>
           <div className={funnel.out_of_scope ? "warn" : ""}><strong>{funnel.out_of_scope.toLocaleString("vi-VN")}</strong><span>ngoài scope — đã loại</span></div>
           {!!funnel.excluded_by_rule && <div><strong>{funnel.excluded_by_rule}</strong><span>loại theo mẫu của bạn</span></div>}

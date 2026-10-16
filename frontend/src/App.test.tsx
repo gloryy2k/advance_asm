@@ -1449,3 +1449,46 @@ describe("Charts (V2): trend, distributions, severity matrix, stage timeline", (
     expect(timeline.textContent).not.toContain("40s / 100s — dùng hết");
   });
 });
+
+describe("arc-bbp #65 audit: partial results, coverage split, funnel, data notes, first scan", () => {
+  const phase = (over: object) => ({ key: "port_scan", title: "Quét cổng", what: "nmap", touches: true, status: "partial", status_label: "Chạy dở dang", reason: "Công cụ dừng giữa chừng",
+    detail: "3 host, 8 cặp host/cổng mở (7 số cổng khác nhau) — DỞ DANG. 7 cặp nằm trên IP của Cloudflare (CDN/biên dùng chung): đây là cổng của CDN, chưa chứng minh là cổng của máy chủ gốc",
+    count: 8, count_label: "cặp host/cổng", partial: true, files: [], view: { kind: "file", label: "Đọc kết quả nmap" }, ...over });
+  const report = (extra: object = {}) => ({
+    scan_id: 65, slug: "arc", status: "done_partial", depth: "strong", missing_tools: [], phases: [phase({})],
+    funnel: { raw: 1990, in_scope: 456, from_probe: 33, stored: 489, out_of_scope: 1301, invalid: 0 },
+    stages: [{ key: "probe", label: "Probe host đã khám phá", status: "timeout", budget_s: 300, used_s: 300, commands: 3, commands_ok: 2, commands_timeout: 1, commands_skipped: 0 }],
+    coverage: { discovered: 126, probed: 35, unprobed: 91, explicit: 2, batches: 3, batches_done: 2, batches_timeout: 1, attempted: 126, responded: 35, completed: 84, unreached: 0 }, ...extra });
+
+  test("Run: partial nmap says so, counts pairs, flags the CDN; coverage is split by evidence; the funnel adds up", async () => {
+    stubFetch((path) => path.endsWith("/phases") ? report() : path.endsWith("/review") ? baseReview({ scan: { id: 65, depth: "strong", status: "done_partial" } }) : { id: 65, status: "done_partial", depth: "strong", program_id: 1 });
+    location.hash = "/scan/65";
+    render(<App />);
+    const detail = await screen.findByTestId("detail-port_scan");
+    expect(detail).toHaveTextContent(/8 cặp host\/cổng.*DỞ DANG/);
+    expect(detail).toHaveTextContent(/cổng của CDN, chưa chứng minh/);
+    const row = document.querySelector('[data-step="port_scan"]') as HTMLElement;
+    expect(within(row).getByText("Chạy dở dang")).toBeInTheDocument();
+    const split = await screen.findByTestId("coverage-split");
+    expect(split).toHaveTextContent("35 host đã trả lời HTTP");
+    expect(split).toHaveTextContent("84 host thuộc đợt chạy xong (2/3 đợt, 1 đợt bị cắt giờ)");
+    expect(split).toHaveTextContent(/chưa biết là host chết hay chưa kịp thử/);
+    const funnel = screen.getByText("URL thu được").closest("section")!;
+    expect(funnel).toHaveTextContent(/456.*trong scope.*\+.*33.*probe HTTP.*=.*489/s);
+    expect(document.querySelector('tr[data-stage="probe"]')).toHaveTextContent("1 bị cắt giờ");
+  });
+
+  test("Program: the first scan is initial data, not a change; recalculated numbers are announced", async () => {
+    const summary = { slug: "arc", source: "h1", handle: "arc", target_path: "/t", hunt_command: "cd x", hunt_note: "", latest_scan: { id: 65, status: "done_partial", depth: "strong" },
+      last_completed_scan: { id: 65, status: "done_partial", depth: "strong", baseline_scan_id: null }, changes: { new: 132, changed: 0, gone: 0 }, findings_by_severity: {}, assets_active: 132,
+      top_surface: [], draft_count: 0, schedule: null, data_notes: [{ fix: "takeover_not_vulnerable", at: "2026-10-16", note: "Trước đây 124 dòng sạch bị lưu thành takeover High. Đã tính lại." }] };
+    stubFetch((path) => path.endsWith("/summary") ? summary : path.endsWith("/charts") ? { trend: [], status: { classes: {}, codes: [], total: 0 }, tech: [], hosts_by_urls: [], severity_matrix: { severities: [], hosts: [] }, truncated: false } : {});
+    location.hash = "/program/arc";
+    render(<App />);
+    expect(await screen.findByText("Ghi nhận lần đầu")).toBeInTheDocument();
+    expect(screen.queryByText("Thay đổi")).not.toBeInTheDocument();
+    expect(screen.getByText(/132 asset ghi nhận lần đầu \(chưa có scan trước để so sánh\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/so với scan trước\./)).not.toBeInTheDocument();
+    expect(screen.getByTestId("data-notes")).toHaveTextContent(/124 dòng sạch bị lưu thành takeover High/);
+  });
+});

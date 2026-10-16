@@ -251,6 +251,11 @@ class Ingester:
                       out_of_scope_hosts=[{"host": h, "count": c} for h, c in outside.most_common(10)],
                       by_path_rule=[{"rule": r, "count": c} for r, c in path_blocked.most_common(10)])
         collapsed = self._collapse_ranges(plan, assets, urls, findings)
+        # One invariant the pages rely on: in_scope (unique URLs from recon, past the gate) + from_probe (URLs the HTTP probe
+        # itself answered on, not seen by any recon tool) == stored == the URL table for this scan. `raw` stays what tools printed.
+        funnel["from_probe"] = sum(1 for _, source in urls.values() if source == "httpx")
+        funnel["in_scope"] = len(urls) - funnel["from_probe"]
+        funnel["stored"] = len(urls)
         observed = len(assets) + len(urls) + len(findings)
         with self.database.connect() as conn, conn:
             conn.execute("BEGIN IMMEDIATE")
