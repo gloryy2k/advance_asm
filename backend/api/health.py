@@ -8,24 +8,9 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api", tags=["health"])
-EXECUTABLES = (
-    "bash", "subfinder", "httpx", "nuclei", "katana", "gau",
-    "amass", "ffuf", "nmap", "git", "bbscope", "trufflehog",
-)
-FRAMEWORK_FILES = (
-    "recon_engine.sh", "scope_aggregator.sh", "scope_checker.py",
-    "recon_adapter.py", "intel_engine.py", "takeover_scanner.sh", "secrets_hunter.sh",
-)
+from backend.tools import DEPTH_TOOLS, EXECUTABLES, FRAMEWORK, OPTIONAL_TOOLS  # noqa: E402  (one table for health, Review and the Tools page)
 
-
-# Tools each depth actually needs; a missing one is skipped fail-soft, so Review shows it.
-DEPTH_TOOLS = {
-    "passive": ["subfinder", "gau"],
-    "light": ["subfinder", "gau", "httpx", "katana", "nuclei", "nuclei-templates"],
-    "strong": ["subfinder", "gau", "httpx", "katana", "nuclei", "nuclei-templates", "nmap", "ffuf", "amass"],
-}
-# Nothing in a scan depends on these: a missing one is not a problem and is shown as "optional".
-OPTIONAL_TOOLS = ("bbscope", "git", "trufflehog")
+FRAMEWORK_FILES = tuple(FRAMEWORK)
 
 
 class HealthResponse(BaseModel):

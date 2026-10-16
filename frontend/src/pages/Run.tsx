@@ -143,7 +143,7 @@ export function Run({ id }: { id: string }) {
               }} />
           )}
           {report.data?.missing_tools && report.data.missing_tools.length > 0 && (
-            <p className="muted">Công cụ không có trên máy chủ: {report.data.missing_tools.join(", ")}.</p>
+            <p className="muted">Công cụ không có trên máy chủ: {report.data.missing_tools.join(", ")}. <a href={"#/tools?focus=" + report.data.missing_tools[0]}>Xem trang Công cụ →</a></p>
           )}
         </Panel>
       )}

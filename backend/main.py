@@ -10,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 
 from backend.api.health import router as health_router
+from backend.api.tools import router as tools_router
 from backend.api.scope import router as scope_router
 from backend.api.scans import router as scan_router
 from backend.api.brief import router as brief_router
@@ -51,6 +52,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["Content-Type"],
     )
     app.include_router(health_router)
+    app.include_router(tools_router)
     app.include_router(scope_router)
     app.include_router(scan_router)
     app.include_router(brief_router)

@@ -314,3 +314,36 @@ export type TreeNode = {
   children_total?: number;
 };
 export type TreeLevel = { scan: string; scan_id: number | null; host: string | null; prefix: string; nodes: TreeNode[]; total: number; matched?: number; truncated: boolean };
+
+export type ToolRow = {
+  id: string;
+  kind: "binary" | "data" | "framework";
+  label: string;
+  purpose: string;
+  state: "ready" | "missing_binary" | "missing_data" | "wrong_binary";
+  detail: string;
+  required_for: Depth[];
+  optional: boolean;
+  used_by: { key: string; title: string }[];
+  pinned_version: string | null;
+  version: string | null;
+  checked_at: string | null;
+  remedy: string;
+  impact: Record<Depth, string>;
+  templates?: TemplateInfo;
+};
+export type ToolsReport = {
+  tools: ToolRow[];
+  depths: Depth[];
+  runtime: { os: string; recon_supported: boolean };
+  summary: { ready: number; missing_required: string[]; missing_optional: string[]; missing_framework: string[] };
+};
+export type TemplateInfo = {
+  installed: boolean;
+  count: number;
+  updated_at: string | null;
+  source: string | null;
+  version: string | null;
+  job: { state: "idle" | "running" | "ok" | "failed"; started_at: string | null; finished_at: string | null; message: string; count: number | null } | null;
+  custom: { id: string; name: string; enabled: boolean; bytes: number; added_at: string }[];
+};

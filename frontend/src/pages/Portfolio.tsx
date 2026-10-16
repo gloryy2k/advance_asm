@@ -3,6 +3,7 @@ import { api } from "../api/client";
 import type { Draft, Health, ProgramCard } from "../api/types";
 import { Badge, EmptyState, ErrorBox, State, StatusBadge } from "../components/ui";
 import { useData } from "../hooks/useData";
+import { useHealth } from "../hooks/useHealth";
 import { explain } from "../lib/errors";
 import { programPath } from "../lib/router";
 import { when } from "../lib/format";
@@ -22,7 +23,7 @@ export function Portfolio() {
   const [error, setError] = useState("");
   const programs = useData<ProgramCard[]>("/api/programs", revision);
   const drafts = useData<Draft[]>("/api/drafts", revision);
-  const health = useData<Health>("/api/health");
+  const health = useHealth();
   const list = programs.data || [];
   const totalNew = list.reduce((n, p) => n + p.new_count, 0);
 
@@ -107,6 +108,7 @@ export function Portfolio() {
         <summary>
           Tình trạng công cụ{health.data && toolsMissing > 0 ? ` — thiếu ${health.data.missing_by_depth.light.join(", ")} cho mức Light` : ""}
         </summary>
+        <p><a href="#/tools">Mở trang Công cụ &amp; môi trường →</a></p>
         <ErrorBox text={health.error} />
         {Object.entries(health.data?.tools || {}).map(([name, ok]) => {
           const optional = !ok && (health.data?.optional_tools || []).includes(name);   // nothing in a scan depends on it

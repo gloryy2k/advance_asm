@@ -650,3 +650,10 @@ Cây sitemap: dữ liệu và thao tác PASS (mở/thu, Xem thêm 150 mục, bà
 - **A5:** `purge_drafts` không còn xóa draft thiếu dòng `scan_config` ở mỗi lần khởi động.
 - **A6:** `LogBuffer` ghi journal trên một luồng nền theo thứ tự (không chặn event loop); `flush()` đợi ghi xong; `JobRunner.close()` flush.
 - **A7:** so khớp đường dẫn OUT đọc như server: bỏ `;param` từng đoạn, `\` thành `/`, phân giải `..`; ingest xóa URL đã lưu từ scan cũ khớp rule OUT hiện hành (`url_funnel.purged_stale`).
+
+
+## v1.5.1 — bảng công cụ duy nhất + trang "Công cụ & môi trường"
+- `backend/tools.py` là bảng duy nhất mô tả công cụ/dữ liệu (loại, dùng cho bước nào, mức quét nào cần). `/api/health` lấy `DEPTH_TOOLS`/`OPTIONAL_TOOLS`/`EXECUTABLES` từ đây, giữ nguyên dạng JSON cũ. `tool_inventory()` trả trạng thái `ready | missing_binary | missing_data | wrong_binary` (httpx Python bị nhận ra), "ảnh hưởng" theo từng mức quét (ví dụ "Bước bị bỏ qua: Nuclei"), cách khắc phục, phiên bản ghim (offline, từ `scripts/tool-releases.json`) và phiên bản đo được.
+- `GET /api/tools` chỉ tìm tệp. `POST /api/tools/check` mới chạy `<tool> -version` (kèm `-duc`, 8 s mỗi công cụ) và lưu `data/tools_check.json`. Test khẳng định `/api/health` và `/api/tools` không bao giờ lệch nhau.
+- UI: mục "Công cụ & môi trường" (`#/tools?focus=<id>`), hook `useHealth()` dùng chung (làm mới khi quay lại tab) cho NewScan/Portfolio/Review; Review và Run có liên kết sang trang Công cụ; công cụ tùy chọn (bbscope, git…) không còn hiện như báo động.
+- Tests: `test_v150_tools.py` (3), Vitest +3.

@@ -22,6 +22,7 @@ export type Route =
   | { page: "new" }
   | { page: "help" }
   | { page: "profiles" }
+  | { page: "tools"; focus: string }
   | { page: "review"; id: string }
   | { page: "run"; id: string }
   | { page: "program"; slug: string; tab: string; view: string };
@@ -44,6 +45,7 @@ export function parseRoute(path: string): Route {
   if (parts[0] === "new") return { page: "new" };
   if (parts[0] === "help") return { page: "help" };
   if (parts[0] === "profiles") return { page: "profiles" };
+  if (parts[0] === "tools") return { page: "tools", focus: params.get("focus") || "" };
   if (parts[0] === "scan" && parts[1]) {
     return parts[2] === "review" ? { page: "review", id: parts[1] } : { page: "run", id: parts[1] };
   }

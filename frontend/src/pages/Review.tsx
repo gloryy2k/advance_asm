@@ -7,6 +7,7 @@ import { PolicyPanel } from "../components/PolicyPanel";
 import { PresetPicker } from "../components/PresetPicker";
 import { Badge, ErrorBox, Loading } from "../components/ui";
 import { useData } from "../hooks/useData";
+import { useHealth } from "../hooks/useHealth";
 import { explain } from "../lib/errors";
 import { cidrSize, durationLabel, formatCount } from "../lib/format";
 import { PRESETS, applyPreset } from "../lib/presets";
@@ -31,7 +32,7 @@ const recipeOf = (c: Config): Recipe => Object.fromEntries(RECIPE_FIELDS.map((f)
 
 export function Review({ id }: { id: string }) {
   const info = useData<ReviewData>("/api/scans/" + id + "/review");
-  const health = useData<Health>("/api/health");
+  const health = useHealth();
   const [config, setConfig] = useState<Config | null>(null);
   const [profiles, setProfiles] = useState<{ builtin: Profile[]; custom: Profile[] } | null>(null);
   const [baseId, setBaseId] = useState("");
@@ -339,7 +340,7 @@ export function Review({ id }: { id: string }) {
       <div className="actionbar" role="region" aria-label="Bắt đầu quét">
         <div className="actionbar-info">
           <strong>{preset.title}</strong> · {included.length} mục IN{outs.length ? ` · ${outs.length} OUT` : ""} · ~{preset.eta.replace("~", "")} · tối đa {durationLabel(config.scan_timeout)}
-          {toolsOff.length > 0 && <small>Thiếu công cụ: {toolsOff.join(", ")} — các bước đó sẽ bị bỏ qua.</small>}
+          {toolsOff.length > 0 && <small>Thiếu công cụ: {toolsOff.join(", ")} — các bước đó sẽ bị bỏ qua. <a href={"#/tools?focus=" + toolsOff[0]}>Xem trang Công cụ →</a></small>}
           {isDraft && blocker && <small role="status" className="blocked">⚠ {blocker}</small>}
         </div>
         <div className="actionbar-buttons">

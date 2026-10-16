@@ -6,9 +6,10 @@ import { Help } from "./pages/Help";
 import { Profiles } from "./pages/Profiles";
 import { Review } from "./pages/Review";
 import { Run } from "./pages/Run";
+import { Tools } from "./pages/Tools";
 import { parseRoute, useHashPath } from "./lib/router";
 
-export { Help, NewScan, Portfolio, Profiles, Program, Review, Run };
+export { Help, NewScan, Portfolio, Profiles, Program, Review, Run, Tools };
 
 export function App() {
   const path = useHashPath();
@@ -39,6 +40,7 @@ export function App() {
           <a href="#/" aria-current={route.page === "portfolio" ? "page" : undefined}>▦ Danh mục</a>
           <a href="#/new" aria-current={route.page === "new" ? "page" : undefined}>＋ Thêm program</a>
           <a href="#/profiles" aria-current={route.page === "profiles" ? "page" : undefined}>⚙ Profile quét</a>
+          <a href="#/tools" aria-current={route.page === "tools" ? "page" : undefined}>⚒ Công cụ &amp; môi trường</a>
           <a href="#/help" aria-current={route.page === "help" ? "page" : undefined}>? Chức năng &amp; kết quả</a>
         </nav>
         <div className="sidebar-bottom">
@@ -63,6 +65,8 @@ export function App() {
           <Help />
         ) : route.page === "profiles" ? (
           <Profiles />
+        ) : route.page === "tools" ? (
+          <Tools focus={route.focus} />
         ) : route.page === "program" ? (
           <Program key={route.slug} slug={route.slug} tab={route.tab} view={route.view} />
         ) : (

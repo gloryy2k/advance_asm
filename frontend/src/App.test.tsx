@@ -1196,3 +1196,53 @@ describe("Sitemap tree (Data › URL › Cây sitemap)", () => {
     expect(fetch.mock.calls.some((c) => String(c[0]).includes("q=alpha") && String(c[0]).includes("depth=12"))).toBe(true);
   });
 });
+
+describe("Tools page", () => {
+  const row = (over: object) => ({ id: "x", kind: "binary", label: "x", purpose: "để làm gì", state: "ready", detail: "", required_for: ["light", "strong"], optional: false,
+    used_by: [{ key: "nuclei", title: "Nuclei" }], pinned_version: "v1", version: null, checked_at: null, remedy: "", impact: { passive: "unused", light: "ok", strong: "ok" }, ...over });
+  const report = (rows: object[], summary: object = {}) => ({ tools: rows, depths: ["passive", "light", "strong"], runtime: { os: "Linux", recon_supported: true },
+    summary: { ready: 1, missing_required: [], missing_optional: [], missing_framework: [], ...summary } });
+
+  test("routes: /tools and the focus parameter", () => {
+    expect(parseRoute("/tools")).toEqual({ page: "tools", focus: "" });
+    expect(parseRoute("/tools?focus=nuclei-templates")).toEqual({ page: "tools", focus: "nuclei-templates" });
+  });
+
+  test("a missing required tool says what is skipped; an optional one is not an alarm; deep check fills versions", async () => {
+    let checked = false;
+    const fetch = stubFetch((path, init) => {
+      if (path === "/api/tools/check") { checked = true; }
+      if (path.startsWith("/api/tools")) {
+        const rows = [
+          row({ id: "katana", label: "katana", state: checked ? "ready" : "missing_binary", detail: "Không thấy trên máy chủ.", remedy: "Build lại image.",
+                impact: { passive: "unused", light: "Bước bị bỏ qua: Crawl chủ động", strong: "Bước bị bỏ qua: Crawl chủ động" }, version: checked ? "v1.8.0" : null }),
+          row({ id: "bbscope", label: "bbscope", state: "missing_binary", detail: "Không thấy.", required_for: [], optional: true, used_by: [], impact: { passive: "optional", light: "optional", strong: "optional" } }),
+        ];
+        return report(rows, { missing_required: checked ? [] : ["katana"], missing_optional: ["bbscope"] });
+      }
+      return {};
+    });
+    location.hash = "/tools?focus=katana";
+    render(<App />);
+    const summary = await screen.findByTestId("tools-summary");
+    expect(summary).toHaveTextContent(/Thiếu công cụ cần cho scan: katana/);
+    expect(summary).toHaveTextContent(/Tùy chọn chưa cài \(không ảnh hưởng\): bbscope/);
+    const katana = document.getElementById("tool-katana")!;
+    expect(within(katana).getByText("Chưa cài")).toBeInTheDocument();
+    expect(within(katana).getByText(/Build lại image/)).toBeInTheDocument();
+    const bbscope = document.getElementById("tool-bbscope")!;
+    expect(within(bbscope).getByText(/tùy chọn/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Kiểm phiên bản/ }));
+    expect(await screen.findByText("v1.8.0")).toBeInTheDocument();
+    expect(calls(fetch, "/api/tools/check", "POST")).toHaveLength(1);
+    await waitFor(() => expect(screen.getByTestId("tools-summary")).toHaveTextContent(/Mọi công cụ cần cho/));
+  });
+
+  test("Review links a missing tool to the Tools page", async () => {
+    stubFetch((path) => path === "/api/health" ? health() : path.endsWith("/review") ? baseReview() : path.endsWith("/config") ? baseConfig : {});
+    location.hash = "/scan/4/review";
+    render(<App />);
+    const link = await screen.findByRole("link", { name: /Xem trang Công cụ/ });
+    expect(link).toHaveAttribute("href", "#/tools?focus=nuclei");
+  });
+});

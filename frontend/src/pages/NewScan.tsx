@@ -4,6 +4,7 @@ import type { Health } from "../api/types";
 import { ErrorBox } from "../components/ui";
 import { PreviewTable } from "../components/PreviewTable";
 import { useData } from "../hooks/useData";
+import { useHealth } from "../hooks/useHealth";
 import { usePreview } from "../hooks/usePreview";
 import { explain } from "../lib/errors";
 import { go } from "../lib/router";
@@ -21,7 +22,7 @@ export function NewScan() {
   const [policy, setPolicy] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const health = useData<Health>("/api/health");
+  const health = useHealth();
 
   const body = useMemo(() => {
     if (mode === "h1") return h1.trim() ? { input: h1.trim() } : null;
