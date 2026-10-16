@@ -623,3 +623,6 @@ Chưa kiểm: export mọi chế độ, mobile (không làm), H1 thật, Light/S
 - **F2 — ZIP "filtered".** Mọi host/IP/URL trên dòng đều phải thuộc scope (trước đây chỉ token đầu tiên), nhận cả `host/đường-dẫn` không scheme, `\/` trong JSON, IP; tên file kiểu `app.js` không tính là host. Gate giống scan đã chạy (gồm mục loại trừ tự gõ) cộng loại trừ hiện tại của program. Dòng không có host nào được giữ (không có gì để gán).
 - **F3 — lịch kiểm lại gate.** `dispatch` gọi lại `launch_gate` và header theo policy hiện tại của program; nếu không đạt thì không tạo scan, ghi `schedule.last_error` + `last_error_at` (commit trước khi báo lỗi), Program hiện cảnh báo "lần chạy theo lịch gần nhất đã bị bỏ qua". Bật lại lịch hoặc lần chạy hợp lệ kế tiếp xóa lỗi.
 - Tests: `test_v137_scope_selection.py` (5), Vitest +2; migration v4 trong `test_v13_headers_api.py`.
+
+### v1.3.7.1 — kết quả host QA `14cfbed` cho F1–F3
+F1 PASS (Rescan và lịch giữ 2 loại trừ, Review hiển thị), F3 PASS (lịch bị bỏ qua, có `last_error`, Program hiện cảnh báo), F2 FAIL một ca: JSONL có URL escape **hai tầng**. Sửa: bộ lọc ZIP bỏ mọi chuỗi dấu `\` đứng trước `/`, đọc JSON/JSONL theo từng chuỗi đã giải mã (kể cả `\u002f` và JSON lồng trong chuỗi), URL token không còn nuốt dấu `\` ở cuối. Test hồi quy trong `test_v137_scope_selection.py`.

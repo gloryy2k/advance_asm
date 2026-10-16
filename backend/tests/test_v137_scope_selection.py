@@ -85,6 +85,18 @@ def test_f2_every_token_on_a_line_is_checked():
         assert sorted(line_tokens(line)) == sorted(expected), line
 
 
+def test_f2_escaped_urls_in_json_are_read_however_deeply_they_are_escaped():
+    """Host QA (14cfbed): a JSONL value escaped twice (\\\\/) used to slip past the one-pass unescape."""
+    out = "https://a.example.com/admin/x"
+    lines = [r'{"host":"a.example.com","matched-at":"https:\\\\/\\\\/a.example.com\\\\/admin\\\\/x"}',
+             r'{"host":"a.example.com","matched-at":"https:\\/\\/a.example.com\\/admin\\/x"}',
+             r'{"matched-at":"https:\u002f\u002fa.example.com\u002fadmin\u002fx"}',
+             '{"m":"{\\"u\\":\\"https:\\\\/\\\\/a.example.com\\\\/admin\\\\/x\\"}"}',
+             r'see https://a.example.com/admin\\ here']
+    for line in lines:
+        assert out in line_tokens(line) or "https://a.example.com/admin" in line_tokens(line), line
+
+
 def test_f2_filtered_zip_drops_lines_naming_any_out_host_or_path_including_hand_typed_ones(settings):
     db, result, gen = prepared(settings)
     root = gen.target(result.slug)
@@ -101,6 +113,8 @@ def test_f2_filtered_zip_drops_lines_naming_any_out_host_or_path_including_hand_
         "typed_path_sibling_is_fine": "https://app.example.com/administrator",
         "nuclei_json": '{"host":"app.example.com","matched-at":"https:\\/\\/app.example.com\\/admin\\/x"}',
         "no_host_at_all": "header without host",
+        "double_escaped_json": '{"host":"app.example.com","matched-at":"https:\\\\/\\\\/app.example.com\\\\/admin\\\\/x"}',
+        "unicode_escaped_json": '{"matched-at":"https:\\u002f\\u002fapp.example.com\\u002fadmin\\u002fx"}',
     }
     write_output(root, "recon/scans/1/0/urls/all.txt", "\n".join(lines.values()) + "\n")
     path, _ = build_export(gen, result.slug, True, "filtered")

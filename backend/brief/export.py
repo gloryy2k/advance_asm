@@ -13,7 +13,7 @@ from backend.jobs.scope_resolver import ScopeError
 
 # A line is kept only if EVERY host, IP and URL on it is in scope (a line that names an OUT host anywhere is dropped,
 # not just one whose first token is). Lines that name no host at all carry nothing to attribute and are kept.
-URL_TOKEN = re.compile(r"https?://[^\s\]\"'<>)]+", re.I)
+URL_TOKEN = re.compile(r"https?://[^\s\]\"'<>)\\]+", re.I)
 IP_TOKEN = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.]*\w)")
 HOST_TOKEN = re.compile(r"(?<![\w.@/-])((?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,24})(?::\d{1,5})?(/[^\s\]\"'<>)]*)?(?![\w-])")
 # file names that look like hosts ("app.js", "readme.md"): not network names
@@ -22,9 +22,48 @@ FILE_EXTENSIONS = {"js", "json", "jsonl", "txt", "md", "html", "htm", "css", "xm
 MAX_FILTER_BYTES = 50 * 1024 * 1024
 
 
+def _json_strings(value, depth=0):
+    """Every string (keys and values) in a decoded JSON document; a string that is itself JSON is opened too."""
+    if depth > 4:
+        return
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield str(key)
+            yield from _json_strings(item, depth + 1)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _json_strings(item, depth + 1)
+    elif isinstance(value, str):
+        yield value
+        if value[:1] in "{[":
+            try:
+                yield from _json_strings(json.loads(value), depth + 1)
+            except ValueError:
+                pass
+
+
+def _texts(line):
+    """The line as written, plus -- for JSON -- every string it holds after decoding (\\u002f, nested escapes).
+    Any run of backslashes in front of a slash is dropped, so a URL escaped once, twice or more still reads as a URL."""
+    texts = [line]
+    stripped = line.strip()
+    if stripped[:1] in "{[":
+        try:
+            texts += list(_json_strings(json.loads(stripped)))
+        except ValueError:
+            pass
+    return [re.sub(r"\\+/", "/", text) for text in texts]
+
+
 def line_tokens(line):
     """Every URL, IP and host[/path] mentioned on a line (JSON-escaped slashes included)."""
-    text = line.replace("\\/", "/")
+    found = []
+    for text in _texts(line):
+        found += _text_tokens(text)
+    return list(dict.fromkeys(found))
+
+
+def _text_tokens(text):
     found = [m.group(0).rstrip(".,;:'\"") for m in URL_TOKEN.finditer(text)]
     rest = URL_TOKEN.sub(" ", text)
     found += [m.group(0) for m in IP_TOKEN.finditer(rest)]
