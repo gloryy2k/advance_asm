@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
 import { RECIPE_FIELDS, type Config, type Depth, type Health, type PlanPhase, type Profile, type Recipe, type ReviewData, type ScopeEntry, type TemplateInfo } from "../api/types";
 import { ConfigEditor } from "../components/ConfigEditor";
+import { CoveragePanel, type CoverageData } from "../components/CoveragePanel";
 import { PageHead, Panel } from "../components/layout";
 import { PolicyPanel } from "../components/PolicyPanel";
 import { PresetPicker } from "../components/PresetPicker";
@@ -38,6 +39,7 @@ export function Review({ id }: { id: string }) {
   const [profiles, setProfiles] = useState<{ builtin: Profile[]; custom: Profile[] } | null>(null);
   const [baseId, setBaseId] = useState("");
   const [plan, setPlan] = useState<PlanPhase[] | null>(null);
+  const [coverage, setCoverage] = useState<CoverageData | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [ack, setAck] = useState(false);
@@ -71,6 +73,18 @@ export function Review({ id }: { id: string }) {
     }, 200);
     return () => { live = false; clearTimeout(t); };
   }, [planKey, config === null]);
+
+  // What each asset of the scope will get with this configuration (server decides).
+  useEffect(() => {
+    if (!config) return;
+    let live = true;
+    const t = setTimeout(() => {
+      api<CoverageData>("/api/scans/" + id + "/coverage", { method: "POST", body: planKey })
+        .then((r) => live && setCoverage(r && Array.isArray(r.assets) ? r : null))
+        .catch(() => undefined);
+    }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [planKey, id, config === null]);
 
   // Draft edits are saved as you go, so reloading the page shows the same choices the server will launch with.
   const savedKey = useRef<string | null>(null);
@@ -139,6 +153,7 @@ export function Review({ id }: { id: string }) {
     : hintsOpen.length ? `Policy yêu cầu header ${hintsOpen.join(", ")}: điền giá trị hoặc xác nhận bỏ qua`
     : unsupported ? health.data!.runtime!.reason
     : included.length === 0 ? "Chưa có mục IN nào được chọn để kiểm tra."
+    : (config.include_apex || []).length > 0 && !config.apex_confirmed ? "Bạn chọn thêm domain gốc vào scope: xác nhận đã đối chiếu policy chính thức, hoặc bỏ lựa chọn"
     : ffuf && !config.ffuf_confirmed ? "Strong sẽ dò thư mục bằng ffuf (đoán đường dẫn): xác nhận policy cho phép, hoặc tắt bước dò thư mục"
     : needAck && !ack ? "Cần xác nhận program cho phép scan tự động."
     : config.depth === "strong" && !ackStrong ? "Cần xác nhận hiểu rủi ro của Strong." : "";
@@ -255,6 +270,8 @@ export function Review({ id }: { id: string }) {
           </label>
         </details>
       </Panel>
+
+      <CoveragePanel data={coverage} config={config} edit={edit} />
 
       {(needAck || headerLines.length > 0 || (review.request_header_hints || []).length > 0) && (
         <Panel id="headers-h" title="Header gửi kèm request tới target"

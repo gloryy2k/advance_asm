@@ -247,7 +247,7 @@ def build_report(settings, database, scan_id, tools_missing=None):
             "path_rule_hosts": stats.get("path_rule_hosts") or {}, "partial_inputs": stats.get("partial_inputs") or [],
             "missing_needed": stats.get("missing_needed") or [], "tool_notes": stats.get("tool_notes") or [], "request_headers": stats.get("request_headers") or [],
             # what BBASM did with each asset type of the scope, and what an upgrade corrected on this scan after it ran
-            "asset_coverage": stats.get("asset_coverage") or [], "manual_assets": stats.get("manual_assets") or [], "repairs": stats.get("repairs") or []}
+            "asset_coverage": stats.get("asset_coverage") or [], "manual_assets": stats.get("manual_assets") or [], "unprobed_hosts": (stats.get("unprobed_hosts") or [])[:500], "repairs": stats.get("repairs") or []}
 
 
 # Credentials with a recognisable shape are hidden in every file, not only in scanner output.

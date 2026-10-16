@@ -17,7 +17,7 @@ const CONTROL: Record<string, keyof Config> = {
 const STATUS_LABEL = { on: "Sẽ chạy", off: "Tắt", missing_tool: "Thiếu công cụ" } as const;
 const FIELD_LABEL: Record<string, string> = {
   depth: "mức quét", threads: "số luồng", rate_limit: "request/giây", scan_timeout: "thời gian tối đa", nuclei_severity: "mức nuclei",
-  skip_nmap: "quét cổng", skip_nuclei: "nuclei", skip_active_crawl: "crawl chủ động", skip_ffuf: "dò thư mục", nuclei_allow_intrusive: "template nguy hiểm", skip_historical: "URL lịch sử",
+  skip_nmap: "quét cổng", skip_nuclei: "nuclei", skip_active_crawl: "crawl chủ động", skip_ffuf: "dò thư mục", nmap_timeout: "giới hạn nmap", ffuf_maxtime: "giới hạn ffuf", deep_hosts: "số host quét sâu", nuclei_allow_intrusive: "template nguy hiểm", skip_historical: "URL lịch sử",
   skip_takeover: "takeover", skip_secrets: "bí mật trong JS", max_js_files: "số file JS", url_exclude_patterns: "đường dẫn loại trừ",
   brief_budget_kb: "dung lượng brief", brief_top_assets: "số asset trong brief", brief_top_urls: "số URL trong brief",
 };
@@ -103,6 +103,25 @@ export function ConfigEditor({
           <label>Thời gian tối đa (giây)
             <input type="number" min={1} value={config.scan_timeout} onChange={(e) => onChange({ scan_timeout: Number(e.target.value) })} />
             <small>Hết giờ thì dừng và lấy phần đã có</small>
+          </label>
+        </div>
+      </Panel>
+
+      <Panel id="ed-budget" title="Ngân sách công cụ" hint="Chương trình lớn cần nhiều thời gian hơn chương trình nhỏ. Để trống để dùng mặc định của máy chủ; 0 = không giới hạn từng lệnh (vẫn nằm trong thời gian tối đa của scan). Hết giới hạn thì công cụ dừng và giữ kết quả đã có.">
+        <div className="three">
+          <label>nmap tối đa mỗi lần chạy (giây)
+            <input type="number" min={0} max={7200} aria-label="nmap tối đa (giây)" placeholder="mặc định" value={config.nmap_timeout ?? ""}
+              onChange={(e) => onChange({ nmap_timeout: e.target.value === "" ? null : Number(e.target.value) })} />
+            <small>Chỉ chạy ở bước quét sâu (Strong)</small>
+          </label>
+          <label>ffuf tối đa mỗi lần chạy (giây)
+            <input type="number" min={0} max={7200} aria-label="ffuf tối đa (giây)" placeholder="mặc định" value={config.ffuf_maxtime ?? ""}
+              onChange={(e) => onChange({ ffuf_maxtime: e.target.value === "" ? null : Number(e.target.value) })} />
+          </label>
+          <label>Số host được quét sâu
+            <input type="number" min={1} max={200} aria-label="Số host quét sâu" placeholder="mặc định" value={config.deep_hosts ?? ""}
+              onChange={(e) => onChange({ deep_hosts: e.target.value === "" ? null : Number(e.target.value) })} />
+            <small>Host đang sống được chọn từ kết quả probe</small>
           </label>
         </div>
       </Panel>

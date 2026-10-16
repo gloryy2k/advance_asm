@@ -41,6 +41,13 @@ def require_ffuf(config):
                          "ffuf_confirm_required")
 
 
+def require_apex(config):
+    """Adding the apex of a wildcard widens the scope the program published: only with the user's explicit confirmation."""
+    if config.include_apex and not config.apex_confirmed:
+        raise ScopeError("Bạn chọn thêm domain gốc (" + ", ".join(config.include_apex) + ") vào scope. Xác nhận bạn đã đối chiếu policy chính thức cho phép, "
+                         "hoặc bỏ lựa chọn này.", "apex_confirm_required")
+
+
 class AutoScanRequest(BaseModel):
     input: str
     scope: list[str] = []
@@ -73,6 +80,7 @@ async def auto_scan(body: AutoScanRequest, request: Request):
         require_gate(config.depth, review["launch_gate"])
         require_headers(config, review["request_header_hints"])
         require_ffuf(config)
+        require_apex(config)
     except ScopeError:
         await asyncio.to_thread(state.runner.delete_draft, result.scan_id)  # do not leave a draft nobody asked to keep
         raise
@@ -107,6 +115,55 @@ async def plan_preview(config: ScanConfig, request: Request):
     from backend.asm.phases import plan_for
     state = request.app.state
     return {"phases": plan_for(config, state.settings, state.runner.orchestrator.missing_tools())}
+
+
+@router.post("/api/scans/{scan_id}/coverage")
+async def scan_coverage(scan_id: int, config: ScanConfig, request: Request):
+    """What this configuration will do with each asset of the scope, and the apex-domain question for each wildcard. Nothing runs."""
+    from backend.coverage import coverage_summary, scope_coverage
+    from backend.jobs.runner import JobRunner
+    from backend.scope_selection import apex_candidates, effective_gate
+    state = request.app.state
+    review = await asyncio.to_thread(state.runner.review, scan_id)
+    entries = review["scope"]
+    rows = scope_coverage(entries, config)
+
+    def build():
+        import json
+        with state.database.connect() as conn:
+            scan = conn.execute("SELECT program_id FROM scan_run WHERE id=?", (scan_id,)).fetchone()
+            latest = conn.execute("SELECT stats_json FROM scan_run WHERE program_id=? AND status IN ('done','done_partial') ORDER BY id DESC LIMIT 1", (scan["program_id"],)).fetchone()
+        dropped = {h["host"]: h["count"] for h in (json.loads(latest[0] or "{}").get("url_funnel") or {}).get("out_of_scope_hosts", [])} if latest else {}
+        explicit = {e["pattern"].lower() for e in entries if e["kind"] == "in" and e["category"] != "wildcard"}
+        probe = config.model_copy(update={"include_apex": [], "apex_confirmed": False})
+        apex = []
+        for domain, wildcard in apex_candidates(entries).items():
+            with_apex = effective_gate(entries, probe.model_copy(update={"include_apex": [domain], "apex_confirmed": True}),
+                                       state.settings.BBASM_DATA / "coverage-probe.jsonl", state.settings)
+            if domain in explicit or any(urlish.split("://")[-1].split("/")[0] == domain for urlish in explicit):
+                status = "in_scope_explicit"
+            elif not with_apex.in_scope(domain):
+                status = "blocked_by_out"
+            elif domain in config.include_apex and config.apex_confirmed:
+                status = "added_by_you"
+            else:
+                status = "not_in_scope"
+            apex.append({"apex": domain, "wildcard": wildcard, "status": status, "dropped_urls": dropped.get(domain, 0),
+                         "selected": domain in config.include_apex, "confirmed": config.apex_confirmed})
+        return apex
+    apex = await asyncio.to_thread(build)
+    gate = effective_gate(entries, config, state.settings.BBASM_DATA / "coverage-probe.jsonl", state.settings)
+    hosts = gate.path_rule_hosts()
+    # How an OUT rule about a PATH is held, tool by tool (the tools take hosts, not paths).
+    enforcement = [
+        {"tool": "Scope gate (mọi lệnh)", "how": "Chặn URL khớp đường dẫn OUT trước khi nhập kết quả; không có URL OUT nào được lưu.", "stops_request": False},
+        {"tool": "gau / Wayback / crt.sh", "how": "Chỉ đọc nguồn công khai, không gửi request tới target; URL OUT bị lọc khỏi kết quả.", "stops_request": True},
+        {"tool": "httpx (probe)", "how": "Chỉ hỏi gốc của host; host có OUT theo đường dẫn chỉ được probe, không được quét sâu (trừ khi bạn cho phép).", "stops_request": True},
+        {"tool": "katana / nuclei / ffuf / nmap", "how": "KHÔNG thi hành được loại trừ theo đường dẫn: các host này bị khóa ở mức probe. Nếu bạn bật “cho phép công cụ chủ động”, request có thể tới đường dẫn OUT.", "stops_request": not config.allow_active_on_path_rules},
+    ] if hosts else []
+    shares = [{"key": key, "until": share, "seconds": int(config.scan_timeout * share)} for key, share in JobRunner.STAGES["active"]]
+    return {"assets": rows, "summary": coverage_summary(rows), "apex": apex, "stage_shares": shares,
+            "path_rules": {"hosts": hosts, "enforcement": enforcement, "active_allowed": config.allow_active_on_path_rules}}
 
 
 _REPORT_CACHE: dict = {}
@@ -199,6 +256,7 @@ async def launch(scan_id: int, body: LaunchRequest, request: Request):
     require_gate(depth, review["launch_gate"])
     require_headers(config, review["request_header_hints"])
     require_ffuf(config)
+    require_apex(config)
     await runner.submit(scan_id, body.config, ack=body.automation_ack)
     return {"scan_id": scan_id, "status": "queued"}
 

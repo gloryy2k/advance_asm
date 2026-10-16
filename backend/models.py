@@ -61,6 +61,15 @@ class ScanConfig(BaseModel):
     excluded_hosts: list[str] = Field(default_factory=list)
     # ── v1.2 user options (all optional: a config saved by an older client stays valid) ──
     skip_ffuf: bool = False            # strong only; ffuf never runs below strong
+    # `*.example.com` grants subdomains only. The apex (`example.com`) is added to scope ONLY when the user lists it here AND confirms
+    # (apex_confirmed) that the program's official policy allows it. Each entry must be the apex of an IN wildcard; OUT rules still win.
+    include_apex: list[str] = Field(default_factory=list, max_length=20)
+    apex_confirmed: bool = False
+    # Budgets that depend on the size of the program. None = the server default (BBASM_NMAP_TIMEOUT, BBASM_FFUF_MAXTIME,
+    # BBASM_DEEP_HOSTS). The whole-scan budget is scan_timeout; these bound single tools inside it.
+    nmap_timeout: int | None = Field(default=None, ge=0, le=7200)       # seconds per nmap run, 0 = no cap
+    ffuf_maxtime: int | None = Field(default=None, ge=0, le=7200)       # seconds per ffuf run, 0 = no cap
+    deep_hosts: int | None = Field(default=None, ge=1, le=200)           # live discovered hosts that get the deep pass
     # Community nuclei templates tagged dos/fuzz/intrusive/brute-force are excluded unless the user opts in.
     nuclei_allow_intrusive: bool = False
     skip_historical: bool = False      # no gau/wayback/crt.sh queries at all
@@ -92,7 +101,7 @@ class ScanConfig(BaseModel):
     skip_required_headers: bool = False
 
     def options(self) -> dict:
-        return {name: getattr(self, name) for name in (*OPTION_FIELDS, "request_headers", "allow_active_on_path_rules", "skipped_headers", "skip_required_headers", "ffuf_confirmed", "nuclei_custom", "source_full_repo_ok")}
+        return {name: getattr(self, name) for name in (*OPTION_FIELDS, "request_headers", "allow_active_on_path_rules", "skipped_headers", "skip_required_headers", "ffuf_confirmed", "nuclei_custom", "source_full_repo_ok", "include_apex", "apex_confirmed")}
 
     @field_validator("request_headers")
     @classmethod
@@ -109,6 +118,18 @@ class ScanConfig(BaseModel):
             if name.strip().lower() not in {n.lower() for n in names}:
                 names.append(name.strip())
         return names
+
+    @field_validator("include_apex")
+    @classmethod
+    def safe_apex(cls, value):
+        out = []
+        for item in value:
+            host = str(item).strip().lower().rstrip(".")
+            if not re.fullmatch(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}", host):
+                raise ValueError(f"Domain gốc không hợp lệ: {str(item)[:60]!r}")
+            if host not in out:
+                out.append(host)
+        return out
 
     @field_validator("nuclei_custom")
     @classmethod
@@ -141,7 +162,7 @@ class ScanConfig(BaseModel):
         return value
 
 
-OPTION_FIELDS = ("skip_ffuf", "nuclei_allow_intrusive", "skip_historical", "skip_takeover", "skip_secrets", "max_js_files",
+OPTION_FIELDS = ("skip_ffuf", "nmap_timeout", "ffuf_maxtime", "deep_hosts", "nuclei_allow_intrusive", "skip_historical", "skip_takeover", "skip_secrets", "max_js_files",
                  "url_exclude_patterns", "brief_budget_kb", "brief_top_assets", "brief_top_urls")
 # What a profile (a saved preset) may contain: how to scan, never *what* (scope stays per scan).
 RECIPE_FIELDS = ("depth", "threads", "rate_limit", "scan_timeout", "nuclei_severity", "skip_nmap", "skip_nuclei",

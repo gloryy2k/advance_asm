@@ -155,3 +155,72 @@ def test_ffuf_log_line_tells_apart_missing_binary_no_live_host_and_config(settin
     assert tag == "no_input" and "chưa có host đang sống" in message
     assert ReconLogParser(settings, cfg(depth="light")).classify(line)[0] == "skipped_config"
     assert ReconLogParser(settings, cfg(skip_ffuf=True)).classify(line)[0] == "skipped_config"
+
+
+# ── F7: *.arc.io does not include arc.io; adding it is an explicit, confirmed, previewed choice ──
+def apex_scan(settings, **over):
+    from fastapi.testclient import TestClient
+    from backend.main import create_app
+    from backend.tests.test_v152_lifecycle import settings_for
+    client = TestClient(create_app(settings_for(settings)))
+    client.__enter__()
+    made = client.post("/api/scope/resolve", json={"input": "raw", "scope": ["*.arc.io"], "scope_out": ["https://arc.io/admin"], "name": "arc"}).json()
+    return client, made["scan_id"], client.get(f"/api/scans/{made['scan_id']}/config").json() | over
+
+
+def test_the_apex_is_outside_a_wildcard_unless_the_user_adds_it_with_confirmation(settings):
+    client, scan, cfg = apex_scan(settings)
+    try:
+        info = client.post(f"/api/scans/{scan}/coverage", json=cfg).json()
+        assert info["apex"] == [{"apex": "arc.io", "wildcard": "*.arc.io", "status": "not_in_scope", "dropped_urls": 0, "selected": False, "confirmed": False}]
+        assert info["assets"][0]["mode"] == "recon" and "domain gốc không được cấp quyền" in info["assets"][0]["detail"]
+        assert [s["key"] for s in info["stage_shares"]] == ["discovery", "main", "probe", "deep"]
+        chosen = {**cfg, "include_apex": ["arc.io"], "apex_confirmed": True}
+        assert client.post(f"/api/scans/{scan}/coverage", json=chosen).json()["apex"][0]["status"] == "added_by_you"
+        # the plan really contains the apex, and an OUT rule on a path of it is still enforced
+        from backend.jobs.recon_orch import ReconOrchestrator
+        from backend.jobs.runner import JobRunner
+        from backend.models import ScanConfig
+        JobRunner(client.app.state.settings, client.app.state.database).config(scan, ScanConfig.model_validate({**chosen, "depth": "light"}))
+        plan = ReconOrchestrator(client.app.state.settings, client.app.state.database).build(scan)
+        assert plan.gate.in_scope("https://arc.io/") and not plan.gate.in_scope("https://arc.io/admin/x") and plan.gate.in_scope("https://api.arc.io/")
+        assert "arc.io" in plan.explicit_hosts and any("Domain gốc arc.io được thêm" in w for w in plan.warnings)
+        # listed but NOT confirmed: nothing is added
+        second = client.post("/api/scope/resolve", json={"input": "raw", "scope": ["*.arc.io"], "scope_out": ["https://arc.io/admin"], "name": "arc"}).json()["scan_id"]
+        unconfirmed = ScanConfig.model_validate({**cfg, "include_apex": ["arc.io"], "apex_confirmed": False, "depth": "light"})
+        JobRunner(client.app.state.settings, client.app.state.database).config(second, unconfirmed)
+        plan = ReconOrchestrator(client.app.state.settings, client.app.state.database).build(second)
+        assert not plan.gate.in_scope("https://arc.io/") and "arc.io" not in plan.explicit_hosts
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_launch_refuses_an_unconfirmed_apex_and_an_apex_that_is_not_a_wildcard_apex_is_ignored(settings):
+    client, scan, cfg = apex_scan(settings)
+    try:
+        from backend.api.scans import require_apex
+        from backend.jobs.scope_resolver import ScopeError
+        from backend.models import ScanConfig
+        import pytest
+        with pytest.raises(ScopeError) as err:
+            require_apex(ScanConfig.model_validate({**cfg, "include_apex": ["arc.io"]}))
+        assert err.value.code == "apex_confirm_required"
+        from backend.scope_selection import included_apex
+        stray = ScanConfig.model_validate({**cfg, "include_apex": ["evil.com", "arc.io"], "apex_confirmed": True})
+        assert included_apex(client.get(f"/api/scans/{scan}/review").json()["scope"], stray) == ["arc.io"]       # only the apex of an IN wildcard
+        assert client.put(f"/api/scans/{scan}/config", json={**cfg, "include_apex": ["not a domain"]}).status_code == 422
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_coverage_lists_how_each_tool_holds_an_out_path_rule(settings):
+    client, scan, cfg = apex_scan(settings)
+    try:
+        info = client.post(f"/api/scans/{scan}/coverage", json=cfg).json()
+        assert info["path_rules"]["hosts"] == {"arc.io": ["/admin"]} or "arc.io" in info["path_rules"]["hosts"]
+        tools = {t["tool"]: t for t in info["path_rules"]["enforcement"]}
+        assert tools["katana / nuclei / ffuf / nmap"]["stops_request"] is True                  # locked to probe-only
+        loose = client.post(f"/api/scans/{scan}/coverage", json={**cfg, "allow_active_on_path_rules": True}).json()
+        assert {t["tool"]: t for t in loose["path_rules"]["enforcement"]}["katana / nuclei / ffuf / nmap"]["stops_request"] is False
+    finally:
+        client.__exit__(None, None, None)

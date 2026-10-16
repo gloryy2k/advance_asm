@@ -379,3 +379,8 @@ table.stages th { color: var(--muted); font-weight: 600; font-size: 12px; text-t
 .bars li { grid-template-columns: minmax(90px, 34%) 1fr minmax(max-content, 9rem); }
 .step-detail { margin: 2px 0 0; font-size: 13px; color: var(--text); }
 .coverage-split { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+.coverage-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 10px; }
+.coverage-list li { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; background: var(--panel-2); }
+.coverage-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.coverage-list p { margin: 4px 0 0; font-size: 13px; }
+.apex { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; }

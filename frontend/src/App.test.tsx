@@ -1492,3 +1492,60 @@ describe("arc-bbp #65 audit: partial results, coverage split, funnel, data notes
     expect(screen.getByTestId("data-notes")).toHaveTextContent(/124 dòng sạch bị lưu thành takeover High/);
   });
 });
+
+describe("Review: coverage by asset type, apex and repo confirmations", () => {
+  const coverage = (over: object = {}) => ({
+    assets: [
+      { pattern: "*.arc.io", category: "wildcard", mode: "recon", label: "Recon đầy đủ theo mức quét", detail: "Liệt kê subdomain, probe HTTP. Chỉ subdomain; domain gốc không được cấp quyền.", needs_confirmation: false },
+      { pattern: "repo:https://github.com/circlefin/malachite", category: "source_code", mode: "manual_confirm", label: "Khóa tự động: scope có giới hạn", detail: "BBASM chưa giới hạn được theo thư mục", instruction: "Only code/crates is in scope", needs_confirmation: true },
+      { pattern: "app:com.arc", category: "mobile", mode: "manual", label: "Chỉ lưu để làm tay", detail: "BBASM không tải app" },
+    ],
+    summary: { recon: 1, manual_confirm: 1, manual: 1 },
+    apex: [{ apex: "arc.io", wildcard: "*.arc.io", status: "not_in_scope", dropped_urls: 1301, selected: false, confirmed: false }],
+    stage_shares: [{ key: "discovery", until: 0.25, seconds: 675 }, { key: "deep", until: 0.95, seconds: 2565 }],
+    path_rules: { hosts: {}, enforcement: [], active_allowed: false }, ...over });
+  const setup = () => stubFetch((path, init) => path === "/api/health" ? health() : path.endsWith("/coverage") ? coverage()
+    : path.endsWith("/review") ? baseReview() : path.endsWith("/config") ? baseConfig : path.endsWith("/launch") ? { scan_id: 4, status: "queued" } : {});
+
+  test("every asset says what will happen to it; Strong does not read as 'everything scanned'", async () => {
+    setup();
+    location.hash = "/scan/4/review";
+    render(<App />);
+    const panel = await screen.findByTestId("coverage-summary");
+    expect(panel).toHaveTextContent("1 asset recon tự động · 1 chỉ lưu để làm tay · 1 bị khóa chờ bạn xác nhận");
+    expect(screen.getByText("Khóa tự động: scope có giới hạn")).toBeInTheDocument();
+    expect(screen.getByText(/Only code\/crates is in scope/)).toBeInTheDocument();
+    expect(screen.getByText("Chỉ lưu để làm tay")).toBeInTheDocument();
+  });
+
+  test("the apex is a separate, explicit choice that needs its own confirmation before launch", async () => {
+    const fetch = setup();
+    location.hash = "/scan/4/review";
+    render(<App />);
+    const apex = await screen.findByTestId("apex");
+    expect(apex).toHaveTextContent(/chỉ gồm subdomain; domain gốc arc\.io.*ngoài scope.*1\.301 URL/s);
+    fireEvent.click(screen.getByLabelText(/Tôi đã đọc policy và program cho phép/));
+    fireEvent.click(screen.getByLabelText("Thêm domain gốc arc.io"));
+    expect(await screen.findByText(/Sẽ thêm vào IN:/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Launch scan" })).toBeDisabled();                       // chosen but not confirmed
+    expect(screen.getByText(/xác nhận đã đối chiếu policy chính thức/)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Xác nhận policy cho phép domain gốc"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Launch scan" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Launch scan" }));
+    await waitFor(() => expect(calls(fetch, "/launch")).toHaveLength(1));
+    const sent = JSON.parse(calls(fetch, "/launch")[0][1]!.body as string).config;
+    expect(sent.include_apex).toEqual(["arc.io"]);
+    expect(sent.apex_confirmed).toBe(true);
+  });
+
+  test("a repo whose scope text limits it stays manual until the user allows a whole-repo scan", async () => {
+    const fetch = setup();
+    location.hash = "/scan/4/review";
+    render(<App />);
+    fireEvent.click(await screen.findByLabelText("Cho phép quét cả repo repo:https://github.com/circlefin/malachite"));
+    fireEvent.click(screen.getByLabelText(/Tôi đã đọc policy và program cho phép/));
+    fireEvent.click(screen.getByRole("button", { name: "Launch scan" }));
+    await waitFor(() => expect(calls(fetch, "/launch")).toHaveLength(1));
+    expect(JSON.parse(calls(fetch, "/launch")[0][1]!.body as string).config.source_full_repo_ok).toEqual(["repo:https://github.com/circlefin/malachite"]);
+  });
+});

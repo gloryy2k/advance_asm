@@ -15,6 +15,7 @@ from backend.framework import load_module
 from backend.coverage import entry_coverage, scope_coverage
 from backend.models import ScanConfig, ScopeEntry
 from backend.scope_gate import ScopeGate, audit, normalize_host, normalize_pattern
+from backend.scope_selection import included_apex
 
 
 class EgressUnavailable(RuntimeError):
@@ -73,6 +74,7 @@ class ReconPlan:
                                                     "probed": 0, "unprobed": 0, "explicit": 0, "batches": 0, "batches_done": 0, "batches_timeout": 0})
     probed_hosts: set = field(default_factory=set)         # hosts that answered or whose probe batch finished
     path_rules: dict = field(default_factory=dict)         # host -> OUT paths (rules the crawlers cannot honour)
+    discovered_hosts: list = field(default_factory=list)   # every host the discovery found and the probe stage was meant to reach
     asset_coverage: list = field(default_factory=list)     # per scope entry: what BBASM will do with it (see backend/coverage.py)
     manual_assets: list = field(default_factory=list)      # in-scope assets deliberately left for hand work, with the reason
     takeover_summary: dict = field(default_factory=dict)   # subjack: candidates / clean results / unreadable lines
@@ -141,8 +143,9 @@ def recon_env(settings, config, output, *, discovery=False, skip_historical=Fals
         "BBASM_SKIP_FFUF": str(int(config.depth != "strong" or config.skip_ffuf)),
         "BBASM_SKIP_CICD": "1",  # No automatic org expansion from discovered links.
         "BBASM_NMAP_CONNECT": "1",  # Portable -sT, including WSL2/no raw capabilities.
-        "BBASM_NMAP_TIMEOUT": str(settings.BBASM_NMAP_TIMEOUT), "BBASM_NMAP_HOST_TIMEOUT": str(settings.BBASM_NMAP_HOST_TIMEOUT),
-        "BBASM_FFUF_MAXTIME": str(settings.BBASM_FFUF_MAXTIME),
+        "BBASM_NMAP_TIMEOUT": str(settings.BBASM_NMAP_TIMEOUT if config.nmap_timeout is None else config.nmap_timeout),
+        "BBASM_NMAP_HOST_TIMEOUT": str(settings.BBASM_NMAP_HOST_TIMEOUT),
+        "BBASM_FFUF_MAXTIME": str(settings.BBASM_FFUF_MAXTIME if config.ffuf_maxtime is None else config.ffuf_maxtime),
     })
     env["BBASM_SHIM_DIR"] = str(SHIM_DIR)
     for tool in WRAPPED_TOOLS:   # exported shell functions beat the engine's own PATH rewriting
@@ -302,6 +305,10 @@ class ReconOrchestrator:
                     self._recon(plan, entry.pattern, target_type="cidr")
                 else:
                     seeds.append(normalize_host(entry.pattern))
+        for apex in included_apex(entries, config):
+            if gate.in_scope(apex):            # an OUT rule on the apex still wins
+                seeds.append(normalize_host(apex))
+                plan.warnings.append(f"Domain gốc {apex} được thêm vào scope theo xác nhận của bạn (wildcard *.{apex} không tự bao gồm nó).")
         if (config.depth != "passive" and not config.skip_nuclei and shutil.which("nuclei", path=self.settings.tool_search_path())
                 and not nuclei_templates_ready(self.settings)):
             plan.tool_notes.append({"tool": "nuclei", "note": NUCLEI_BLOCKED_NOTE})
@@ -429,6 +436,7 @@ class ReconOrchestrator:
             return []
         size = self.settings.BBASM_PROBE_BATCH
         plan.coverage["discovered"] = len(hosts)
+        plan.discovered_hosts = list(hosts)
         batches = [self._host_list(plan, hosts[i:i + size], stage="probe", probe_only=True) for i in range(0, len(hosts), size)]
         batches = [batch for batch in batches if batch]
         plan.coverage["batches"] = len(batches)
@@ -448,7 +456,7 @@ class ReconOrchestrator:
         for _, _, host in sorted(ranked):
             if host not in chosen:
                 chosen.append(host)
-            if len(chosen) >= self.settings.BBASM_DEEP_HOSTS:
+            if len(chosen) >= (plan.config.deep_hosts or self.settings.BBASM_DEEP_HOSTS):
                 break
         return self._host_list(plan, chosen, stage="deep") if chosen else None
 

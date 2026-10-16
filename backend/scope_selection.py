@@ -35,10 +35,25 @@ def apply_selection(config, entries, selection):
     return config.model_copy(update={"categories_enabled": enabled, "excluded_hosts": excluded})
 
 
+def apex_candidates(entries):
+    """{apex: wildcard pattern} for every IN wildcard `*.apex`. Only these can be added: nothing arbitrary."""
+    items = [e if isinstance(e, dict) else e.model_dump() for e in entries]
+    return {e["pattern"][2:].lower(): e["pattern"] for e in items if e["kind"] == "in" and e["category"] == "wildcard" and e["pattern"].startswith("*.")}
+
+
+def included_apex(entries, config):
+    """The apex domains this configuration really adds: listed, confirmed, and the apex of an IN wildcard that is switched on."""
+    if not config.include_apex or not config.apex_confirmed or "wildcard" not in config.categories_enabled:
+        return []
+    known = apex_candidates(entries)
+    return [a for a in config.include_apex if a in known]
+
+
 def effective_gate(entries, config, audit_path, settings) -> ScopeGate:
     """The one way a gate is built from a resolved scope plus a configuration (plan, export, schedule checks)."""
     items = [e if isinstance(e, dict) else e.model_dump() for e in entries]
     eligible = [e for e in items if e["category"] not in NON_AUTO]
     allow = [e["pattern"] for e in eligible if e["kind"] == "in" and e["category"] in config.categories_enabled]
+    allow += included_apex(items, config)
     deny = [e["pattern"] for e in eligible if e["kind"] == "out"] + list(config.excluded_hosts)
     return ScopeGate(allow, deny, Path(audit_path), settings)

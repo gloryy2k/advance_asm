@@ -391,6 +391,7 @@ def test_a_batch_cut_off_mid_way_keeps_its_answers_and_does_not_stop_the_other_b
     assert cov["probed"] == 20 and cov["unprobed"] == 7                                         # honest: the 7 silent ones are unknown, not "all 27"
     probe = [s for s in stats["stages"] if s["key"] == "probe"][0]
     assert probe["commands_timeout"] == 1 and probe["commands_ok"] == 2
+    assert len(stats["unprobed_hosts"]) == 7 and not set(stats["unprobed_hosts"]) & {"h0.example.com", "h1.example.com"}   # a list a later run can target
     assert row["status"] == "done_partial" and stats["diff"]["gone"] == 0
     deep = [s for s in stats["stages"] if s["key"] == "deep"][0]
     assert deep["commands"] == 1                                                                 # the deep pass is built from the answers of ALL batches

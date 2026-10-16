@@ -428,6 +428,8 @@ class JobRunner:
                 stats["stages"], stats["sources"], stats["tool_notes"] = plan.stages, plan.sources, plan.tool_notes
                 plan.coverage["unprobed"] = max(0, plan.coverage["discovered"] - plan.coverage["probed"])
                 stats["coverage"] = plan.coverage
+                # Hosts nobody got an answer from (cut off or never reached): kept so a later run can be pointed at exactly these.
+                stats["unprobed_hosts"] = [h for h in plan.discovered_hosts if h not in plan.probed_hosts][:2000]
                 stats["path_rule_hosts"] = plan.path_rules
                 stats["asset_coverage"], stats["manual_assets"] = plan.asset_coverage, plan.manual_assets
                 stats["request_headers"] = [h.partition(":")[0] for h in plan.config.request_headers]  # names only, never values
