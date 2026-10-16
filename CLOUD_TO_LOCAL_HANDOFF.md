@@ -1,5 +1,12 @@
 # Bàn giao Claude Cloud → Claude Local
 
+> **Cập nhật từ Claude Local (2026-10-17):** tài liệu dưới đây là bản gốc của Claude Cloud, dừng ở `e456029` (v1.6.0) —
+> giữ nguyên để tra lịch sử, **không còn phản ánh baseline hiện tại**. Baseline mới nhất: `claude/upbeat-thompson-b7bb23`
+> tại `488d910`-submodule / commit code gần nhất trên nhánh đó theo `git log` (xem `COORD_TASKS.md` để biết chính xác,
+> file này không tự cập nhật theo từng commit). Việc đã làm sau `e456029`: xem `NOTES.md` mục v1.6.1, v1.6.2. Mục 6 và
+> mục 9 dưới đây **đã lỗi thời** — `NUCLEI_COVERAGE_FOLLOWUP.md` mục 9 đã được xử lý một phần (xem `BACKLOG.md` phần
+> "Độ phủ nuclei"), không còn là "chưa đọc". Quy trình phối hợp Claude Local ↔ Codex QA hiện tại: `COORD_TASKS.md`.
+
 Tài liệu này đủ để tiếp tục công việc mà không cần lịch sử chat. Mọi khẳng định “đã làm/đã test” đều có commit hoặc tên test để kiểm lại từ repo; chỗ nào chưa kiểm chứng được thì nói rõ ở mục 9.
 
 ## 1. Bản đồ repo, nhánh, worktree (đo ngày 2026-10-16)

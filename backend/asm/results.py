@@ -141,17 +141,22 @@ def _int_or_none(value):
 
 def read_nuclei_coverage(path):
     """One `nuclei/coverage.json` (one recon_engine.sh invocation that reached Phase 9). `last_stats` is nuclei's own
-    final -stats-json line (None if nuclei never produced one, e.g. it was killed before the first interval)."""
+    final -stats-json line (None if nuclei never produced one, e.g. it was killed before the first interval).
+    `failed` (v1.6.2, V161_HOST_AUDIT.md C9) is true when nuclei's own exit code was nonzero and not a timeout — it
+    errored before or while running (bad -t path, no valid templates…), as opposed to running cleanly and finding
+    nothing. When it failed, `last_stats`'s own numbers (if any) are nuclei's pre-failure sentinel values, not a
+    real count, so callers should not present them as "what nuclei ran"."""
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     if not isinstance(data, dict):
         return None
-    last = data.get("last_stats") if isinstance(data.get("last_stats"), dict) else {}
+    failed = bool(data.get("failed"))
+    last = data.get("last_stats") if isinstance(data.get("last_stats"), dict) and not failed else {}
     return {"live_urls": _int_or_none(data.get("live_urls")) or 0, "given_urls": _int_or_none(data.get("given_urls")) or 0,
             "limit": _int_or_none(data.get("limit")) or 0, "quick": bool(data.get("quick")), "timed_out": bool(data.get("timed_out")),
-            "templates": _int_or_none(last.get("templates")), "requests": _int_or_none(last.get("requests")),
+            "failed": failed, "templates": _int_or_none(last.get("templates")), "requests": _int_or_none(last.get("requests")),
             "hosts": _int_or_none(last.get("hosts")), "matched": _int_or_none(last.get("matched")), "percent": _int_or_none(last.get("percent"))}
 
 
@@ -179,9 +184,14 @@ def summarize_nuclei(root):
     if not runs:
         return {"found": False, "findings": findings}
     live, given = sum(r["live_urls"] for r in runs), sum(r["given_urls"] for r in runs)
+    # V161_HOST_AUDIT.md C8: a scan can mix a quick run (limit 50) and a full run (limit 200) — reporting
+    # `runs[0]["limit"]` for the whole scan said "giới hạn 200" even for the lượt that was actually capped at 50.
+    # `limits` keeps every distinct per-run limit seen so the caller can say which one actually applied.
+    limits = sorted({r["limit"] for r in runs if r["limit"]})
+    ok_runs = [r for r in runs if not r["failed"]]       # a failed run's template/request numbers are sentinel junk
     return {"found": True, "files": files, "findings": findings, "runs": runs,
-            "live_urls": live, "given_urls": given, "truncated": given < live, "limit": runs[0]["limit"],
-            "timed_out": any(r["timed_out"] for r in runs),
-            "templates": max((r["templates"] for r in runs if r["templates"] is not None), default=None),
-            "requests": sum((r["requests"] for r in runs if r["requests"] is not None)) or None,
-            "hosts": sum((r["hosts"] for r in runs if r["hosts"] is not None)) or None}
+            "live_urls": live, "given_urls": given, "truncated": given < live, "limits": limits,
+            "timed_out": any(r["timed_out"] for r in runs), "failed": any(r["failed"] for r in runs),
+            "templates": max((r["templates"] for r in ok_runs if r["templates"] is not None), default=None),
+            "requests": sum((r["requests"] for r in ok_runs if r["requests"] is not None)) or None,
+            "hosts": sum((r["hosts"] for r in ok_runs if r["hosts"] is not None)) or None}

@@ -133,6 +133,12 @@ TRUNCATED_RUN = json.dumps({"live_urls": 60, "given_urls": 50, "limit": 50, "qui
                             "last_stats": {"duration": "0:00:12", "errors": "3", "hosts": "50", "matched": "2", "percent": "100",
                                            "requests": "8200", "rps": "680", "startedAt": "2026-10-16T16:00:00Z", "templates": "120", "total": "8200"}})
 TIMED_OUT_RUN = json.dumps({"live_urls": 2, "given_urls": 2, "limit": 200, "quick": False, "timed_out": True, "last_stats": None})
+# v1.6.2 (V161_HOST_AUDIT.md C9): nuclei's own stderr can carry a free-text fatal error after its last stats-json
+# tick (bad -t path, no valid templates…); the engine now filters it out and marks the run `failed` instead of
+# letting that line corrupt coverage.json. `last_stats` here is nuclei's real pre-failure sentinel numbers.
+FAILED_RUN = json.dumps({"live_urls": 1, "given_urls": 1, "limit": 200, "quick": False, "timed_out": False, "failed": True,
+                         "last_stats": {"duration": "0:00:00", "errors": "0", "hosts": "n/a", "matched": "0", "percent": "9223372036854775808",
+                                        "requests": "0", "rps": "9223372036854775808", "startedAt": "0001-01-01T00:00:00Z", "templates": "n/a", "total": "0"}})
 
 
 def test_read_nuclei_coverage_parses_the_engines_own_numbers(tmp_path):
@@ -141,9 +147,13 @@ def test_read_nuclei_coverage_parses_the_engines_own_numbers(tmp_path):
     info = read_nuclei_coverage(path)
     assert info["live_urls"] == 60 and info["given_urls"] == 50 and info["limit"] == 50 and info["quick"] is True and info["timed_out"] is False
     assert info["templates"] == 120 and info["requests"] == 8200 and info["hosts"] == 50 and info["matched"] == 2 and info["percent"] == 100
+    assert info["failed"] is False
     path.write_text(TIMED_OUT_RUN, encoding="utf-8")
     timed_out = read_nuclei_coverage(path)
     assert timed_out["timed_out"] is True and timed_out["templates"] is None             # killed before the first -stats-json tick
+    path.write_text(FAILED_RUN, encoding="utf-8")
+    failed = read_nuclei_coverage(path)
+    assert failed["failed"] is True and failed["templates"] is None and failed["requests"] is None   # sentinel junk, not shown as real numbers
     assert read_nuclei_coverage(tmp_path / "missing.json") is None
 
 
@@ -156,8 +166,24 @@ def test_summarize_nuclei_merges_runs_and_counts_findings_separately_from_covera
     assert summary["found"] and summary["findings"] == 3                                 # findings count, independent of coverage numbers
     assert summary["live_urls"] == 62 and summary["given_urls"] == 52 and summary["truncated"] is True   # one of the two runs was capped
     assert summary["timed_out"] is True                                                  # the other run was cut by the timeout
+    assert summary["failed"] is False
     assert summary["templates"] == 120 and summary["requests"] == 8200 and summary["hosts"] == 50
+    # V161_HOST_AUDIT.md C8: the two runs above have DIFFERENT limits (50 and 200) — `limits` must keep both,
+    # never collapse to "whichever run came first alphabetically".
+    assert summary["limits"] == [50, 200]
     assert summarize_nuclei(tmp_path / "empty")["found"] is False
+
+
+def test_summarize_nuclei_a_failed_run_does_not_contribute_fake_numbers(tmp_path):
+    write_output(tmp_path, "4/nuclei/coverage.json", FAILED_RUN)
+    write_output(tmp_path, "4/nuclei/findings.jsonl", "")
+    summary = summarize_nuclei(tmp_path)
+    assert summary["failed"] is True and summary["templates"] is None and summary["requests"] is None and summary["hosts"] is None
+    # a second, clean run alongside the failed one still reports its own real numbers
+    write_output(tmp_path, "5/nuclei/coverage.json", TRUNCATED_RUN)
+    write_output(tmp_path, "5/nuclei/findings.jsonl", "")
+    summary2 = summarize_nuclei(tmp_path)
+    assert summary2["failed"] is True and summary2["templates"] == 120 and summary2["requests"] == 8200
 
 
 def test_run_report_shows_real_nuclei_coverage_not_the_installed_template_count(settings):
@@ -184,6 +210,36 @@ def test_run_report_flags_a_timed_out_nuclei_run_as_partial(settings):
         conn.execute("UPDATE scan_run SET status='done_partial' WHERE id=?", (result.scan_id,))
     nuclei = {p["key"]: p for p in build_report(settings, db, result.scan_id)["phases"]}["nuclei"]
     assert nuclei["status"] == "partial" and "DỞ DANG" in nuclei["detail"]
+
+
+def test_run_report_says_nuclei_failed_instead_of_ran_with_no_findings(settings):
+    """V161_HOST_AUDIT.md C9: a real nuclei error must never read as "Chạy — 0 kết quả"."""
+    db, _, result = environment(settings, ["example.com"])
+    root = scan_root(settings, _slug(db, result.scan_id), result.scan_id)
+    write_output(root, "4/nuclei/coverage.json", FAILED_RUN)
+    write_output(root, "4/nuclei/findings.jsonl", "")
+    with db.connect() as conn, conn:
+        conn.execute("UPDATE scan_run SET status='done_partial' WHERE id=?", (result.scan_id,))
+    nuclei = {p["key"]: p for p in build_report(settings, db, result.scan_id)["phases"]}["nuclei"]
+    assert nuclei["status"] == "partial"
+    assert "LỖI" in nuclei["detail"] and "không chạy được" in nuclei["detail"]
+    assert "tự báo đã chạy" not in nuclei["detail"]               # sentinel "n/a"/huge-int numbers are never shown as if real
+
+
+def test_run_report_says_which_limit_applied_when_runs_mix_quick_and_full(settings):
+    """V161_HOST_AUDIT.md C8: the aggregate must not claim a single wrong limit for a mixed quick+full scan."""
+    db, _, result = environment(settings, ["example.com"])
+    root = scan_root(settings, _slug(db, result.scan_id), result.scan_id)
+    write_output(root, "4/nuclei/coverage.json", TRUNCATED_RUN)           # limit 50, truncated 50/60
+    write_output(root, "4/nuclei/findings.jsonl", "")
+    write_output(root, "5/nuclei/coverage.json", json.dumps({"live_urls": 2, "given_urls": 2, "limit": 200, "quick": False,
+                                                              "timed_out": False, "last_stats": None}))   # full run, not truncated
+    write_output(root, "5/nuclei/findings.jsonl", "")
+    with db.connect() as conn, conn:
+        conn.execute("UPDATE scan_run SET status='done' WHERE id=?", (result.scan_id,))
+    nuclei = {p["key"]: p for p in build_report(settings, db, result.scan_id)["phases"]}["nuclei"]
+    assert "mỗi lượt có giới hạn riêng: 50, 200 URL" in nuclei["detail"]
+    assert "giới hạn 200 URL mỗi lượt" not in nuclei["detail"]           # the old, wrong single-limit phrasing
 
 
 def test_run_report_falls_back_to_the_old_line_count_without_a_coverage_file(settings):

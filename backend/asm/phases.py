@@ -173,7 +173,14 @@ def structured_result(key, root):
             return None
         detail = f"{nuclei['given_urls']}/{nuclei['live_urls']} URL đang sống được đưa cho nuclei"
         if nuclei["truncated"]:
-            detail += f" (giới hạn {nuclei['limit']} URL mỗi lượt — phần còn lại KHÔNG được quét)"
+            # V161_HOST_AUDIT.md C8: a scan can mix a quick (limit 50) and a full (limit 200) run; naming just one
+            # limit claimed the wrong one applied to the truncated lượt. Say exactly which limit(s) were in play.
+            if len(nuclei["limits"]) == 1:
+                detail += f" (giới hạn {nuclei['limits'][0]} URL mỗi lượt — phần còn lại KHÔNG được quét)"
+            elif nuclei["limits"]:
+                detail += f" (mỗi lượt có giới hạn riêng: {', '.join(str(limit) for limit in nuclei['limits'])} URL — phần còn lại KHÔNG được quét)"
+            else:
+                detail += " (một số lượt bị cắt theo giới hạn URL mỗi lượt — phần còn lại KHÔNG được quét)"
         if nuclei["templates"] is not None:
             detail += f"; nuclei tự báo đã chạy {nuclei['templates']} template"
             if nuclei["requests"] is not None:
@@ -183,9 +190,13 @@ def structured_result(key, root):
             detail += " (khác với số template ĐÃ CÀI trong Công cụ & môi trường)"
         if nuclei["timed_out"]:
             detail += " — DỞ DANG: nuclei bị cắt khi hết thời gian, số liệu trên chỉ tính tới lúc đó"
-        # "partial" (status "Chạy dở dang") is reserved for a run that was interrupted; the 50/200 cap is a designed
-        # limit, not an interruption, so a truncated-but-finished run stays "ran" and lets `detail` say the rest.
-        return nuclei["findings"], detail, nuclei["timed_out"], nuclei
+        if nuclei["failed"]:
+            # V161_HOST_AUDIT.md C9: nuclei exiting on a real error (bad template, bad config…) used to look exactly
+            # like "ran, found nothing". Say it failed; do not let the generic "0 kết quả" phrasing imply it ran clean.
+            detail += " — LỖI: nuclei không chạy được (cấu hình hoặc template hỏng — xem nuclei/stats.jsonl); số liệu trên không đại diện cho một lượt quét thật"
+        # "partial" (status "Chạy dở dang") is reserved for a run that was interrupted or failed; the 50/200 cap is a
+        # designed limit, not an interruption, so a truncated-but-finished-cleanly run stays "ran".
+        return nuclei["findings"], detail, nuclei["timed_out"] or nuclei["failed"], nuclei
     if key == "dir_fuzz":
         dirs = results.summarize_dirs(root)
         if not dirs["found"]:

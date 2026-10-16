@@ -48,3 +48,10 @@ Không làm: đồ thị quan hệ subdomain/IP (nặng, ít giá trị); treema
 4. Nhập kết quả ffuf và nmap vào bảng dữ liệu có cấu trúc (tab “Đường dẫn dò được”, “Cổng/Dịch vụ”).
 5. Ngân sách tự co giãn theo số host khám phá.
 6. Sửa `open_ports.txt` ở engine (submodule): parse đúng từng cặp host/cổng (BBASM đã bù ở tầng đọc).
+
+## Độ phủ nuclei (NUCLEI_COVERAGE_FOLLOWUP.md → NOTES v1.6.1/v1.6.2) — quan sát đã sửa, giới hạn vẫn chờ quyết định
+**Đã sửa (quan sát, không đổi giới hạn):** `recon_engine.sh` giờ ghi `nuclei/coverage.json` (URL thật đưa vào, bị cắt bao nhiêu, template/request nuclei tự báo, timeout, lỗi); Run hiện số thật thay vì chỉ "14.036 template đã cài". Xem chi tiết NOTES v1.6.1, v1.6.2.
+**Chưa làm — cần quyết định:**
+- Giới hạn cứng **50 URL/lượt (quick) hoặc 200 (full)** cho mỗi lệnh nuclei vẫn còn (`NUC_LIMIT` trong `recon_engine.sh`). Một scan Strong có hàng trăm URL sống vẫn chỉ nuclei được một phần mỗi lượt. Phương án: (a) giữ nguyên, chỉ hiện rõ số bị bỏ (hiện trạng); (b) tăng giới hạn kèm siết `-maxtime`/`-rl`; (c) thêm vòng "nuclei tiếp" trên phần chưa được đưa vào — nên làm cùng lúc với mục 2 ("Probe tiếp") ở trên nếu chọn hướng này, không làm hai lần.
+- Chưa đo `nuclei/stats.jsonl` phình bao nhiêu ở một scan Strong dài thật (~1800s); chỉ đo được tới ~44s trên fixture.
+- Chưa chạy một scan Strong **qua orchestration thật** (nhiều lệnh nuclei trong 1 scan, main + deep) để xác nhận gộp đúng ngoài fixture ghép tay.
