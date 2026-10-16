@@ -32,12 +32,8 @@ Không còn mục nào (A3–A7 và hiển thị lỗi lịch đã xử lý, xem
 - Hành động trên nút: chép URL, mở tab mới, (sau này) "loại trừ nhánh này" ghi vào lựa chọn loại trừ của program (liên quan F1).
 - Tiêu chí: 12k URL không treo UI; sắp xếp ổn định; mở/thu bằng chuột và bàn phím; số cây con khớp bảng; test Vitest + test API cho một cấp con.
 
-**V2 — Gợi ý cải thiện visualization khác (xếp theo giá trị):**
-1. Xu hướng theo scan trên trang Program (đường host/URL/finding qua các scan; cột mới/đổi/mất mỗi scan) — dữ liệu có sẵn trong `stats_json` và `diff_event`.
-2. Tổng quan: biểu đồ nhỏ phân bố mã trạng thái, top công nghệ, host theo số URL (treemap tuỳ chọn: diện tích = số URL, màu = điểm cao nhất).
-3. Run: dòng thời gian (Gantt) các giai đoạn, ngân sách so với đã dùng — chẩn đoán kiểu Wolt #43.
-4. Findings: ma trận mức nghiêm trọng × host.
-5. Không làm: đồ thị quan hệ subdomain/IP (nặng, ít giá trị). Mọi biểu đồ tuân theo bảng màu/dark mode hiện có, không dùng màu làm tín hiệu duy nhất.
+**V2 — biểu đồ — ĐÃ LÀM (NOTES v1.5.4):** xu hướng theo scan, phân bố mã trạng thái/công nghệ/host theo số URL, ma trận mức nghiêm trọng × host, thanh thời gian dùng/ngân sách từng giai đoạn ở trang Run.
+Không làm: đồ thị quan hệ subdomain/IP (nặng, ít giá trị); treemap diện tích (thanh ngang đủ so sánh và đọc được bằng chữ).
 
 ## Tính năng sau này (chưa triển khai): so sánh sitemap với Burp Suite
 - Import sitemap xuất từ Burp (XML "save items", có thể cả "Copy URLs"), **chỉ giữ method/URL/status/length/mime, bỏ body request/response**; đọc dạng luồng,

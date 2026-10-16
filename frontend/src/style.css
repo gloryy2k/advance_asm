@@ -346,3 +346,34 @@ table.stages th { color: var(--muted); font-weight: 600; font-size: 12px; text-t
 .card.archived:hover { opacity: 1; }
 .archived-banner .delete-panel { margin-top: .8rem; padding-top: .8rem; border-top: 1px solid var(--line, #8884); }
 .archived-banner input { max-width: 28rem; }
+
+/* Charts (Overview) and stage timeline (Run). Every value is printed as text; shapes/patterns, not colour alone, tell series apart. */
+.bars { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.bars li { display: grid; grid-template-columns: minmax(90px, 38%) 1fr auto; gap: 8px; align-items: center; font-size: 13px; }
+.bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-track { background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; height: 12px; display: block; }
+.bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.bar-value { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.dists { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+.sparks { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 8px; }
+.spark { display: grid; gap: 2px; color: var(--accent); }
+.spark .spark-title { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .5px; }
+.spark strong { color: var(--text); font-size: 22px; }
+.spark-delta { color: var(--muted); }
+.spark svg { width: 100%; max-width: 220px; height: 48px; }
+.changecols { width: 100%; max-width: 640px; height: auto; display: block; }
+.legend { font-size: 12px; color: var(--muted); }
+.sw { display: inline-block; width: 12px; height: 12px; margin: 0 4px 0 10px; vertical-align: -1px; border: 1px solid var(--border); }
+.sw-new { background: var(--accent); }
+.sw-changed { background: repeating-linear-gradient(45deg, var(--warn) 0 2px, transparent 2px 5px); }
+.sw-gone { background: radial-gradient(var(--bad) 35%, transparent 40%) 0 0 / 5px 5px; }
+.matrix td.has { font-weight: 700; text-align: center; }
+.matrix td.zero { color: var(--muted); text-align: center; }
+.timeline { list-style: none; margin: 8px 0 12px; padding: 0; display: grid; gap: 6px; }
+.timeline li { display: grid; grid-template-columns: minmax(110px, 30%) 1fr auto; gap: 8px; align-items: center; font-size: 13px; }
+.tl-track { position: relative; height: 14px; background: var(--panel-2); border: 1px dashed var(--border); border-radius: 4px; display: block; }
+.tl-used { position: absolute; left: 0; top: 0; bottom: 0; background: var(--info); border-radius: 3px; }
+.tl-used.over { background: repeating-linear-gradient(45deg, var(--bad) 0 4px, transparent 4px 7px); border: 1px solid var(--bad); }
+.changecols { max-width: 420px; max-height: 130px; }
+.bar-value small { display: inline; }
+.bars li { grid-template-columns: minmax(90px, 34%) 1fr minmax(max-content, 9rem); }

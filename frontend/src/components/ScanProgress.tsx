@@ -1,4 +1,4 @@
-import type { ScanProgressData } from "../api/types";
+import type { ScanProgressData, StageRecord } from "../api/types";
 import { Chip } from "./layout";
 
 const STAGE_TONE: Record<string, string> = { ok: "good", running: "warn", error: "warn", timeout: "bad", skipped_budget: "bad", empty: "muted" };
@@ -6,6 +6,29 @@ const STAGE_LABEL: Record<string, string> = {
   ok: "xong", running: "đang chạy", error: "có lệnh lỗi", timeout: "hết thời gian", skipped_budget: "không chạy (hết ngân sách)", empty: "không có việc",
 };
 const SOURCE_LABEL: Record<string, string> = { timeout: "quá thời gian", error: "lỗi", ok: "ổn" };
+
+/** Time used against the budget of each stage, on one scale. Overruns are hatched and spelled out, not only coloured. */
+function StageTimeline({ stages }: { stages: StageRecord[] }) {
+  const rows = stages.filter((st) => st.budget_s > 0 || st.used_s > 0);
+  if (rows.length === 0) return null;
+  const scale = Math.max(1, ...rows.map((st) => Math.max(st.budget_s, st.used_s)));
+  return (
+    <ul className="timeline" aria-label="Thời gian đã dùng so với ngân sách của từng giai đoạn" data-testid="stage-timeline">
+      {rows.map((st) => {
+        const over = st.budget_s > 0 && st.used_s >= st.budget_s;
+        return (
+          <li key={st.key}>
+            <span title={st.label}>{st.label}</span>
+            <span className="tl-track" aria-hidden="true" style={{ width: `${Math.max(8, (st.budget_s || st.used_s) / scale * 100)}%` }}>
+              <span className={"tl-used" + (over ? " over" : "")} style={{ width: `${Math.min(100, st.budget_s ? (st.used_s / st.budget_s) * 100 : 100)}%` }} />
+            </span>
+            <span>{st.used_s}s{st.budget_s ? ` / ${st.budget_s}s` : ""}{over ? " — dùng hết ngân sách" : ""}</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 /** How far a scan really got: which stage ran how long, how many discovered hosts were probed, which sources failed. */
 export function ScanProgress({ data, partial }: { data: ScanProgressData; partial?: boolean }) {
@@ -27,6 +50,7 @@ export function ScanProgress({ data, partial }: { data: ScanProgressData; partia
           )}
         </p>
       )}
+      {stages.length > 0 && <StageTimeline stages={stages} />}
       {stages.length > 0 && (
         <table className="stages">
           <caption className="sr-only">Các giai đoạn của scan</caption>

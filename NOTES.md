@@ -676,3 +676,10 @@ Cây sitemap: dữ liệu và thao tác PASS (mở/thu, Xem thêm 150 mục, bà
 - **Xóa vĩnh viễn** (`lifecycle.py`): chỉ với program đã lưu trữ và không có scan chạy. `GET …/delete-preview` liệt kê chính xác số scan/asset/URL/finding/diff, thư mục và dung lượng; `DELETE …/{slug}` cần `confirm_slug` trùng tên (UI bắt gõ lại). Thứ tự: đặt `deleting_at` → copy audit vào `data/audit-archive` (+ tombstone) → đổi tên `targets/<slug>` sang `targets/.trash` (nguyên tử) → xóa dòng con→cha → xóa trash. Lỗi giữa chừng thì trả thư mục về chỗ cũ; đứt giữa chừng (mất điện) được hoàn tất tiến tới lúc khởi động (`finish_pending`). Từ chối symlink/slug lạ/đường dẫn ngoài `targets`. Log `data/logs/<id>.jsonl` và `_REPORT_CACHE` được dọn vì ID scan có thể được cấp lại (`LogBuffer.forget`).
 - Migration v5 (chỉ thêm cột): `program.archived_at/deleting_at`, `schedule.paused_by_archive`.
 - Tests: `test_v152_lifecycle.py` (7; đã sửa race: đợi worker nền xong rồi mới đặt trạng thái), Vitest +5 (79).
+
+
+## v1.5.4 — V2: biểu đồ
+- `GET /api/programs/{slug}/charts`: xu hướng của tối đa 30 scan hoàn tất gần nhất (host live, URL, finding từ `stats_json`; mới/đổi/mất từ `diff_event`), phân bố mã trạng thái (theo lớp 2xx…/chưa probe và mã phổ biến), top 10 công nghệ, top 10 host theo số URL (kèm điểm cao nhất), ma trận mức nghiêm trọng × tối đa 8 host nhiều finding. Chỉ tính host còn `active`. Chỉ đọc DB, không chạm target.
+- Trang Program › Tổng quan có 3 panel: Xu hướng, Bề mặt hiện tại, Ma trận. Cần ≥ 2 scan hoàn tất mới vẽ xu hướng (nếu không có câu giải thích). Mọi giá trị đều in thành chữ (số, mũi tên ▲/▼ kèm chênh lệch so với scan trước), cột mới/đổi/mất khác nhau bằng họa tiết (đặc / sọc / chấm) chứ không chỉ màu, có "Xem dạng bảng", ô ma trận in số; dùng biến màu có sẵn nên theo dark mode.
+- Run: thanh thời gian từng giai đoạn (đã dùng so với ngân sách, cùng một thang), giai đoạn dùng hết ngân sách có sọc và ghi chữ "dùng hết ngân sách". Chưa làm Gantt theo thời điểm bắt đầu vì dữ liệu chưa ghi thời điểm bắt đầu từng giai đoạn.
+- Tests: `test_v153_charts.py` (2), Vitest +3 (82). Kiểm bằng trình duyệt thật 1366px sáng/tối: không cuộn ngang, không lỗi JS.

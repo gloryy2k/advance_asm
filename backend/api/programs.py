@@ -132,6 +132,66 @@ def _schedule_view(row):
     return view
 
 
+TREND_SCANS = 30
+SEVERITIES = ("critical", "high", "medium", "low", "info")
+
+
+@router.get("/{slug}/charts")
+def charts(slug: str, request: Request):
+    """Numbers behind the Overview charts: the trend across completed scans and what the current inventory looks like.
+    Every series is also shown as text/table by the page, so none of it relies on colour alone."""
+    from collections import Counter
+    database = request.app.state.database
+    program = program_row(database, slug)
+    pid = program["id"]
+    with database.connect() as conn:
+        scans = [dict(r) for r in conn.execute(
+            "SELECT id,depth,status,finished_at,stats_json FROM scan_run WHERE program_id=? AND status IN ('done','done_partial') ORDER BY id DESC LIMIT ?",
+            (pid, TREND_SCANS))][::-1]
+        changes = {}
+        if scans:
+            marks = ",".join("?" * len(scans))
+            for scan_id, change, n in conn.execute(
+                    f"SELECT scan_run_id,change,count(*) FROM diff_event WHERE program_id=? AND scan_run_id IN ({marks}) GROUP BY scan_run_id,change",
+                    (pid, *[s["id"] for s in scans])):
+                changes.setdefault(scan_id, {})[change] = n
+        assets = conn.execute("SELECT id,host,status_code,tech_json FROM asset WHERE program_id=? AND state='active'", (pid,)).fetchall()
+        by_asset = {r["id"]: r["host"] for r in assets}
+        url_rows = conn.execute("SELECT asset_id,count(*),max(COALESCE(score,0)) FROM url WHERE program_id=? AND asset_id IS NOT NULL GROUP BY asset_id", (pid,)).fetchall()
+        finding_rows = conn.execute("SELECT asset_id,severity,count(*) FROM finding WHERE program_id=? GROUP BY asset_id,severity", (pid,)).fetchall()
+    trend = []
+    for scan in scans:
+        stats = json.loads(scan.pop("stats_json") or "{}")
+        diff = changes.get(scan["id"], {})
+        trend.append({**scan, "hosts": stats.get("subs"), "live": stats.get("live"), "urls": stats.get("urls"), "findings": stats.get("findings"),
+                      "new": diff.get("new", 0), "changed": diff.get("changed", 0), "gone": diff.get("gone", 0)})
+    classes = Counter()
+    codes = Counter()
+    tech = Counter()
+    for asset in assets:
+        code = asset["status_code"]
+        classes[f"{code // 100}xx" if code else "none"] += 1
+        if code:
+            codes[code] += 1
+        try:
+            tech.update(set(json.loads(asset["tech_json"] or "[]")))
+        except ValueError:
+            pass
+    hosts = sorted(((by_asset[a], n, score) for a, n, score in url_rows if a in by_asset), key=lambda r: (-r[1], r[0]))[:10]
+    per_host = {}
+    for asset_id, severity, n in finding_rows:
+        host = by_asset.get(asset_id, "(không gắn host)")
+        per_host.setdefault(host, Counter())[severity or "info"] += n
+    matrix_hosts = sorted(per_host.items(), key=lambda kv: (-sum(kv[1].values()), kv[0]))[:8]
+    return {
+        "trend": trend, "truncated": len(trend) == TREND_SCANS,
+        "status": {"classes": dict(classes), "codes": [{"code": c, "count": n} for c, n in codes.most_common(8)], "total": len(assets)},
+        "tech": [{"name": name, "count": n} for name, n in sorted(tech.items(), key=lambda kv: (-kv[1], kv[0]))[:10]],
+        "hosts_by_urls": [{"host": h, "urls": n, "top_score": round(score, 1)} for h, n, score in hosts],
+        "severity_matrix": {"severities": list(SEVERITIES), "hosts": [{"host": h, **{s: c.get(s, 0) for s in SEVERITIES}} for h, c in matrix_hosts]},
+    }
+
+
 @router.get("/{slug}/summary")
 def summary(slug: str, request: Request):
     """Everything the Program overview needs in one call (no list endpoints scraped by the UI)."""

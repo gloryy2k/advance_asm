@@ -363,3 +363,12 @@ export type DeletePreview = {
   folder: { path: string; files: number; bytes: number };
   blockers: string[];
 };
+
+export type ChartsData = {
+  trend: { id: number; depth: Depth; status: string; finished_at: string | null; hosts: number | null; live: number | null; urls: number | null; findings: number | null; new: number; changed: number; gone: number }[];
+  truncated: boolean;
+  status: { classes: Record<string, number>; codes: { code: number; count: number }[]; total: number };
+  tech: { name: string; count: number }[];
+  hosts_by_urls: { host: string; urls: number; top_score: number }[];
+  severity_matrix: { severities: string[]; hosts: ({ host: string } & Record<string, number | string>)[] };
+};

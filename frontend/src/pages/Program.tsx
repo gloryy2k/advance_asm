@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { api, apiPage } from "../api/client";
-import type { Asset, Depth, Profile, Summary, Trust, UrlSummary } from "../api/types";
+import type { Asset, ChartsData, Depth, Profile, Summary, Trust, UrlSummary } from "../api/types";
+import { Distributions, SeverityMatrix, TrendChart } from "../components/Charts";
 import { ScanProgress } from "../components/ScanProgress";
 import { HuntCard } from "../components/HuntCard";
 import { Chip, PageHead, Panel, Segmented, TrustBadge } from "../components/layout";
@@ -98,6 +99,7 @@ function Overview({ slug, summary, detail, urls, reload }: { slug: string; summa
   const [ack, setAck] = useState(false);
   const [skipHeader, setSkipHeader] = useState(false);
   const [error, setError] = useState("");
+  const charts = useData<ChartsData>(summary.last_completed_scan ? "/api/programs/" + encodeURIComponent(slug) + "/charts" : null);
   const enabled = !!summary.schedule?.enabled;
   // A schedule starts from the program's saved defaults (profile, header), exactly like a new draft does.
   const savedNames = (summary.request_headers || []).map((h) => h.split(":")[0].trim());
@@ -153,6 +155,19 @@ function Overview({ slug, summary, detail, urls, reload }: { slug: string; summa
         </Panel>
       )}
       {summary.last_completed_scan && <HuntCard command={summary.hunt_command} note={summary.hunt_note} />}
+      {charts.data && Array.isArray(charts.data.trend) && (
+        <>
+          <Panel id="trend-h" title="Xu hướng qua các scan" hint="Số liệu của từng scan hoàn tất (host live, URL, finding) và thay đổi so với scan trước nó.">
+            <TrendChart trend={charts.data.trend} truncated={charts.data.truncated} />
+          </Panel>
+          <Panel id="dist-h" title="Bề mặt hiện tại" hint="Tính từ inventory đang theo dõi (host chưa biến mất).">
+            <Distributions data={charts.data} />
+          </Panel>
+          <Panel id="matrix-h" title="Finding theo host × mức nghiêm trọng" hint="Tối đa 8 host nhiều finding nhất.">
+            <SeverityMatrix matrix={charts.data.severity_matrix} />
+          </Panel>
+        </>
+      )}
       <div className="review-grid">
         <Panel id="top-h" title="Top 5 bề mặt đáng xem" hint="Xếp hạng theo tín hiệu (API, đăng nhập, tech rủi ro, mới…).">
           {summary.top_surface.length === 0 ? <p className="muted">Chưa có dữ liệu — chạy một scan hoàn tất.</p> : (

@@ -925,7 +925,7 @@ describe("v1.3: policy header, OUT paths, stages and coverage", () => {
     expect(coverage).toHaveTextContent("720");
     expect(coverage).toHaveTextContent(/chưa probe\s*716/);
     expect(coverage).toHaveTextContent("không bị coi là đã biến mất");
-    const probe = screen.getByText("Probe host đã khám phá").closest("tr")!;
+    const probe = document.querySelector("tr[data-stage=\"probe\"]") as HTMLElement;
     expect(within(probe).getByText("hết thời gian")).toBeInTheDocument();
     expect(within(probe).getByText("270s / 270s")).toBeInTheDocument();
     expect(screen.getByText("web.archive.org").closest("p")).toHaveTextContent("web.archive.org quá thời gian sau 45s");
@@ -1386,5 +1386,66 @@ describe("Drafts cleanup and program lifecycle (archive / restore / delete)", ()
     location.hash = "/scan/4/review";
     render(<App />);
     expect(await screen.findByTestId("review-archived")).toHaveTextContent(/khôi phục/);
+  });
+});
+
+describe("Charts (V2): trend, distributions, severity matrix, stage timeline", () => {
+  const chartData = (over: object = {}) => ({
+    trend: [
+      { id: 3, depth: "light", status: "done", finished_at: null, hosts: 5, live: 3, urls: 40, findings: 1, new: 3, changed: 0, gone: 0 },
+      { id: 5, depth: "light", status: "done", finished_at: null, hosts: 7, live: 6, urls: 30, findings: 2, new: 4, changed: 1, gone: 2 },
+    ],
+    truncated: false,
+    status: { classes: { "2xx": 5, "4xx": 2, none: 1 }, codes: [{ code: 200, count: 5 }], total: 8 },
+    tech: [{ name: "nginx", count: 6 }],
+    hosts_by_urls: [{ host: "a.example.com", urls: 120, top_score: 6.5 }],
+    severity_matrix: { severities: ["critical", "high", "medium", "low", "info"], hosts: [{ host: "a.example.com", critical: 0, high: 2, medium: 0, low: 1, info: 0 }] },
+    ...over,
+  });
+  const summary = { slug: "acme", source: "h1", handle: "acme", target_path: "/t/acme", hunt_command: "cd x", hunt_note: "", latest_scan: { id: 5, status: "done", depth: "light" },
+    last_completed_scan: { id: 5, status: "done", depth: "light" }, changes: { new: 4, changed: 1, gone: 2 }, findings_by_severity: {}, assets_active: 8, top_surface: [], draft_count: 0, schedule: null };
+
+  test("Overview prints the trend with deltas, a table alternative, distributions and the matrix", async () => {
+    stubFetch((path) => path.endsWith("/charts") ? chartData() : path.endsWith("/summary") ? summary : {});
+    location.hash = "/program/acme";
+    render(<App />);
+    const trend = await screen.findByTestId("trend");
+    const urls = trend.querySelector('[data-metric="URL"]')!;
+    expect(urls).toHaveTextContent("30");
+    expect(urls).toHaveTextContent(/▼ .*10 so với scan trước/);                 // the direction is text, not only a line going down
+    expect(trend.querySelector('svg[aria-label^="Thay đổi mỗi scan"]')!.getAttribute("aria-label")).toContain("#5: 4/1/2");
+    fireEvent.click(screen.getByText("Xem dạng bảng"));
+    expect(within(trend.querySelector("table")!).getByRole("link", { name: "#5" })).toHaveAttribute("href", "#/scan/5");
+    const dist = screen.getByTestId("distributions");
+    expect(dist).toHaveTextContent("2xx thành công");
+    expect(dist).toHaveTextContent("Chưa probe HTTP");
+    expect(dist).toHaveTextContent("nginx");
+    expect(dist).toHaveTextContent(/a\.example\.com.*120/);
+    const matrix = screen.getByTestId("severity-matrix");
+    expect(within(matrix).getByRole("cell", { name: "2" })).toBeInTheDocument();
+  });
+
+  test("a single completed scan says a trend needs two, and an empty program draws nothing", async () => {
+    stubFetch((path) => path.endsWith("/charts") ? chartData({ trend: chartData().trend.slice(1), hosts_by_urls: [], tech: [], severity_matrix: { severities: [], hosts: [] }, status: { classes: {}, codes: [], total: 0 } })
+      : path.endsWith("/summary") ? summary : {});
+    location.hash = "/program/acme";
+    render(<App />);
+    expect(await screen.findByTestId("trend-empty")).toHaveTextContent(/ít nhất hai scan/);
+    expect(screen.getByText("Chưa có host.")).toBeInTheDocument();
+    expect(screen.getByText(/Chưa có finding để lập ma trận/)).toBeInTheDocument();
+  });
+
+  test("Run: the stage timeline shows used vs budget and spells out an exhausted budget", async () => {
+    const { ScanProgress } = await import("./components/ScanProgress");
+    render(<ScanProgress data={{ stages: [
+      { key: "discovery", label: "Khám phá", status: "ok", budget_s: 100, used_s: 40, commands: 3 },
+      { key: "probe", label: "Probe", status: "timeout", budget_s: 60, used_s: 60, commands: 2 },
+      { key: "deep", label: "Sâu", status: "empty", budget_s: 0, used_s: 0, commands: 0 },
+    ] }} />);
+    const timeline = screen.getByTestId("stage-timeline");
+    expect(within(timeline).getAllByRole("listitem")).toHaveLength(2);           // a stage with no budget and no time is not drawn
+    expect(timeline).toHaveTextContent("40s / 100s");
+    expect(timeline).toHaveTextContent("60s / 60s — dùng hết ngân sách");
+    expect(timeline.textContent).not.toContain("40s / 100s — dùng hết");
   });
 });
