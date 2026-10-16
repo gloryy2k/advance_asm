@@ -10,11 +10,8 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 
 | ID | Ưu tiên | Owner | Trạng thái | base_commit | result_commit | Tóm tắt |
 | --- | --- | --- | --- | --- | --- | --- |
-| NUC-1 | P1 | Claude | READY_FOR_QA | f20a636 | `d65c4f5` (BBASM) + `488d910` (submodule claude-bug-bounty) | `coverage.json` luôn là JSON hợp lệ khi nuclei lỗi; field `failed` mới. Sửa cả 2 finding C9 của V161_HOST_AUDIT.md. |
-| NUC-2 | P1 | Claude | READY_FOR_QA | f20a636 | `d65c4f5` | `summarize_nuclei()` trả `limits` (danh sách) thay vì `limit` của lượt đầu; Run hiện đúng giới hạn khi scan gộp quick+full. Sửa finding C8. |
-| DOC-1 | P3 | Claude | DONE | f20a636 | `d65c4f5` | `NOTES.md` +v1.6.1/v1.6.2, `BACKLOG.md` +mục "Độ phủ nuclei", `CLOUD_TO_LOCAL_HANDOFF.md` ghi chú lỗi thời. Không cần QA (tài liệu). |
-| NUC-3 | P2 | Codex | OPEN | d65c4f5 | — | Đo `nuclei/stats.jsonl` phình bao nhiêu ở fixture chạy dài hơn 12s hiện có (vài trăm giây), không cần sửa gì nếu không có vấn đề. Chỉ làm **sau khi** NUC-1/NUC-2 có PASS. |
-| NUC-4 | P2 | Codex | OPEN | d65c4f5 | — | Chạy 1 scan Strong qua orchestration thật (`ReconOrchestrator`/`JobRunner`, không gọi tay `recon_engine.sh`) với ≥2 lệnh chạm Phase 9 (main+deep), xác nhận `build_report` gộp đúng ngoài fixture ghép tay. Chỉ làm **sau khi** NUC-1/NUC-2 PASS. |
+| NUC-3 | P2 | Codex | OPEN | d65c4f5 | — | Đo `nuclei/stats.jsonl` phình bao nhiêu ở fixture chạy dài hơn 12s hiện có (vài trăm giây), không cần sửa gì nếu không có vấn đề. |
+| NUC-4 | P2 | Codex | OPEN | d65c4f5 | — | Chạy 1 scan Strong qua orchestration thật (`ReconOrchestrator`/`JobRunner`, không gọi tay `recon_engine.sh`) với ≥2 lệnh chạm Phase 9 (main+deep), xác nhận `build_report` gộp đúng ngoài fixture ghép tay. |
 | UX-1 | P3 | Claude | OPEN | — (chưa bắt đầu) | — | Kết quả ffuf/nmap vào bảng dữ liệu riêng (route API mới), không chỉ đọc lúc dựng Run. Không phụ thuộc nhóm NUC. |
 | ENG-1 | P4 | Claude | OPEN | — | — | Sửa `open_ports.txt` ở `recon_engine.sh` (submodule) parse đúng mọi cặp host/cổng. Không khẩn (BBASM đã bù ở tầng đọc). |
 
@@ -23,7 +20,10 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 | ID | Kết quả | Commit | Ghi chú |
 | --- | --- | --- | --- |
 | (v1.6.1) Repair idempotency + test cô lập PATH | PASS (QA Codex `test/v161-host-audit`@6b9efe6, mã C1/C2) | `1e26cfe` | Xem NOTES.md v1.6.1. |
-| (v1.6.1) Nuclei coverage.json + stats-json | PASS (QA Codex, mã C4-C7) | `7428043`, `f20a636` | Xem NOTES.md v1.6.1. Phát sinh C8, C9 → NUC-1, NUC-2 ở trên. |
+| (v1.6.1) Nuclei coverage.json + stats-json | PASS (QA Codex, mã C4-C7) | `7428043`, `f20a636` | Xem NOTES.md v1.6.1. Phát sinh C8, C9 → NUC-1, NUC-2. |
+| NUC-1 — coverage.json hỏng khi nuclei lỗi | **PASS** (QA Codex `test/v162-host-audit`@03c1f6b) | `d65c4f5` (BBASM) + `6638e72` (submodule, sau khi vá thêm log "[DONE] nuclei: no findings" sai mà Codex phát hiện) | Codex: nuclei thoát mã 1, `coverage.json` parse được, `failed=true`, Run hiện đúng "LỖI: nuclei không chạy được", không hiện `n/a`/sentinel. |
+| NUC-2 — giới hạn sai khi gộp quick/full | **PASS** (QA Codex `test/v162-host-audit`@03c1f6b) | `d65c4f5` | Codex: gộp quick (50/60) + full (2/2) → `limits=[50,200]`, detail "mỗi lượt có giới hạn riêng: 50, 200 URL", không còn câu sai. |
+| DOC-1 | DONE (không cần QA) | `d65c4f5` | `NOTES.md` +v1.6.1/v1.6.2, `BACKLOG.md` +mục "Độ phủ nuclei", `CLOUD_TO_LOCAL_HANDOFF.md` ghi chú lỗi thời. |
 
 ## Quyết định sản phẩm đang chờ bạn (không lên task thi công tới khi chốt)
 
