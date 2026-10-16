@@ -283,7 +283,7 @@ function HostsView({ base, kind }: { base: string; kind: "surface" | "assets" })
 
 function DataArea({ slug, view }: { slug: string; view: string }) {
   const base = "/api/programs/" + encodeURIComponent(slug);
-  const current = ["hosts", "urls", "surface"].includes(view) ? view : "urls";
+  const current = ["hosts", "urls", "surface", "ports", "dirs"].includes(view) ? view : "urls";
   const params = routeParams();
   const initial: Record<string, string> = {};
   for (const k of ["tag", "verification", "shape", "min_score", "scan"]) if (params.get(k)) initial[k] = params.get(k)!;
@@ -291,15 +291,93 @@ function DataArea({ slug, view }: { slug: string; view: string }) {
     hosts: ["Danh sách host", "Mọi host/IP thuộc scope mà các bước tìm subdomain và probe HTTP thu được: trạng thái, tiêu đề, công nghệ.", "Từ bước “Tìm subdomain” và “Probe HTTP”."],
     urls: ["URL & endpoint", "URL đã qua scope gate, xếp theo điểm đáng xem. Biết rõ URL lấy từ đâu và đã kiểm chứng chưa.", "Từ bước “URL lịch sử”, “Crawl chủ động” và “Phân tích JavaScript”."],
     surface: ["Xếp hạng bề mặt", "Host được chấm điểm theo tín hiệu (API, đăng nhập, tech rủi ro, mới, nuclei…).", "Tính tự động sau mỗi scan."],
+    ports: ["Cổng/Dịch vụ", "Cổng mở và dịch vụ nmap tìm thấy trên host đang chạy, của scan gần nhất (hoặc scan bạn chọn).", "Từ bước “Quét cổng”. Chỉ chạy ở mức Strong."],
+    dirs: ["Đường dẫn dò được", "Đường dẫn ffuf dò thấy, đã loại trang chặn/mặc định giống nhau lặp lại (nhiễu).", "Từ bước “Dò thư mục”. Chỉ chạy ở mức Strong."],
   }[current]!;
   return (
     <>
       <Segmented label="Loại dữ liệu" value={current as any} onChange={(v) => go(programPath(slug, "data", v))}
-        options={[{ value: "urls", label: "URL & endpoint" }, { value: "hosts", label: "Host" }, { value: "surface", label: "Xếp hạng" }]} />
+        options={[{ value: "urls", label: "URL & endpoint" }, { value: "hosts", label: "Host" }, { value: "surface", label: "Xếp hạng" },
+                  { value: "ports", label: "Cổng/Dịch vụ" }, { value: "dirs", label: "Đường dẫn dò được" }]} />
       <p className="viewintro"><strong>{info[0]}.</strong> {info[1]} <span className="muted">{info[2]}</span></p>
       {current === "urls" ? <UrlExplorer key={JSON.stringify(initial)} slug={slug} initial={initial} />
+        : current === "ports" ? <PortsView base={base} />
+        : current === "dirs" ? <DirsView base={base} />
         : <HostsView key={current} base={base} kind={current === "surface" ? "surface" : "assets"} />}
     </>
+  );
+}
+
+/* ───────────── Cổng/Dịch vụ (nmap), Đường dẫn dò được (ffuf) — BACKLOG mục 4: bảng riêng, không chỉ đọc lúc dựng Run ───────────── */
+function PortsView({ base }: { base: string }) {
+  const result = useData<any>(base + "/ports");
+  return (
+    <State data={result.data} error={result.error}>
+      {!result.data?.found ? (
+        <EmptyState title="Chưa có dữ liệu cổng">nmap chỉ chạy ở mức Strong khi chưa tắt. Quét Strong để có dữ liệu cổng/dịch vụ.</EmptyState>
+      ) : (
+        <>
+          {!result.data.complete && <p className="muted" data-testid="ports-partial">DỞ DANG: nmap dừng trước khi quét xong, chỉ gồm các host đã xong.</p>}
+          {result.data.cdn.length > 0 && (
+            <p className="muted" data-testid="ports-cdn">{result.data.cdn_pairs} cặp nằm trên IP của {result.data.cdn.join(", ")} (CDN/biên dùng chung): đây là cổng của CDN, chưa chứng minh là cổng của máy chủ gốc (origin) hay của ứng dụng.</p>
+          )}
+          {result.data.rows.length === 0 ? (
+            <EmptyState title="Không có cổng mở">nmap đã chạy nhưng không tìm thấy cổng mở nào trên host đã quét.</EmptyState>
+          ) : (
+            <div className="table-wrap" tabIndex={0} role="region" aria-label="Bảng dữ liệu, cuộn được">
+              <table>
+                <thead><tr><th>Host</th><th>IP</th><th>Cổng</th><th>Giao thức</th><th>Dịch vụ</th></tr></thead>
+                <tbody>
+                  {result.data.rows.map((r: any, i: number) => (
+                    <tr key={i}>
+                      <td><strong>{r.host}</strong>{result.data.cdn_hosts.includes(r.host) && <Badge>CDN</Badge>}</td>
+                      <td>{r.ip}</td><td>{r.port}</td><td>{r.proto}</td><td>{[r.service, r.version].filter(Boolean).join(" ") || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </State>
+  );
+}
+
+function DirsView({ base }: { base: string }) {
+  const result = useData<any>(base + "/dirs");
+  return (
+    <State data={result.data} error={result.error}>
+      {!result.data?.found ? (
+        <EmptyState title="Chưa có dữ liệu dò thư mục">ffuf chỉ chạy ở mức Strong khi chưa tắt. Quét Strong để có dữ liệu.</EmptyState>
+      ) : (
+        <>
+          <p className="muted" data-testid="dirs-summary">{result.data.total} phản hồi trên {result.data.hosts.length} host; {result.data.noise} giống hệt nhau (trang chặn/trang mặc định chung) đã loại, còn {result.data.significant} đáng xem.</p>
+          {result.data.blocked_only.length > 0 && (
+            <p className="muted" data-testid="dirs-blocked-only">Chỉ có HTTP 403 ở: {result.data.blocked_only.join(", ")} — 403 không chứng minh đường dẫn tồn tại.</p>
+          )}
+          {result.data.hosts.length === 0 ? (
+            <EmptyState title="Không có kết quả">ffuf đã chạy nhưng chưa có host nào trả kết quả.</EmptyState>
+          ) : result.data.hosts.map((h: any) => (
+            <div key={h.host} className="panel">
+              <h4>{h.host} <span className="muted">({h.total - h.noise}/{h.total} đáng xem)</span></h4>
+              {h.significant.length === 0 ? <p className="muted">Toàn nhiễu (trang chặn/mặc định giống nhau) — không có đường dẫn đáng xem.</p> : (
+                <div className="table-wrap" tabIndex={0} role="region" aria-label="Bảng dữ liệu, cuộn được">
+                  <table>
+                    <thead><tr><th>URL</th><th>Mã</th><th>Kích thước</th></tr></thead>
+                    <tbody>
+                      {h.significant.map((r: any, i: number) => (
+                        <tr key={i}><td>{r.url}</td><td>{r.status}</td><td>{r.length}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+    </State>
   );
 }
 

@@ -87,6 +87,48 @@ def surface(slug: str, request: Request, limit: int = Query(25, ge=1, le=1000)):
     return assets(slug, request, None, "active", 0, "", None, limit, 0)
 
 
+def _resolve_scan_id(conn, program_id, scan):
+    """A specific scan to read on-disk output for (ports/dirs live per scan folder, not a DB table)."""
+    if scan == "latest":
+        row = conn.execute("SELECT id FROM scan_run WHERE program_id=? AND status IN ('done','done_partial') ORDER BY id DESC LIMIT 1", (program_id,)).fetchone()
+        return row["id"] if row else None
+    if scan.isdigit() and int(scan) < 2**31:
+        row = conn.execute("SELECT id FROM scan_run WHERE program_id=? AND id=?", (program_id, int(scan))).fetchone()
+        return row["id"] if row else None
+    raise ScopeError("scan phải là latest hoặc số scan", "invalid_scan")
+
+
+@router.get("/{slug}/ports")
+def ports(slug: str, request: Request, scan: str = Query("latest", max_length=12)):
+    """nmap results of one scan (BACKLOG mục 4: bảng "Cổng/Dịch vụ" riêng, không chỉ đọc lúc dựng Run). Luôn đọc
+    lại từ đĩa — không có bảng DB cho dữ liệu này, cùng nguồn `backend.asm.results.summarize_ports` mà Run dùng."""
+    from backend.asm import results as asm_results
+    from backend.asm.phases import scan_root
+    database, settings = request.app.state.database, request.app.state.settings
+    program = program_row(database, slug)
+    with database.connect() as conn:
+        scan_id = _resolve_scan_id(conn, program["id"], scan)
+    if scan_id is None:
+        return {"found": False, "scan_id": None, "pairs": [], "hosts": 0, "unique_ports": 0, "complete": False,
+                "files": [], "rows": [], "cdn": [], "cdn_hosts": [], "cdn_pairs": 0}
+    return {**asm_results.summarize_ports(scan_root(settings, slug, scan_id)), "scan_id": scan_id}
+
+
+@router.get("/{slug}/dirs")
+def dirs(slug: str, request: Request, scan: str = Query("latest", max_length=12)):
+    """ffuf results of one scan (BACKLOG mục 4: bảng "Đường dẫn dò được" riêng). Cùng nguồn
+    `backend.asm.results.summarize_dirs` mà Run dùng; trang nhiễu (403 lặp…) đã bị loại ở đó."""
+    from backend.asm import results as asm_results
+    from backend.asm.phases import scan_root
+    database, settings = request.app.state.database, request.app.state.settings
+    program = program_row(database, slug)
+    with database.connect() as conn:
+        scan_id = _resolve_scan_id(conn, program["id"], scan)
+    if scan_id is None:
+        return {"found": False, "scan_id": None, "hosts": [], "total": 0, "noise": 0, "significant": 0, "blocked_only": []}
+    return {**asm_results.summarize_dirs(scan_root(settings, slug, scan_id)), "scan_id": scan_id}
+
+
 @router.get("/{slug}/diff")
 def diff(slug: str, request: Request, response: Response, scan_id: int | None = None,
          change: Literal["new", "changed", "gone"] | None = None,

@@ -1619,3 +1619,41 @@ describe("Run/Overview: what the scan did with each asset", () => {
     expect(note).toHaveTextContent("BBASM chưa giới hạn được theo thư mục");
   });
 });
+
+describe("Dữ liệu › Cổng/Dịch vụ, Đường dẫn dò được (BACKLOG mục 4)", () => {
+  test("Ports: shows pairs, flags CDN ports and a cut-off nmap, same as Run", async () => {
+    stubFetch((path) => path.endsWith("/summary") ? programSummary() : path.endsWith("/ports") ? {
+      found: true, scan_id: 65, hosts: 2, unique_ports: 3, complete: false,
+      files: [], rows: [{ host: "rpc.acme.com", ip: "104.18.1.10", port: 80, proto: "tcp", service: "http", version: "" },
+                         { host: "db.acme.com", ip: "192.0.2.7", port: 22, proto: "tcp", service: "OpenSSH", version: "8.9" }],
+      cdn: ["Cloudflare"], cdn_hosts: ["rpc.acme.com"], cdn_pairs: 1,
+    } : { scans: [] });
+    location.hash = "/program/acme/data?v=ports";
+    render(<App />);
+    expect(await screen.findByText("Cổng/Dịch vụ.", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByTestId("ports-partial")).toHaveTextContent("DỞ DANG: nmap dừng trước khi quét xong");
+    expect(screen.getByTestId("ports-cdn")).toHaveTextContent(/1 cặp nằm trên IP của Cloudflare.*chưa chứng minh/);
+    expect(screen.getByText("rpc.acme.com")).toBeInTheDocument();
+    expect(screen.getByText("OpenSSH 8.9")).toBeInTheDocument();
+  });
+
+  test("Ports: no Strong scan yet says so instead of an empty table", async () => {
+    stubFetch((path) => path.endsWith("/summary") ? programSummary() : path.endsWith("/ports") ? { found: false, scan_id: null, pairs: 0, rows: [] } : { scans: [] });
+    location.hash = "/program/acme/data?v=ports";
+    render(<App />);
+    expect(await screen.findByText(/Chưa có dữ liệu cổng/)).toBeInTheDocument();
+  });
+
+  test("Dirs: groups by host, shows noise removed and a 403-only host", async () => {
+    stubFetch((path) => path.endsWith("/summary") ? programSummary() : path.endsWith("/dirs") ? {
+      found: true, scan_id: 65, total: 26, noise: 24, significant: 2, blocked_only: ["only403.acme.com"],
+      hosts: [{ host: "rpc.acme.com", total: 26, noise: 24, by_status: { "200": 1, "301": 1 },
+                significant: [{ url: "https://rpc.acme.com/admin", status: 200, length: 812 }, { url: "https://rpc.acme.com/api", status: 301, length: 0 }] }],
+    } : { scans: [] });
+    location.hash = "/program/acme/data?v=dirs";
+    render(<App />);
+    expect(await screen.findByTestId("dirs-summary")).toHaveTextContent("26 phản hồi trên 1 host; 24 giống hệt nhau");
+    expect(screen.getByTestId("dirs-blocked-only")).toHaveTextContent("only403.acme.com");
+    expect(screen.getByText("https://rpc.acme.com/admin")).toBeInTheDocument();
+  });
+});
