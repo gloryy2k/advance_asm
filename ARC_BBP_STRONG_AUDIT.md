@@ -59,6 +59,8 @@
 
 ## Giới hạn và lưu ý sử dụng kết quả
 
+**Bổ sung audit Strong:** kiểm tra riêng ffuf/nmap trong [FFUF_NMAP_AUDIT.md](FFUF_NMAP_AUDIT.md). Finding FN1 (P1) giải thích vì sao giai đoạn probe chạy nmap 1.000 cổng trên 126 host rồi timeout; FN2–FN4 ghi lỗi đếm cổng, nhiễu ffuf 403 và trạng thái/kết quả Run không khớp raw output.
+
 - Scan Strong dùng `threads=50`, `rate_limit=150`, timeout 2700s; audit này không xác định các giá trị đó phù hợp với policy thực tế. Snapshot scope có điều kiện “Only for Circle-owned assets” cho `*.arc.io`; BBASM chưa tự xác minh quyền sở hữu từng subdomain.
 - 4 dòng `[GEMFURY]` của subjack là **ứng viên**, chưa phải takeover đã chứng minh. Bảy secret Medium có `verified=false`. Một nuclei Critical và hai Low cần xác minh thủ công trước khi kết luận/report; không tiếp tục probe target trong audit này.
 - 97 asset không có mã HTTP không có nghĩa không tồn tại. `web.archive.org` đã timeout; giai đoạn deep là `empty`, crawl chỉ có 2 URL quan sát. Kết quả Strong này không đại diện cho độ phủ đầy đủ.
