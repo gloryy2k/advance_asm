@@ -51,6 +51,12 @@
 
 **Hướng sửa:** với baseline null, dùng nhãn “132 asset khởi tạo”/“lần ghi nhận đầu”, không gọi là thay đổi so với scan trước.
 
+### F7 — P2 UX/scope: kỳ vọng wildcard bao gồm domain gốc chưa được giải thích ở Review
+
+**Phản hồi của người dùng sau audit:** người dùng kỳ vọng `*.arc.io` cũng bao gồm `arc.io`. Scope đã lưu chỉ có `*.arc.io`; `backend/tests/test_scope_gate.py::test_wildcard_does_not_grant_apex` xác nhận BBASM cố ý không cấp quyền cho apex. Vì vậy 1.301 URL lịch sử của `arc.io` bị loại. Đây là **khác biệt về quy ước**, chưa đủ bằng chứng để kết luận BBASM sai theo policy H1: [tài liệu HackerOne về asset type](https://docs.hackerone.com/en/articles/8486276-asset-types) mô tả Domain và Wildcard là hai asset type riêng nhưng không định nghĩa rõ việc `*.domain` có bao gồm apex hay không.
+
+**Hướng sửa:** Review và URL funnel cần nói thẳng “`*.arc.io` chỉ bao gồm subdomain; `arc.io` đang ngoài scope” thay vì chỉ hiển thị số bị loại. Nếu người dùng muốn đưa apex vào, cho thêm `arc.io` thành asset IN **tường minh** sau khi họ đối chiếu policy chính thức; không âm thầm mở rộng scope H1 và tự động gửi request tới apex. Với raw scope do người dùng nhập, Claude có thể cân nhắc một lựa chọn “bao gồm domain gốc” rõ ràng, có preview và test cho các trường hợp IN/OUT xung đột.
+
 ## Giới hạn và lưu ý sử dụng kết quả
 
 - Scan Strong dùng `threads=50`, `rate_limit=150`, timeout 2700s; audit này không xác định các giá trị đó phù hợp với policy thực tế. Snapshot scope có điều kiện “Only for Circle-owned assets” cho `*.arc.io`; BBASM chưa tự xác minh quyền sở hữu từng subdomain.
