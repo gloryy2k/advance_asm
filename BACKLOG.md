@@ -40,3 +40,28 @@ Chưa có mục nào được triển khai, trừ khi ghi "ĐÃ LÀM".
 ## Đã chốt sau audit luồng input→output (không làm)
 - R1–R7 (chặn request tới endpoint OUT theo đường dẫn): bỏ. Quy tắc của người dùng: **GET tới endpoint OUT trong domain được chấp nhận**, chỉ cần tránh POST/PUT/PATCH/DELETE. Giữ nguyên logic hiện tại (host có path OUT mặc định chỉ probe, có ô cho phép quét chủ động). Không merge phần hạn chế của commit `2d540fd` (xóa ô cho phép, ép probe-only vĩnh viễn).
 - Còn nếu quay lại: nuclei là công cụ duy nhất có thể gửi request không phải GET (template POST) nên khi bật quét chủ động trên host có path OUT có thể cân nhắc `-fhr`; F4 (policy theo draft), F5 (glob OUT), xóa URL OUT cũ trong DB.
+
+## Visualization (thêm 2026-10-16, chưa làm)
+**V1 — Sitemap dạng cây như Burp Suite (ưu tiên cao).** Tab Dữ liệu › URL có thêm chế độ "Cây sitemap" cạnh bảng hiện tại.
+- Cây: host → thư mục → file (→ các biến thể query gộp thành một nút "?id=… N biến thể"). Mỗi nút có mũi tên mở/thu (▸/▾, bàn phím ←/→,
+  `role="tree"`, `aria-expanded`), nút "Mở hết / Thu hết / Mở tới cấp N"; **sắp xếp A→Z** (host rồi từng cấp đường dẫn; tuỳ chọn thư mục trước file,
+  hoặc theo điểm / số URL).
+- Mỗi nút hiện số URL của cây con, điểm cao nhất, nhãn (api/auth/admin…), mức kiểm chứng (đã crawl / lịch sử), "mới", scan thấy lần đầu→gần nhất.
+  Dùng chung bộ lọc và phạm vi scan (mới nhất / tất cả / tới scan N) của UrlExplorer; tìm kiếm tự mở các nhánh khớp.
+- Quy mô (12k+ URL): API `GET /api/programs/{slug}/urls/tree?host=&prefix=&scan=` trả **một cấp con mỗi lần** (tải khi mở nút), tối đa ~200 con/nút kèm "xem thêm";
+  lưu trạng thái mở trong URL/sessionStorage. Không có method/status/length cho mọi URL (httpx chỉ probe gốc) nên hiện mức kiểm chứng thay cho status.
+- Hành động trên nút: chép URL, mở tab mới, (sau này) "loại trừ nhánh này" ghi vào lựa chọn loại trừ của program (liên quan F1).
+- Tiêu chí: 12k URL không treo UI; sắp xếp ổn định; mở/thu bằng chuột và bàn phím; số cây con khớp bảng; test Vitest + test API cho một cấp con.
+
+**V2 — Gợi ý cải thiện visualization khác (xếp theo giá trị):**
+1. Xu hướng theo scan trên trang Program (đường host/URL/finding qua các scan; cột mới/đổi/mất mỗi scan) — dữ liệu có sẵn trong `stats_json` và `diff_event`.
+2. Tổng quan: biểu đồ nhỏ phân bố mã trạng thái, top công nghệ, host theo số URL (treemap tuỳ chọn: diện tích = số URL, màu = điểm cao nhất).
+3. Run: dòng thời gian (Gantt) các giai đoạn, ngân sách so với đã dùng — chẩn đoán kiểu Wolt #43.
+4. Findings: ma trận mức nghiêm trọng × host.
+5. Không làm: đồ thị quan hệ subdomain/IP (nặng, ít giá trị). Mọi biểu đồ tuân theo bảng màu/dark mode hiện có, không dùng màu làm tín hiệu duy nhất.
+
+## Tính năng sau này (chưa triển khai): so sánh sitemap với Burp Suite
+- Import sitemap xuất từ Burp (XML "save items", có thể cả "Copy URLs"), **chỉ giữ method/URL/status/length/mime, bỏ body request/response**; đọc dạng luồng,
+  giới hạn kích thước, tắt entity ngoài; mọi URL phải qua cổng scope (`effective_gate`) và dữ liệu OUT bị bỏ, ghi nguồn `burp`.
+- So sánh hai cây (BBASM vs Burp): chỉ có ở BBASM / chỉ có ở Burp / có ở cả hai (khác status/mime), khoá nút = host + đường dẫn chuẩn hóa + tên tham số.
+  Xem dưới dạng cây có màu + bảng, xuất danh sách khác biệt. Thiết kế V1 để API cây chấp nhận nguồn dữ liệu bất kỳ (scan hoặc import).
