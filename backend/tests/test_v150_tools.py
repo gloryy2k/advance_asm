@@ -51,7 +51,11 @@ def test_deep_check_runs_version_only_on_request_and_caches_it(monkeypatch, sett
         path = fake / name
         path.write_text(f"#!/bin/sh\n{text}\n")
         path.chmod(path.stat().st_mode | stat.S_IEXEC)
-    monkeypatch.setenv("PATH", f"{fake}:/usr/bin:/bin")
+    # Settings.tool_search_path() always prepends ~/go/bin, /opt/homebrew/bin and /usr/local/bin ahead of $PATH (to
+    # match the vendored recon PATH), so setting $PATH alone does not isolate this from a real nuclei/katana the
+    # test machine happens to have installed in one of those fixed directories (v160 host audit). Override the
+    # method itself instead.
+    monkeypatch.setattr(type(settings), "tool_search_path", lambda self: f"{fake}:/usr/bin:/bin")
     with TestClient(create_app(settings)) as client:
         before = {r["id"]: r for r in client.get("/api/tools").json()["tools"]}
         assert before["nuclei"]["version"] is None and before["nuclei"]["pinned_version"]      # the pinned one is known offline

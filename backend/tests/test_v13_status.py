@@ -16,12 +16,16 @@ def parser(settings, depth="light", **kw):
     return ReconLogParser(settings, SimpleNamespace(depth=depth, skip_ffuf=kw.get("skip_ffuf", False)))
 
 
-def test_log_lines_are_tagged_by_cause_not_just_printed(settings):
+def test_log_lines_are_tagged_by_cause_not_just_printed(settings, monkeypatch):
     light, strong = parser(settings), parser(settings, "strong")
     tag, = [light.parse("\x1b[33m[!] ffuf not installed or no live hosts — skipping directory fuzzing\x1b[0m")[1]["tag"]]
     assert tag == "skipped_config"                                                      # ffuf never runs below Strong: not "missing"
     _, payload = light.parse("[!] ffuf not installed or no live hosts — skipping directory fuzzing")
     assert "chỉ chạy ở Strong" in payload["message"] and "not installed" not in payload["message"]
+    # classify() asks shutil.which(..., path=settings.tool_search_path()) to tell "ffuf missing" from "no live hosts
+    # yet"; tool_search_path() always prepends /usr/local/bin (v160 host audit), so this must not depend on whether
+    # the machine running the tests happens to have a real ffuf installed there.
+    monkeypatch.setattr("backend.log_buffer.shutil.which", lambda *a, **kw: None)
     assert strong.parse("[!] ffuf not installed or no live hosts — skipping directory fuzzing")[1]["tag"] == "missing_tool"
     assert light.parse("[!] nmap skipped (BBASM)")[1] == {"message": "[!] nmap skipped theo cấu hình scan", "tag": "skipped_config"}
     assert light.parse("[!] Skipping amass (quick mode)")[1]["tag"] == "skipped_config"

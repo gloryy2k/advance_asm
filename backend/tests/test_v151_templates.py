@@ -45,7 +45,11 @@ def env(tmp_path, monkeypatch, settings):
     nuclei = bin_dir / "nuclei"
     nuclei.write_text(FAKE)
     nuclei.chmod(nuclei.stat().st_mode | stat.S_IEXEC)
-    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    # Settings.tool_search_path() always prepends ~/go/bin, /opt/homebrew/bin and /usr/local/bin ahead of $PATH (to
+    # match the vendored recon PATH), so setting $PATH alone does not isolate this fixture from a real nuclei the
+    # test machine happens to have installed in one of those fixed directories (v160 host audit). Override the
+    # method itself so only this fake binary is ever found.
+    monkeypatch.setattr(type(settings), "tool_search_path", lambda self: f"{bin_dir}:/usr/bin:/bin")
     settings.BBASM_TEMPLATES_MIN = 3
 
     class Env:

@@ -83,6 +83,17 @@ def test_without_the_original_file_nothing_stays_high(settings):
         items = client.get("/api/programs/arc/findings?type=takeover").json()
         assert len(items) == 3 and {f["severity"] for f in items} == {"info"}
         assert all(f["detail"]["legacy_unreliable"] for f in items)
+        assert all(f["name"] == "subjack:unverifiable" for f in items)
+        # v1.6.0 host audit (T160_HOST_AUDIT F1b): the missing-file branch kept the old marker name, so the
+        # group query at the top of repair_takeover matched these already-downgraded rows again on every
+        # boot, re-creating a DB backup and appending another stats.repairs entry each time. Renaming them
+        # (above) makes a second call a true no-op.
+        scan = items[0]["last_seen_scan"]
+        before = json.loads(client.get(f"/api/scans/{scan}").json()["stats_json"])
+        assert run_repairs(client.app.state.database, settings) == []
+        after = json.loads(client.get(f"/api/scans/{scan}").json()["stats_json"])
+        assert before == after
+        assert len(list(settings.BBASM_DATA.glob("bbasm.db.pre-repair-takeover-*"))) == 1
 
 
 def test_stored_urls_lose_a_wrong_auth_label_once(settings):

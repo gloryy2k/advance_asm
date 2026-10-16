@@ -54,8 +54,10 @@ def repair_takeover(database, settings):
             for row in rows:
                 host = (row["host"] or "").lower()
                 if not have_file:
-                    # Nothing to check against: keep the row visible but never as a High takeover.
-                    conn.execute("UPDATE finding SET severity='info', detail_json=? WHERE id=?",
+                    # Nothing to check against: keep the row visible but never as a High takeover. Rename away from
+                    # OLD_NAME too, or the group query above would pick this already-fixed row again on the next boot
+                    # (and keep re-creating backups and `stats.repairs` entries forever).
+                    conn.execute("UPDATE finding SET name='subjack:unverifiable', severity='info', detail_json=? WHERE id=?",
                                  (json.dumps({"source": "subjack", "candidate": True, "verified": False, "legacy_unreliable": True,
                                               "note": "Kết quả cũ từ trình phân tích lỗi (mọi dòng subjack bị tính là ứng viên); không còn file subjack.txt để kiểm lại."}), row["id"]))
                     flagged += 1
