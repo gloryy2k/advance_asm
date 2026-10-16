@@ -1,0 +1,152 @@
+{
+  "source_commit": "14eb287",
+  "templates": {
+    "installed_count": 14036,
+    "failed_update_message": "Lần cập nhật gần nhất thất bại: nuclei báo lỗi khi cập nhật: [INF] nuclei-templates are not installed, installing... Bộ tải về chỉ có 0 template (cần ít nhất 100); coi là tải không đầy đủ. Bộ template cũ (nếu có) vẫn được giữ. (11:59:08 16/10/2026)",
+    "valid_status": 200,
+    "code_status": 422,
+    "absolute_url_status": 422,
+    "selected_custom": [
+      "qa-v154-check"
+    ],
+    "stats_custom": [
+      "qa-v154-check"
+    ]
+  },
+  "draft": {
+    "ids": [
+      2,
+      3,
+      4
+    ],
+    "bulk_result": {
+      "deleted": [],
+      "skipped": [
+        {
+          "id": 2,
+          "reason": "not_found"
+        },
+        {
+          "id": 3,
+          "reason": "not_found"
+        },
+        {
+          "id": 4,
+          "reason": "not_draft"
+        }
+      ]
+    }
+  },
+  "archive": {
+    "schedule_paused": true,
+    "archived_schedule_enabled": 0,
+    "schedule_change_status": 422,
+    "header_change_status": 422,
+    "restored_schedule_enabled": 0
+  },
+  "delete": {
+    "preview_counts": {
+      "diff_event": 0,
+      "finding": 1,
+      "url": 1,
+      "asset": 1,
+      "scans": 1,
+      "drafts": 0
+    },
+    "wrong_slug_status": 422,
+    "removed": {
+      "scans": 1,
+      "diff_event": 0,
+      "finding": 1,
+      "url": 1,
+      "asset": 1
+    },
+    "db_program_count": 0,
+    "db_child_counts": {
+      "asset": 0,
+      "url": 0,
+      "finding": 0,
+      "scan_run": 0,
+      "scope_rule": 0,
+      "schedule": 0
+    },
+    "folder_exists": false,
+    "trash_items": [],
+    "audit_archive": [
+      "qa-v154-delete-20261016T045727.jsonl"
+    ]
+  },
+  "crash": {
+    "slug": "qa-v154-crash",
+    "scan_id": 15,
+    "program_id": 13,
+    "pre_restart": {
+      "target_exists": false,
+      "trash_exists": true
+    },
+    "post_restart": {
+      "program_rows": 0,
+      "target_exists": false,
+      "trash_items": []
+    }
+  },
+  "charts": {
+    "scan_ids": [
+      7,
+      8,
+      9
+    ],
+    "spark": [
+      "4",
+      "30",
+      "2"
+    ],
+    "trend_rows": [
+      "#9\tpassive\t4\t30\t2\t0\t0\t0",
+      "#8\tpassive\t3\t20\t1\t0\t0\t0",
+      "#7\tpassive\t2\t10\t0\t0\t0\t0"
+    ],
+    "distribution_bars": [
+      "1",
+      "1",
+      "1",
+      "2",
+      "5 · điểm cao nhất 3"
+    ],
+    "matrix": [
+      "127.0.0.2\t·\t2\t·\t1\t·"
+    ],
+    "timeline": [
+      "Nạp dữ liệu\n12s / 30s",
+      "Tạo brief\n4s / 15s"
+    ],
+    "theme": "dark",
+    "dark_background": "rgb(14, 22, 19)"
+  },
+  "regressions": {
+    "filtered_zip": "http://127.0.0.2/safe\n127.0.0.2/admin [200]\n",
+    "schedule_last_error": "Chưa đủ dữ liệu scope/policy để chạy light: Scope chỉ lấy từ bản sao bounty-targets-data (có thể đã cũ, không kèm policy). Dùng token API, hoặc nhập scope thủ công sau khi đọc policy chính thức. Chưa có nội dung policy (automation/scanner/rate limit). Dán policy ở bước nhập rồi Resolve lại. Không có asset IN nào được phân loại rõ (domain/wildcard/IP/CIDR) để quét tự động.",
+    "scheduled_scans": 0,
+    "health": {
+      "status": 200,
+      "keys": [
+        "h1_api",
+        "missing_by_depth",
+        "ok",
+        "optional_tools",
+        "runtime",
+        "tools"
+      ],
+      "types": {
+        "ok": "bool",
+        "tools": "dict",
+        "missing_by_depth": "dict",
+        "h1_api": "bool",
+        "runtime": "dict",
+        "optional_tools": "list"
+      },
+      "h1_api": false,
+      "tools_count": 20
+    }
+  }
+}
