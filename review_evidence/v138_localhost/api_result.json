@@ -1,0 +1,104 @@
+{
+  "source_commit": "39cc484",
+  "sitemap": {
+    "scan_id": 1,
+    "url_count": 5000,
+    "hosts": [
+      "alpha.example.com",
+      "bravo.example.com",
+      "charlie.example.com",
+      "delta.example.com",
+      "echo.example.com"
+    ],
+    "host_total": 5,
+    "mega_children": 350,
+    "mega_first_page": 200
+  },
+  "f4": {
+    "old": 2,
+    "new": 3,
+    "policy_newer": true,
+    "newest_draft": 3,
+    "hints": [
+      "X-HackerOne-Research"
+    ],
+    "config_status": 200,
+    "launch_status": 422,
+    "launch_error": {
+      "code": "header_required",
+      "message": "Policy yêu cầu header X-HackerOne-Research nhưng scan chưa cấu hình. Điền giá trị ở bước Review, hoặc xác nhận đã đọc policy và bỏ qua (skipped_headers)."
+    }
+  },
+  "f5": {
+    "out_preview": {
+      "status": 200,
+      "body": {
+        "mode": "raw",
+        "ok": true,
+        "message": "",
+        "summary": {
+          "in": 1,
+          "out": 1,
+          "effective_in": 1,
+          "errors": 0,
+          "warnings": 0
+        },
+        "lines": [
+          {
+            "box": "in",
+            "line": 1,
+            "raw": "*.example.com",
+            "status": "ok",
+            "kind": "in",
+            "category": "wildcard",
+            "normalized": "*.example.com",
+            "note": "",
+            "shadowed_by": ""
+          },
+          {
+            "box": "out",
+            "line": 1,
+            "raw": "api*.example.com",
+            "status": "ok",
+            "kind": "out",
+            "category": "wildcard",
+            "normalized": "api*.example.com",
+            "note": "",
+            "shadowed_by": ""
+          }
+        ]
+      }
+    },
+    "out_resolve": 200,
+    "in_preview": {
+      "status": 200,
+      "body": {
+        "mode": "raw",
+        "ok": false,
+        "message": "Có dòng lỗi; sửa trước khi tiếp tục",
+        "summary": {
+          "in": 0,
+          "out": 0,
+          "effective_in": 0,
+          "errors": 1,
+          "warnings": 0
+        },
+        "lines": [
+          {
+            "box": "in",
+            "line": 1,
+            "raw": "api*.example.com",
+            "status": "error",
+            "kind": "in",
+            "category": "",
+            "normalized": "api*.example.com",
+            "note": "Wildcard chỉ hỗ trợ ở đầu dạng *.domain (ô OUT còn nhận mẫu host như api*.example.com, không kèm đường dẫn)",
+            "shadowed_by": ""
+          }
+        ]
+      }
+    },
+    "review_config_status": 200,
+    "glob_scan": 4
+  }
+}

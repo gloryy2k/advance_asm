@@ -1,0 +1,50 @@
+{
+  "viewport": [
+    1366,
+    900
+  ],
+  "timings_ms": {
+    "load_tree": 317,
+    "open_host": 61,
+    "open_mega": 182,
+    "show_more_mega": 106,
+    "collapse_host": 117,
+    "expand_level_3": 302,
+    "key_right_open": 14,
+    "search_auto_open": 847
+  },
+  "checks": {
+    "hosts_az": true,
+    "host_labels": [
+      "alpha.example.com",
+      "bravo.example.com",
+      "charlie.example.com",
+      "delta.example.com",
+      "echo.example.com"
+    ],
+    "host_rows": 5,
+    "more_label": "Xem thêm (150 mục)",
+    "rows_after_more": 364,
+    "expanded_rows": 467,
+    "key_down_moved": true,
+    "key_up_returned": true,
+    "key_left_closed": true,
+    "search_visible": true,
+    "overflow_tree": false,
+    "f4_old_warning": true,
+    "f4_header_hint_visible": true,
+    "f5_review_glob_value": "api*.example.com",
+    "f5_new_out_ready": true,
+    "f5_new_in_rejected": true
+  },
+  "screens": [
+    "E:\\code\\bbasm\\qa_39cc484\\screens\\tree_root.png",
+    "E:\\code\\bbasm\\qa_39cc484\\screens\\tree_more.png",
+    "E:\\code\\bbasm\\qa_39cc484\\screens\\tree_level3.png",
+    "E:\\code\\bbasm\\qa_39cc484\\screens\\tree_search.png",
+    "E:\\code\\bbasm\\qa_39cc484\\screens\\f4_old_review.png",
+    "E:\\code\\bbasm\\qa_39cc484\\screens\\f5_review_out.png",
+    "E:\\code\\bbasm\\qa_39cc484\\screens\\f5_new_out.png",
+    "E:\\code\\bbasm\\qa_39cc484\\screens\\f5_new_in_rejected.png"
+  ]
+}
