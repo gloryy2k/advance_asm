@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import Request, Response
 
-from backend.api.programs import assets, findings, scan_options, surface
+from backend.api.programs import assets, diff, findings, scan_options, surface
 from backend.jobs.scope_resolver import ScopeError
 from backend.tests.p2_helpers import environment
 
@@ -46,3 +46,21 @@ def test_assets_findings_and_surface_follow_completed_scan(settings):
         with pytest.raises(ScopeError) as exc:
             select(str(draft))
         assert exc.value.code == "invalid_scan"
+
+
+def test_diff_rejects_a_draft_or_foreign_scan_id(settings):
+    """The scan selector's `scan` reaches /diff as scan_id too (frontend DiffView) -- it must not silently
+    accept a draft or another program's scan the way the plain, pre-selector endpoint never had to guard against."""
+    db, _, result = environment(settings, ["127.0.0.1"])
+    _, _, other = environment(settings, ["127.0.0.2"])  # second program, same underlying database file as db
+    with db.connect() as conn, conn:
+        program_id = conn.execute("SELECT id FROM program WHERE slug=?", (result.slug,)).fetchone()[0]
+        draft = conn.execute("INSERT INTO scan_run(program_id,depth,status) VALUES(?,'light','draft')", (program_id,)).lastrowid
+
+    request = Request({"type": "http", "app": SimpleNamespace(state=SimpleNamespace(database=db))})
+    with pytest.raises(ScopeError) as exc:
+        diff(result.slug, request, Response(), draft)
+    assert exc.value.code == "invalid_scan"
+    with pytest.raises(ScopeError) as exc:
+        diff(result.slug, request, Response(), other.scan_id)
+    assert exc.value.code == "invalid_scan"

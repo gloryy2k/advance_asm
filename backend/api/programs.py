@@ -177,6 +177,8 @@ def diff(slug: str, request: Request, response: Response, scan_id: int | None = 
         if scan_id is None:
             row = conn.execute("SELECT id FROM scan_run WHERE program_id=? AND status IN ('done','done_partial') ORDER BY id DESC LIMIT 1", (program["id"],)).fetchone()
             scan_id = row[0] if row else None
+        elif not conn.execute("SELECT 1 FROM scan_run WHERE program_id=? AND id=? AND status IN ('done','done_partial')", (program["id"], scan_id)).fetchone():
+            raise ScopeError("Scan không tồn tại hoặc chưa hoàn tất trong program này", "invalid_scan")
         where, args = "program_id=? AND scan_run_id=? AND (? IS NULL OR change=?)", (program["id"], scan_id, change, change)
         response.headers["X-Total-Count"] = str(conn.execute("SELECT count(*) FROM diff_event WHERE " + where, args).fetchone()[0])
         return [decoded(r) for r in conn.execute("SELECT * FROM diff_event WHERE " + where + " ORDER BY id LIMIT ? OFFSET ?", (*args, limit, offset))]
