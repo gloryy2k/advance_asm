@@ -418,14 +418,17 @@ function FindingsTab({ base, notes, scan, bySeverity }: { base: string; notes?: 
   const [type, setType] = useState(params.get("type") || "");
   const [offset, setOffset] = useState(0);
   const result = useAssets(base + "/findings?" + new URLSearchParams({ limit: "50", offset: String(offset), scan, ...(severity ? { severity } : {}), ...(type ? { type } : {}) }));
-  // Matches the table's default (no filter) only when scan === "latest" — bySeverity is always the program's current distribution.
-  const severityCounts = scan === "latest" && bySeverity ? ["critical", "high", "medium", "low", "info"].map((s) => [s, bySeverity[s] || 0] as const).filter(([, n]) => n > 0) : [];
+  // bySeverity counts every finding ever recorded for the program (backend: no last_seen_scan filter), so it is an
+  // all-time total — never exactly what the table below shows for a single scan. Labelled as such, not filterable
+  // from here, so it can't silently point at a selection that comes back empty.
+  const severityCounts = bySeverity ? ["critical", "high", "medium", "low", "info"].map((s) => [s, bySeverity[s] || 0] as const).filter(([, n]) => n > 0) : [];
   return (
     <>
       <p className="viewintro"><strong>Findings.</strong> Dấu hiệu lỗi hoặc rò rỉ do nuclei, takeover và quét bí mật tìm thấy. <span className="muted">0 finding không có nghĩa target an toàn — chỉ là công cụ đã chạy không thấy gì. Takeover và secret là <em>ứng viên chưa xác minh</em>, không phải lỗi đã chứng minh.</span></p>
       {severityCounts.length > 0 && (
-        <p className="chips-row" aria-label="Số finding theo mức nghiêm trọng">
-          {severityCounts.map(([s, n]) => <button key={s} type="button" className="linklike" onClick={() => { setSeverity(s); setOffset(0); }}><Badge tone={s}>{n} {s}</Badge></button>)}
+        <p className="chips-row" aria-label="Số finding theo mức nghiêm trọng, toàn bộ program">
+          {severityCounts.map(([s, n]) => <Badge key={s} tone={s}>{n} {s}</Badge>)}
+          <small className="inline muted">toàn bộ program, mọi lần scan — có thể khác số dòng bên dưới nếu scan gần nhất chưa quét lại hết</small>
         </p>
       )}
       {scan !== "latest" && <p className="notice" role="note">Finding của scan #{scan} được ước tính từ lần đầu/cuối ghi nhận. Mức độ và chi tiết có thể đã được cập nhật sau lượt này; file gốc nằm trong Run #{scan}.</p>}
