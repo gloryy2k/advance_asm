@@ -30,6 +30,21 @@ def decoded(row):
     return row
 
 
+def _selected_completed_scan(conn, program_id: int, scan: str) -> int | None:
+    """Resolve a result selector within this program; drafts and foreign scans are never historical results."""
+    if scan == "all":
+        return None
+    if scan == "latest":
+        row = conn.execute("SELECT id FROM scan_run WHERE program_id=? AND status IN ('done','done_partial') ORDER BY id DESC LIMIT 1", (program_id,)).fetchone()
+    elif scan.isdigit() and int(scan) < 2**31:
+        row = conn.execute("SELECT id FROM scan_run WHERE program_id=? AND id=? AND status IN ('done','done_partial')", (program_id, int(scan))).fetchone()
+        if not row:
+            raise ScopeError("Scan không tồn tại hoặc chưa hoàn tất trong program này", "invalid_scan")
+    else:
+        raise ScopeError("scan phải là latest, all hoặc số scan hoàn tất", "invalid_scan")
+    return row[0] if row else None
+
+
 @router.get("")
 def portfolio(request: Request, include_drafts: bool = False, archived: Literal["exclude", "include", "only"] = "exclude"):
     database = request.app.state.database
@@ -66,25 +81,46 @@ def detail(slug: str, request: Request):
     return program
 
 
+@router.get("/{slug}/scan-options")
+def scan_options(slug: str, request: Request):
+    """Small, complete selector list; detail only embeds the newest 100 full scan records."""
+    database = request.app.state.database
+    program = program_row(database, slug)
+    with database.connect() as conn:
+        return [dict(row) for row in conn.execute(
+            "SELECT id,depth,status,finished_at FROM scan_run WHERE program_id=? AND status IN ('done','done_partial') ORDER BY id DESC",
+            (program["id"],),
+        )]
+
+
 @router.get("/{slug}/assets")
 def assets(slug: str, request: Request, response: Response = None, state: Literal["active", "gone"] | None = None,
            min_rank: float = Query(0, ge=0, le=10), q: str = Query("", max_length=500),
            category: str | None = Query(None, max_length=20),
-           limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0)):
+           limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0),
+           scan: str = Query("all", max_length=12)):
     database = request.app.state.database
     program = program_row(database, slug)
     where = "program_id=? AND (? IS NULL OR state=?) AND COALESCE(rank_score,0)>=? AND host LIKE ? ESCAPE '\\' AND (? IS NULL OR category=?)"
     like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
     args = (program["id"], state, state, min_rank, like, category, category)
     with database.connect() as conn:
+        selected = _selected_completed_scan(conn, program["id"], scan)
+        if scan == "latest" and selected is None:
+            where += " AND 1=0"
+        if selected is not None:
+            # Asset status, tech and rank are mutable current fields. First/last seen only give an approximate
+            # observation interval for an older scan, not a historical status snapshot.
+            where += " AND first_seen_scan<=? AND last_seen_scan>=?" if scan != "latest" else " AND last_seen_scan=?"
+            args += (selected, selected) if scan != "latest" else (selected,)
         if response is not None:
             response.headers["X-Total-Count"] = str(conn.execute("SELECT count(*) FROM asset WHERE " + where, args).fetchone()[0])
         return [decoded(r) for r in conn.execute("SELECT * FROM asset WHERE " + where + " ORDER BY rank_score DESC,host LIMIT ? OFFSET ?", (*args, limit, offset))]
 
 
 @router.get("/{slug}/surface")
-def surface(slug: str, request: Request, limit: int = Query(25, ge=1, le=1000)):
-    return assets(slug, request, None, "active", 0, "", None, limit, 0)
+def surface(slug: str, request: Request, limit: int = Query(25, ge=1, le=1000), scan: str = Query("all", max_length=12)):
+    return assets(slug, request, None, "active" if scan in ("all", "latest") else None, 0, "", None, limit, 0, scan)
 
 
 def _resolve_scan_id(conn, program_id, scan):
@@ -149,14 +185,21 @@ def diff(slug: str, request: Request, response: Response, scan_id: int | None = 
 @router.get("/{slug}/findings")
 def findings(slug: str, request: Request, response: Response, type: Literal["nuclei", "takeover", "secret", "js-endpoint"] | None = None,
              severity: Literal["info", "low", "medium", "high", "critical"] | None = None,
-             limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0)):
+             limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0),
+             scan: str = Query("all", max_length=12)):
     database = request.app.state.database
     program = program_row(database, slug)
     where = "f.program_id=? AND (? IS NULL OR f.type=?) AND (? IS NULL OR f.severity=?)"
     args = (program["id"], type, type, severity, severity)
     order = "CASE f.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END,f.last_seen_scan DESC,f.id DESC"
-    source = "FROM finding f LEFT JOIN asset a ON a.id=f.asset_id WHERE " + where
     with database.connect() as conn:
+        selected = _selected_completed_scan(conn, program["id"], scan)
+        if scan == "latest" and selected is None:
+            where += " AND 1=0"
+        if selected is not None:
+            where += " AND f.first_seen_scan<=? AND f.last_seen_scan>=?" if scan != "latest" else " AND f.last_seen_scan=?"
+            args += (selected, selected) if scan != "latest" else (selected,)
+        source = "FROM finding f LEFT JOIN asset a ON a.id=f.asset_id WHERE " + where
         response.headers["X-Total-Count"] = str(conn.execute("SELECT count(*) " + source, args).fetchone()[0])
         return [decoded(r) for r in conn.execute("SELECT f.*,a.host AS host " + source + " ORDER BY " + order + " LIMIT ? OFFSET ?", (*args, limit, offset))]
 

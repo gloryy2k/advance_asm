@@ -64,10 +64,10 @@ export function Run({ id }: { id: string }) {
   const byKey = new Map((report.data?.phases || []).map((p) => [p.key, p]));
   const funnel = report.data?.funnel;
   const running = !finished && status !== "draft";
-  // Links open the program's data. An older scan is not the program's current view, and the page says so.
+  // Derived historical inventory is approximate; the files and log on this page are the exact scan output.
   const currentId = programSummary.data?.last_completed_scan?.id;
   const older = good && currentId !== undefined && currentId !== Number(id);
-  const urlScan = older ? id : undefined;
+  const urlScan = good ? id : undefined;
 
   return (
     <>
@@ -89,7 +89,7 @@ export function Run({ id }: { id: string }) {
 
       {older && (
         <p className="notice" role="note" data-testid="older-scan-note">
-          Scan #{id} không phải scan mới nhất của program (hiện là #{currentId}). URL mở theo “ghi nhận tới scan #{id}”; Host, Findings và Brief là hiện trạng của program, không riêng scan này.
+          Scan #{id} không phải scan mới nhất của program (hiện là #{currentId}). URL mở theo “ghi nhận tới scan #{id}”; Host và Findings được ước tính từ lần đầu/cuối ghi nhận, còn status/tech/rank và Brief là hiện hành. File và log bên dưới là kết quả gốc của scan #{id}.
         </p>
       )}
       {status === "done_partial" && <p className="warnbox">Scan hoàn tất một phần: một số giai đoạn hết thời gian, nguồn lỗi hoặc host chưa được probe (xem "Giai đoạn & độ phủ"). Dữ liệu có được vẫn đã nạp; không suy ra host vắng là đã biến mất.</p>}
