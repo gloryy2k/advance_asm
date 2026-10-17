@@ -28,6 +28,7 @@ MAX_CUSTOM_FILES = 200
 FORBIDDEN_PROTOCOLS = {"code", "javascript", "headless", "file", "workflows", "flow"}
 ALLOWED_PROTOCOLS = {"http", "dns", "ssl", "tcp", "whois"}
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+TAG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 _lock = threading.Lock()
 
 
@@ -137,6 +138,46 @@ class TemplateStore:
                 "source": marker.get("source") or (SOURCE if installed else None), "version": marker.get("version"),
                 "managed": official_ready(self.settings), "dir": str(self.base),
                 "job": data["job"], "custom": data["custom"]}
+
+    # ── lookup by tag (preview for -as / -tags; never runs anything against a target) ────
+    def lookup_by_tag(self, tag, limit=50):
+        """Templates (official set) carrying this tag, found with nuclei's own `-tl -tags` — a pure local listing,
+        no target, no network, so BBASM never reimplements nuclei's own tag matching. This is a PREVIEW of the pool
+        `-as` (auto-select by detected technology) and `-tags` draw from: which template fires on a given host is
+        decided by nuclei at scan time from that host's own fingerprint, not from this list."""
+        tag = (tag or "").strip().lower()
+        if not TAG_RE.fullmatch(tag):
+            raise ScopeError("Tag không hợp lệ (chỉ a-z, 0-9, _, -)", "invalid_tag")
+        if not official_ready(self.settings):
+            return {"tag": tag, "total": 0, "templates": [], "truncated": False}
+        nuclei = shutil.which("nuclei", path=self.settings.tool_search_path())
+        if not nuclei:
+            return {"tag": tag, "total": 0, "templates": [], "truncated": False}
+        official = self.base / "official"
+        try:
+            done = self.run([nuclei, "-t", str(official), "-tl", "-tags", tag, "-duc"],
+                             env={"PATH": self.settings.tool_search_path(), "HOME": str(self.base)},
+                             stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=20)
+        except (OSError, subprocess.TimeoutExpired):
+            return {"tag": tag, "total": 0, "templates": [], "truncated": False}
+        paths = [line.strip() for line in done.stdout.splitlines() if line.strip().lower().endswith((".yaml", ".yml"))]
+        items = []
+        for raw in paths[:limit]:
+            path = Path(raw)
+            try:
+                rel = str(path.relative_to(official)) if path.is_absolute() else raw
+            except ValueError:
+                rel = raw
+            info = {}
+            try:
+                loaded = yaml.safe_load(path.read_text(encoding="utf-8", errors="replace"))
+                if isinstance(loaded, dict):
+                    info = loaded.get("info") or {}
+            except (OSError, yaml.YAMLError, AttributeError):
+                pass
+            items.append({"path": rel, "name": info.get("name") if isinstance(info, dict) else None,
+                          "severity": info.get("severity") if isinstance(info, dict) else None})
+        return {"tag": tag, "total": len(paths), "templates": items, "truncated": len(paths) > limit}
 
     # ── official set ───────────────────────────────────────
     def start_update(self, background=True):

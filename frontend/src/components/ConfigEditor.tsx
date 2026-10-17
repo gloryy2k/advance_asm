@@ -1,8 +1,71 @@
 import { useState } from "react";
+import { api, ApiError } from "../api/client";
 import { RECIPE_FIELDS, type Config, type PlanPhase, type Recipe } from "../api/types";
 import { SEVERITY_LEVELS } from "../lib/presets";
 import { Panel } from "./layout";
 import { StepList, type StepRow } from "./StepList";
+
+type LookupTemplate = { path: string; name: string | null; severity: string | null };
+type LookupResult = { tag: string; total: number; templates: LookupTemplate[]; truncated: boolean };
+
+/** Preview of the pool `-as`/`-tags` draw from (backend.templates.py::lookup_by_tag — pure local listing, no
+ * target touched). Which template actually fires on a host is decided by nuclei at scan time from that host's
+ * own fingerprint; this never claims otherwise. Shared by Review and Profiles (no scan context needed). */
+function TemplateLookup() {
+  const [tag, setTag] = useState("");
+  const [result, setResult] = useState<LookupResult | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const search = async () => {
+    const value = tag.trim().toLowerCase();
+    if (!value) return;
+    setLoading(true);
+    setError("");
+    try {
+      setResult(await api<LookupResult>("/api/tools/templates/lookup?" + new URLSearchParams({ tag: value })));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Không tra được");
+      setResult(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <details className="adv">
+      <summary>Tra cứu template theo công nghệ/tag</summary>
+      <p className="muted">
+        Xem trước <strong>bộ template nuclei đã cài</strong> có gắn một tag (vd <code>wordpress</code>, <code>nginx</code>, <code>mysql</code>, <code>cve</code>…).
+        Đây là toàn bộ template <em>có thể</em> được <code>-as</code> chọn tới nếu nuclei dò ra công nghệ đó trên một host — không phải danh sách
+        "sẽ chạy cho scan này", vì điều đó chỉ biết được sau khi nuclei hỏi host thật.
+      </p>
+      <div className="filters">
+        <input aria-label="Tag cần tra" placeholder="vd: wordpress" value={tag} onChange={(e) => setTag(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && search()} />
+        <button type="button" className="secondary small" disabled={loading || !tag.trim()} onClick={search}>{loading ? "Đang tra…" : "Tra cứu"}</button>
+      </div>
+      {error && <p className="muted" role="alert">{error}</p>}
+      {result && (
+        result.total === 0 ? <p className="muted">Không có template nào gắn tag "{result.tag}" trong bộ đã cài.</p> : (
+          <>
+            <p className="muted" data-testid="lookup-total">
+              {result.total} template gắn tag "{result.tag}"{result.truncated && <> (chỉ hiện {result.templates.length} đầu tiên)</>}.
+            </p>
+            <div className="table-wrap" tabIndex={0} role="region" aria-label="Bảng dữ liệu, cuộn được">
+              <table>
+                <thead><tr><th>Tên</th><th>Mức</th><th>Đường dẫn</th></tr></thead>
+                <tbody>
+                  {result.templates.map((t) => (
+                    <tr key={t.path}><td>{t.name || "—"}</td><td>{t.severity || "—"}</td><td><code>{t.path}</code></td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )
+      )}
+    </details>
+  );
+}
 
 /** Which user switch controls a step. `inverted` = the config stores "skip". */
 const CONTROL: Record<string, keyof Config> = {
@@ -17,7 +80,7 @@ const CONTROL: Record<string, keyof Config> = {
 const STATUS_LABEL = { on: "Sẽ chạy", off: "Tắt", missing_tool: "Thiếu công cụ" } as const;
 const FIELD_LABEL: Record<string, string> = {
   depth: "mức quét", threads: "số luồng", rate_limit: "request/giây", scan_timeout: "thời gian tối đa", nuclei_severity: "mức nuclei",
-  skip_nmap: "quét cổng", skip_nuclei: "nuclei", skip_active_crawl: "crawl chủ động", skip_ffuf: "dò thư mục", nmap_timeout: "giới hạn nmap", ffuf_maxtime: "giới hạn ffuf", deep_hosts: "số host quét sâu", nuclei_allow_intrusive: "template nguy hiểm", skip_historical: "URL lịch sử",
+  skip_nmap: "quét cổng", skip_nuclei: "nuclei", skip_active_crawl: "crawl chủ động", skip_ffuf: "dò thư mục", nmap_timeout: "giới hạn nmap", ffuf_maxtime: "giới hạn ffuf", deep_hosts: "số host quét sâu", nuclei_allow_intrusive: "template nguy hiểm", nuclei_auto_select: "tự chọn theo công nghệ", skip_historical: "URL lịch sử",
   skip_takeover: "takeover", skip_secrets: "bí mật trong JS", max_js_files: "số file JS", url_exclude_patterns: "đường dẫn loại trừ",
   brief_budget_kb: "dung lượng brief", brief_top_assets: "số asset trong brief", brief_top_urls: "số URL trong brief",
 };
@@ -149,6 +212,13 @@ export function ConfigEditor({
             onChange={(e) => onChange({ nuclei_allow_intrusive: e.target.checked })} />
           Cho phép template có thẻ nguy hiểm (<code>dos</code>, <code>fuzz</code>, <code>intrusive</code>, <code>brute-force</code>). Mặc định tắt: chúng có thể làm sập dịch vụ hoặc đoán thông tin đăng nhập.
         </label>
+        <label className="check">
+          <input type="checkbox" checked={!!config.nuclei_auto_select} disabled={config.skip_nuclei}
+            onChange={(e) => onChange({ nuclei_auto_select: e.target.checked })} />
+          Tự chọn thêm template theo công nghệ phát hiện được (<code>-as</code>). nuclei tự dò công nghệ trên từng host rồi chạy thêm
+          template khớp, ngoài severity/tag đã lọc ở trên. Sau khi scan xong, Run có file "template nuclei đã nạp" cho đúng lượt đó.
+        </label>
+        <TemplateLookup />
       </Panel>
 
       <Panel id="ed-data" title="Dữ liệu & brief" hint="Giới hạn lượng dữ liệu và chọn thứ gì được đưa vào AGENT_BRIEF.md.">

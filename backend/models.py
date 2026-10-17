@@ -72,6 +72,11 @@ class ScanConfig(BaseModel):
     deep_hosts: int | None = Field(default=None, ge=1, le=200)           # live discovered hosts that get the deep pass
     # Community nuclei templates tagged dos/fuzz/intrusive/brute-force are excluded unless the user opts in.
     nuclei_allow_intrusive: bool = False
+    # nuclei -as: fingerprint each host (Wappalyzer-style) and run templates matching the detected technology, on
+    # top of the severity/tag filters above. Which template fires depends on that host's own answer, decided by
+    # nuclei at scan time -- never known in advance. When on, the shim also captures -vv (every template nuclei
+    # loaded) to nuclei/templates_loaded.txt so Run can show what actually happened for that scan.
+    nuclei_auto_select: bool = False
     skip_historical: bool = False      # no gau/wayback/crt.sh queries at all
     skip_takeover: bool = False
     skip_secrets: bool = False         # do not download/scan JS bundles
@@ -162,7 +167,7 @@ class ScanConfig(BaseModel):
         return value
 
 
-OPTION_FIELDS = ("skip_ffuf", "nmap_timeout", "ffuf_maxtime", "deep_hosts", "nuclei_allow_intrusive", "skip_historical", "skip_takeover", "skip_secrets", "max_js_files",
+OPTION_FIELDS = ("skip_ffuf", "nmap_timeout", "ffuf_maxtime", "deep_hosts", "nuclei_allow_intrusive", "nuclei_auto_select", "skip_historical", "skip_takeover", "skip_secrets", "max_js_files",
                  "url_exclude_patterns", "brief_budget_kb", "brief_top_assets", "brief_top_urls")
 # What a profile (a saved preset) may contain: how to scan, never *what* (scope stays per scan).
 RECIPE_FIELDS = ("depth", "threads", "rate_limit", "scan_timeout", "nuclei_severity", "skip_nmap", "skip_nuclei",

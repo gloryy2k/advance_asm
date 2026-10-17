@@ -22,8 +22,8 @@ if [ "$have_templates" = 0 ]; then
     exit 0
 fi
 
-has_duc=0; has_etags=0
-for arg in "$@"; do case "$arg" in -duc|--duc|-disable-update-check) has_duc=1 ;; -etags|-exclude-tags|--exclude-tags) has_etags=1 ;; esac; done
+has_duc=0; has_etags=0; has_as=0
+for arg in "$@"; do case "$arg" in -duc|--duc|-disable-update-check) has_duc=1 ;; -etags|-exclude-tags|--exclude-tags) has_etags=1 ;; -as|--as|-automatic-scan) has_as=1 ;; esac; done
 extra=()
 [ "$has_duc" = 1 ] || extra+=(-duc)
 # Templates that can take a service down, fuzz it or guess credentials need the user's explicit opt-in (Review).
@@ -35,5 +35,16 @@ fi
 if [ -n "$official" ]; then
     extra+=(-t "$official")
     while IFS= read -r custom; do [ -n "$custom" ] && [ -f "$custom" ] && extra+=(-t "$custom"); done <<<"${BBASM_NUCLEI_CUSTOM:-}"
+fi
+# -as: fingerprint each host and add templates matching its detected technology, on top of the filters above.
+# Which template fires is decided by nuclei at scan time from that host's own answer -- nothing here can know it in
+# advance. -vv (every template nuclei loaded, matched or not) is captured to nuclei/templates_loaded.txt so Run can
+# show what actually happened, same folder recon_engine.sh's own Phase 9 already created for this command.
+if [ "${BBASM_NUCLEI_AUTO_SELECT:-0}" = "1" ] && [ "$has_as" = 0 ]; then
+    extra+=(-as -vv)
+    bbasm_note nuclei "bật tự chọn template theo công nghệ (-as): nuclei tự dò công nghệ trên từng host rồi chọn thêm template khớp, ngoài severity/tag đã lọc"
+    if [ -n "${RECON_OUT_DIR:-}" ] && [ -d "$RECON_OUT_DIR/nuclei" ]; then
+        exec "$real" "${extra[@]}" "$@" > "$RECON_OUT_DIR/nuclei/templates_loaded.txt"
+    fi
 fi
 exec "$real" "${extra[@]}" "$@"

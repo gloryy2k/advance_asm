@@ -1,7 +1,7 @@
 """Tools & environment: what is installed, what each missing piece costs, and (on request) the versions found."""
 import asyncio
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 
 from backend.tools import DEPTHS, probe_versions, tool_inventory
@@ -69,3 +69,9 @@ async def import_template(body: CustomTemplate, request: Request):
 async def delete_template(template_id: str, request: Request):
     await asyncio.to_thread(_store(request).delete_custom, template_id)
     return {"deleted": template_id}
+
+
+@router.get("/templates/lookup")
+async def lookup_templates(request: Request, tag: str = Query(..., min_length=1, max_length=64)):
+    """Preview which installed templates carry a tag (what -as/-tags would draw from). Read-only, no target touched."""
+    return await asyncio.to_thread(_store(request).lookup_by_tag, tag)

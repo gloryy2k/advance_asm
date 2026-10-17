@@ -226,6 +226,16 @@ def test_intrusive_nuclei_tags_are_an_explicit_option(settings):
     assert "nuclei_allow_intrusive" in RECIPE_FIELDS and "ffuf_confirmed" not in RECIPE_FIELDS   # a profile may carry the first, never the second
 
 
+def test_nuclei_auto_select_is_an_explicit_option(settings):
+    from backend.jobs.recon_orch import recon_env
+    from backend.jobs.scope_resolver import default_config
+    config = default_config(settings, [])
+    assert recon_env(settings, config, settings.BBASM_DATA)["BBASM_NUCLEI_AUTO_SELECT"] == "0"
+    assert recon_env(settings, config.model_copy(update={"nuclei_auto_select": True}), settings.BBASM_DATA)["BBASM_NUCLEI_AUTO_SELECT"] == "1"
+    from backend.models import RECIPE_FIELDS
+    assert "nuclei_auto_select" in RECIPE_FIELDS
+
+
 def test_purge_drafts_only_removes_drafts_that_are_actually_old(settings):
     from backend.jobs.runner import JobRunner
     from backend.tests.p2_helpers import environment

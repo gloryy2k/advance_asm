@@ -43,7 +43,7 @@ PHASES = [
     {"key": "nuclei", "title": "Nuclei", "touches": True, "tools": ["nuclei", "nuclei-templates"], "all_required": True,
      "what": "Chạy bộ mẫu kiểm tra lỗi đã biết theo mức nghiêm trọng bạn chọn. Mỗi lượt chỉ nhận tối đa 50 (Quick)/200 (đầy đủ) "
              "URL đang sống — không phải mọi URL scan tìm được; Run báo số thực nhận sau khi chạy.",
-     "files": ["nuclei/findings.jsonl"], "count_label": "finding", "view": {"kind": "findings", "label": "Xem findings", "filter": {"type": "nuclei"}}},
+     "files": ["nuclei/findings.jsonl", "nuclei/templates_loaded.txt"], "count_label": "finding", "view": {"kind": "findings", "label": "Xem findings", "filter": {"type": "nuclei"}}},
     {"key": "takeover", "title": "Takeover", "touches": True, "tools": ["subjack", "dnsreaper"],
      "what": "Tìm subdomain trỏ tới dịch vụ đã bị xoá (có thể bị chiếm).",
      "files": ["monitors/takeover/subjack.txt", "monitors/takeover/dnsreaper.json"], "count_label": "ứng viên", "view": {"kind": "findings", "label": "Xem findings", "filter": {"type": "takeover"}}},

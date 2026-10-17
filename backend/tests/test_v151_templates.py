@@ -197,6 +197,66 @@ def test_api_update_import_and_delete(env):
         assert client.delete("/api/tools/templates/custom/my-check").status_code == 422
 
 
+def test_lookup_by_tag_reads_the_installed_sets_own_templates(env):
+    """Preview for -as/-tags: a pure local listing via nuclei's own -tl, never a network call or a guess at what
+    will fire on a real host. Uses -tl's own path output; BBASM only reads name/severity from the matched files."""
+    settings, fake = env
+    store = store_with(settings, fake, count=2)
+    official = settings.templates_dir / "official"
+    tpl_dir = official / "http" / "misc"
+    tpl_dir.mkdir(parents=True, exist_ok=True)
+    tpl_path = tpl_dir / "wp-check.yaml"
+    tpl_path.write_text("id: wp-check\ninfo:\n  name: WP Check\n  severity: low\n  tags: wordpress,tech\n", encoding="utf-8")
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, stdout=str(tpl_path) + "\n", stderr="")
+    store.run = fake_run
+    result = store.lookup_by_tag("WordPress")             # case-insensitive
+    assert result == {"tag": "wordpress", "total": 1, "truncated": False,
+                       "templates": [{"path": "http/misc/wp-check.yaml", "name": "WP Check", "severity": "low"}]}
+    assert "-tl" in calls[0] and "-tags" in calls[0] and "wordpress" in calls[0]
+    assert str(official) in calls[0]                       # scoped to the installed set, not the whole filesystem
+
+
+def test_lookup_by_tag_rejects_a_bad_tag_and_is_empty_without_templates(env):
+    settings, fake = env
+    store = TemplateStore(settings)                        # nothing installed yet
+    with pytest.raises(ScopeError) as err:
+        store.lookup_by_tag("bad tag!")
+    assert err.value.code == "invalid_tag"
+    assert store.lookup_by_tag("wordpress") == {"tag": "wordpress", "total": 0, "templates": [], "truncated": False}
+
+
+def test_lookup_by_tag_truncates_and_reports_the_real_total(env):
+    settings, fake = env
+    store = store_with(settings, fake, count=1)
+    official = settings.templates_dir / "official"
+    (official / "http").mkdir(parents=True, exist_ok=True)
+    paths = []
+    for i in range(3):
+        p = official / "http" / f"t{i}.yaml"
+        p.write_text(f"id: t{i}\ninfo:\n  name: T{i}\n  severity: info\n  tags: cve\n", encoding="utf-8")
+        paths.append(str(p))
+    store.run = lambda args, **kw: subprocess.CompletedProcess(args, 0, stdout="\n".join(paths) + "\n", stderr="")
+    result = store.lookup_by_tag("cve", limit=2)
+    assert result["total"] == 3 and len(result["templates"]) == 2 and result["truncated"] is True
+
+
+def test_lookup_api_validates_and_shapes_the_response(env):
+    settings, fake = env
+    store_with(settings, fake, count=1)
+    with TestClient(create_app(settings)) as client:
+        client.app.state.templates.run = lambda args, **kw: subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+        assert client.get("/api/tools/templates/lookup?tag=wordpress").json() == {
+            "tag": "wordpress", "total": 0, "templates": [], "truncated": False}
+        bad = client.get("/api/tools/templates/lookup?tag=" + "x" * 65)
+        assert bad.status_code == 422
+        bad2 = client.get("/api/tools/templates/lookup?tag=not valid!")
+        assert bad2.status_code == 422 and bad2.json()["error"]["code"] == "invalid_tag"
+
+
 def test_boot_updates_only_when_asked(env):
     settings, monkeypatch = env
     monkeypatch.set(count="4")

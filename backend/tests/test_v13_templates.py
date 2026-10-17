@@ -124,6 +124,31 @@ def test_intrusive_templates_come_back_only_when_the_user_opts_in(home):
     assert "-etags" not in (home / "go" / "bin" / "nuclei.argv").read_text().split()
 
 
+def test_auto_select_adds_as_and_vv_and_captures_what_was_loaded(home):
+    (home / "go" / "bin" / "nuclei").write_text(FAKE_NUCLEI)
+    add_template(home)
+    out = run_shim(home, "-l", "x", extra_env={"BBASM_NUCLEI_AUTO_SELECT": "1"})
+    argv = (home / "go" / "bin" / "nuclei.argv").read_text().split()
+    assert "-as" in argv and "-vv" in argv
+    from backend.jobs.recon_orch import read_tool_notes
+    notes = [n["note"] for n in read_tool_notes(out) if n["tool"] == "nuclei"]
+    assert any("-as" in n for n in notes)
+    # FAKE_NUCLEI writes nothing to its own stdout, but the shim must still redirect it to templates_loaded.txt
+    # when $RECON_OUT_DIR/nuclei exists (recon_engine.sh's own Phase 9 creates it before calling nuclei).
+    (out / "nuclei").mkdir()
+    run_shim(home, "-l", "x", extra_env={"BBASM_NUCLEI_AUTO_SELECT": "1"})
+    assert (out / "nuclei" / "templates_loaded.txt").is_file()
+
+
+def test_auto_select_is_off_by_default_and_an_explicit_as_is_not_doubled(home):
+    (home / "go" / "bin" / "nuclei").write_text(FAKE_NUCLEI)
+    add_template(home)
+    run_shim(home, "-l", "x")
+    assert "-as" not in (home / "go" / "bin" / "nuclei.argv").read_text().split()
+    run_shim(home, "-as", "-l", "x", extra_env={"BBASM_NUCLEI_AUTO_SELECT": "1"})
+    assert (home / "go" / "bin" / "nuclei.argv").read_text().split().count("-as") == 1
+
+
 def test_shim_points_nuclei_at_the_managed_set_and_the_chosen_custom_templates(home, tmp_path):
     (home / "go" / "bin" / "nuclei").write_text(FAKE_NUCLEI)
     official = tmp_path / "official"

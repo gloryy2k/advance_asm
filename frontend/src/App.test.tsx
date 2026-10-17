@@ -147,6 +147,34 @@ describe("Review", () => {
     expect(screen.getByText(/CHƯA XÁC MINH/, { selector: "strong" })).toBeInTheDocument();  // scope trust is the first thing shown
   });
 
+  test("nuclei auto-select (-as) toggle and the by-tag lookup preview", async () => {
+    const fetch = stubFetch((path, init) => {
+      if (path === "/api/health") return health();
+      if (path.endsWith("/review")) return baseReview();
+      if (path.endsWith("/config")) return baseConfig;
+      if (path.includes("/templates/lookup")) {
+        const tag = new URL(path, "http://x").searchParams.get("tag");
+        return tag === "wordpress" ? { tag: "wordpress", total: 2, truncated: false,
+          templates: [{ path: "http/technologies/wordpress/wp-login.yaml", name: "WordPress Login Page", severity: "info" }] }
+          : { tag, total: 0, templates: [], truncated: false };
+      }
+      return {};
+    });
+    location.hash = "/scan/4/review";
+    render(<App />);
+    fireEvent.click(await screen.findByText(/Tra cứu template theo công nghệ/));
+    const toggle = screen.getByLabelText(/Tự chọn thêm template theo công nghệ phát hiện được/) as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+    fireEvent.click(toggle);
+    expect(toggle.checked).toBe(true);
+    fireEvent.change(screen.getByLabelText("Tag cần tra"), { target: { value: "wordpress" } });
+    fireEvent.click(screen.getByRole("button", { name: "Tra cứu" }));
+    expect(await screen.findByTestId("lookup-total")).toHaveTextContent('2 template gắn tag "wordpress"');
+    expect(screen.getByText("WordPress Login Page")).toBeInTheDocument();
+    expect(screen.getByText("http/technologies/wordpress/wp-login.yaml")).toBeInTheDocument();
+    await waitFor(() => expect(fetch.mock.calls.some((c) => String(c[0]).includes("/templates/lookup?") && String(c[0]).includes("tag=wordpress"))).toBe(true));
+  });
+
   test("N2: dump-only H1 data shows source, time and what is missing, and cannot be launched above passive", async () => {
     const dump = baseReview({
       trust: { level: "public", verified: false, label: "CHƯA XÁC MINH — dữ liệu công khai", detail: "Bản sao.", missing: ["policy đầy đủ"], checklist: [], official_url: null },

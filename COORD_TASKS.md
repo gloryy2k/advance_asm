@@ -8,7 +8,9 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 
 ## Trạng thái: `OPEN` (chưa ai làm) · `IN_PROGRESS` · `READY_FOR_QA` · `PASS` · `FAIL` (kèm lý do) · `DONE` · `BLOCKED` (chờ quyết định D#)
 
-Không còn task nào `OPEN`/`READY_FOR_QA`. Mọi việc còn lại trong `BACKLOG.md` chờ quyết định D1–D4 ở dưới.
+| ID | Ưu tiên | Owner | Trạng thái | base_commit | result_commit | Tóm tắt |
+| --- | --- | --- | --- | --- | --- | --- |
+| NUC-5 | P3 | Claude | READY_FOR_QA | 5616cbb | `(commit tiếp, xem git log)` | Nuclei "tự chọn theo công nghệ" (`-as`, nhánh D1 phương án B): `ScanConfig.nuclei_auto_select` + toggle ở Review/Profiles; `GET /api/tools/templates/lookup?tag=` tra cứu template theo tag (chỉ liệt kê tĩnh, không chạm target); khi bật, shim ghi `nuclei/templates_loaded.txt` (từ `-vv`) để xem Run thực nạp gì. Chi tiết NOTES v1.6.5. |
 
 ## Việc đã đóng (lịch sử, không mở lại — sự cố tái phát ra ID mới)
 
