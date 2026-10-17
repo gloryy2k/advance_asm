@@ -1,0 +1,1 @@
+STALE_SCHEDULE_BOOT {"startup_error": {"type": "ScopeError", "message": "scan_timeout exceeds configured depth hard limit"}}

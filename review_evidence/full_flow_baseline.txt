@@ -1,0 +1,13 @@
+Source commit: cadf804; vendor/claude-bug-bounty: ccae299
+
+docker run --rm --network none --entrypoint python -v 'E:\code\bbasm\advance_asm_v171qa:/qa:ro' -w /qa bbasm-v12-bbasm:latest -m pytest -q -m 'not integration'
+475 passed, 33 deselected, 4 warnings in 62.91s
+
+Frontend checkout advance_asm_local at cadf804, existing node_modules:
+npm test
+Test Files 1 passed (1); Tests 96 passed (96)
+npx tsc --noEmit
+exit 0
+npm run build
+exit 0; 210 modules transformed; built in 329ms
+Vite warning: dist/assets/index-BxWL9vj2.js 523.86 kB (>500 kB)
