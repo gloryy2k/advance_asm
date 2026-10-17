@@ -5,8 +5,9 @@ mid-scan for a finished one, listed only the last port of each host, and showed 
 
 The nuclei readers (v1.6.1, test/v160-host-audit + NUCLEI_COVERAGE_FOLLOWUP.md) answer a related complaint: a scan's
 `stats.nuclei_templates` only ever recorded the template set *installed* when the scan was launched (e.g. 14,036), never
-how many URLs nuclei was actually given — `recon_engine.sh` silently truncates to 50/200 per run — or whether nuclei ran to
-completion. `coverage.json` is written by the engine itself once it has that information; these functions just read it."""
+how many URLs nuclei was actually given or whether it ran to completion. `recon_engine.sh` used to silently truncate to
+50/200 URLs per run (removed 2026-10-17: every live URL is given to it now, bounded only by the scan's own time budget).
+`coverage.json` is written by the engine itself once it has that information; these functions just read it."""
 import ipaddress
 import json
 import re

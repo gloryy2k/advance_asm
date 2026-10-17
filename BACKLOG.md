@@ -49,11 +49,11 @@ Không làm: đồ thị quan hệ subdomain/IP (nặng, ít giá trị); treema
 5. Ngân sách tự co giãn theo số host khám phá.
 6. ~~Sửa `open_ports.txt` ở engine (submodule): parse đúng từng cặp host/cổng (BBASM đã bù ở tầng đọc).~~ **ĐÃ LÀM (NOTES v1.6.3, ENG-1).**
 
-## Độ phủ nuclei (NUCLEI_COVERAGE_FOLLOWUP.md → NOTES v1.6.1–v1.6.5) — phần quan sát + lọc thông minh đã làm, giới hạn cứng vẫn chờ quyết định
+## Độ phủ nuclei (NUCLEI_COVERAGE_FOLLOWUP.md → NOTES v1.6.1–v1.6.7) — D1 đã chốt và làm xong
 **Đã sửa:**
 - `recon_engine.sh` ghi `nuclei/coverage.json` (URL thật đưa vào, bị cắt bao nhiêu, template/request nuclei tự báo, timeout, lỗi); Run hiện số thật thay vì chỉ "14.036 template đã cài" (NOTES v1.6.1, v1.6.2).
 - Đo `nuclei/stats.jsonl` ở fixture dài thật ~322s (66 dòng/11.794 byte, ngoại suy 1800s ≈ 64 KiB — không phình bất thường) và xác nhận scan Strong qua orchestration thật (main+deep) gộp đúng — QA Codex `test/v163-host-audit`, PASS cả hai (xem COORD_TASKS.md lịch sử).
-- **Lọc thông minh hơn — phương án B (auto-select theo công nghệ, `-as`):** `ScanConfig.nuclei_auto_select`, panel tra cứu template theo tag (`GET /api/tools/templates/lookup`), file `nuclei/templates_loaded.txt` (từ `-vv`) để xem Run thực nạp gì sau khi scan. Xem NOTES v1.6.5.
-**Chưa làm — cần quyết định:**
-- Giới hạn cứng **50 URL/lượt (quick) hoặc 200 (full)** cho mỗi lệnh nuclei vẫn còn (`NUC_LIMIT` trong `recon_engine.sh`). Một scan Strong có hàng trăm URL sống vẫn chỉ nuclei được một phần mỗi lượt. Phương án: (a) giữ nguyên, chỉ hiện rõ số bị bỏ (hiện trạng); (b) tăng giới hạn kèm siết `-maxtime`/`-rl`; (c) thêm vòng "nuclei tiếp" trên phần chưa được đưa vào — nên làm cùng lúc với mục 2 ("Probe tiếp") ở trên nếu chọn hướng này, không làm hai lần.
-- Phương án A (lọc theo `-tags` include cụ thể, không chỉ severity) chưa làm — có thể làm riêng nếu muốn, độc lập với `-as` đã có.
+- **Lọc thông minh hơn — phương án B (auto-select theo công nghệ, `-as`):** `ScanConfig.nuclei_auto_select`, panel tra cứu template theo tag (`GET /api/tools/templates/lookup`), file `nuclei/templates_loaded.txt` (từ `-vv`) để xem Run thực nạp gì sau khi scan. Xem NOTES v1.6.5, v1.6.6 (2 vòng QA sửa thêm 3 lỗi thật khi dùng binary nuclei thật).
+- **D1 — giới hạn URL/lượt: đã chốt (2026-10-17), bỏ hẳn.** Không còn cắt 50 (quick)/200 (full) URL mỗi lệnh nuclei — mọi URL đang sống đều được đưa vào. An toàn thời gian dựa vào ngân sách giai đoạn đã có từ v1.6.0 (mỗi lệnh chỉ được phần còn lại của giai đoạn), không thêm cơ chế "quét tiếp" riêng. Thêm `ScanConfig.nuclei_timeout`/`Settings.BBASM_NUCLEI_TIMEOUT` (cùng mẫu `nmap_timeout`/`ffuf_maxtime`) làm lưới an toàn phụ. Xem NOTES v1.6.7.
+**Chưa làm (không thuộc D1, có thể làm riêng nếu muốn):**
+- Phương án A (lọc theo `-tags` include cụ thể, không chỉ severity) — độc lập với `-as` đã có.

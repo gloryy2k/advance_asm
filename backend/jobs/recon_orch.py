@@ -147,6 +147,7 @@ def recon_env(settings, config, output, *, discovery=False, skip_historical=Fals
         "BBASM_NMAP_TIMEOUT": str(settings.BBASM_NMAP_TIMEOUT if config.nmap_timeout is None else config.nmap_timeout),
         "BBASM_NMAP_HOST_TIMEOUT": str(settings.BBASM_NMAP_HOST_TIMEOUT),
         "BBASM_FFUF_MAXTIME": str(settings.BBASM_FFUF_MAXTIME if config.ffuf_maxtime is None else config.ffuf_maxtime),
+        "BBASM_NUCLEI_TIMEOUT": str(settings.BBASM_NUCLEI_TIMEOUT if config.nuclei_timeout is None else config.nuclei_timeout),
     })
     env["BBASM_SHIM_DIR"] = str(SHIM_DIR)
     for tool in WRAPPED_TOOLS:   # exported shell functions beat the engine's own PATH rewriting

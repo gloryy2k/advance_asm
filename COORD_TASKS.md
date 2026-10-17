@@ -8,7 +8,9 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 
 ## Trạng thái: `OPEN` (chưa ai làm) · `IN_PROGRESS` · `READY_FOR_QA` · `PASS` · `FAIL` (kèm lý do) · `DONE` · `BLOCKED` (chờ quyết định D#)
 
-Không còn task nào `OPEN`/`READY_FOR_QA`. Mọi việc còn lại trong `BACKLOG.md` chờ quyết định D1–D4 ở dưới.
+| ID | Ưu tiên | Owner | Trạng thái | base_commit | result_commit | Tóm tắt |
+| --- | --- | --- | --- | --- | --- | --- |
+| NUC-6 | P1 | Claude | READY_FOR_QA | c19e5b6 | `(commit tiếp, xem git log)` | D1 chốt: bỏ hẳn giới hạn 50/200 URL/lượt nuclei (`head -N` → `cp` toàn bộ `live/urls.txt`). Thêm `ScanConfig.nuclei_timeout`/`Settings.BBASM_NUCLEI_TIMEOUT` (mặc định 3600s Quick/7200s Full) làm lưới an toàn phụ, thật ra dựa vào ngân sách giai đoạn đã có (`runner.py::_stage`). Chi tiết NOTES v1.6.7. |
 
 ## Việc đã đóng (lịch sử, không mở lại — sự cố tái phát ra ID mới)
 
@@ -27,9 +29,9 @@ Không còn task nào `OPEN`/`READY_FOR_QA`. Mọi việc còn lại trong `BACK
 
 ## Quyết định sản phẩm đang chờ bạn (không lên task thi công tới khi chốt)
 
-- **D1** — Giới hạn 50/200 URL/lượt của nuclei: giữ nguyên / tăng / thêm vòng "nuclei tiếp". Xem `BACKLOG.md` mục "Độ phủ nuclei".
+- **D1 — ĐÃ CHỐT (2026-10-17):** bỏ hẳn giới hạn 50/200 URL/lượt của nuclei; mọi URL sống đều được đưa vào, an toàn thời gian dựa vào ngân sách giai đoạn đã có. Xem NOTES v1.6.7, `BACKLOG.md` mục "Độ phủ nuclei".
 - **D2** — Cưỡng chế giới hạn thư mục repo khi quét secrets (trufflehog `--include-paths`).
-- **D3** — "Probe tiếp" phần chưa quét (`stats.unprobed_hosts`); nên chốt **trước** D1 nếu D1 chọn hướng "nuclei tiếp" (dùng chung cơ chế).
+- **D3** — "Probe tiếp" phần chưa quét (`stats.unprobed_hosts`). Không còn phụ thuộc D1 (D1 đã chọn hướng không cần "quét tiếp").
 - **D4** — Adapter riêng mobile/source-code/other.
 
 Chi tiết phương án + khuyến nghị: xem phần "Quyết định cần bạn chốt" trong kế hoạch đã gửi (lưu lại trong lịch sử trò chuyện; nếu cần chép lại thành file, báo Claude).

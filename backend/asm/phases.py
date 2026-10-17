@@ -41,8 +41,8 @@ PHASES = [
      "what": "Thống kê tham số query từ URL đã thu thập, đánh dấu tên hay gặp lỗi (id, redirect, file…).",
      "files": ["params/unique_params.txt", "params/interesting_params.txt"], "count_label": "tham số", "view": {"kind": "urls", "label": "Xem URL có tham số", "filter": {"tag": "params"}}},
     {"key": "nuclei", "title": "Nuclei", "touches": True, "tools": ["nuclei", "nuclei-templates"], "all_required": True,
-     "what": "Chạy bộ mẫu kiểm tra lỗi đã biết theo mức nghiêm trọng bạn chọn. Mỗi lượt chỉ nhận tối đa 50 (Quick)/200 (đầy đủ) "
-             "URL đang sống — không phải mọi URL scan tìm được; Run báo số thực nhận sau khi chạy.",
+     "what": "Chạy bộ mẫu kiểm tra lỗi đã biết theo mức nghiêm trọng bạn chọn, trên mọi URL đang sống (không giới hạn số URL/lượt). "
+             "Có thể chạy lâu nếu scan có nhiều URL; bị cắt khi hết ngân sách thời gian của giai đoạn, Run báo rõ khi đó.",
      "files": ["nuclei/findings.jsonl", "nuclei/templates_loaded.txt"], "count_label": "finding", "view": {"kind": "findings", "label": "Xem findings", "filter": {"type": "nuclei"}}},
     {"key": "takeover", "title": "Takeover", "touches": True, "tools": ["subjack", "dnsreaper"],
      "what": "Tìm subdomain trỏ tới dịch vụ đã bị xoá (có thể bị chiếm).",

@@ -236,6 +236,18 @@ def test_nuclei_auto_select_is_an_explicit_option(settings):
     assert "nuclei_auto_select" in RECIPE_FIELDS
 
 
+def test_nuclei_timeout_defaults_to_the_server_setting_and_is_overridable_per_scan(settings):
+    """2026-10-17 D1 decision: removed the 50/200 URL-per-run cap; the real bound is time, same pattern as
+    nmap_timeout/ffuf_maxtime (None = server default, otherwise the scan's own override)."""
+    from backend.jobs.recon_orch import recon_env
+    from backend.jobs.scope_resolver import default_config
+    config = default_config(settings, [])
+    assert recon_env(settings, config, settings.BBASM_DATA)["BBASM_NUCLEI_TIMEOUT"] == str(settings.BBASM_NUCLEI_TIMEOUT)
+    assert recon_env(settings, config.model_copy(update={"nuclei_timeout": 42}), settings.BBASM_DATA)["BBASM_NUCLEI_TIMEOUT"] == "42"
+    from backend.models import OPTION_FIELDS
+    assert "nuclei_timeout" in OPTION_FIELDS
+
+
 def test_purge_drafts_only_removes_drafts_that_are_actually_old(settings):
     from backend.jobs.runner import JobRunner
     from backend.tests.p2_helpers import environment

@@ -80,7 +80,7 @@ const CONTROL: Record<string, keyof Config> = {
 const STATUS_LABEL = { on: "Sẽ chạy", off: "Tắt", missing_tool: "Thiếu công cụ" } as const;
 const FIELD_LABEL: Record<string, string> = {
   depth: "mức quét", threads: "số luồng", rate_limit: "request/giây", scan_timeout: "thời gian tối đa", nuclei_severity: "mức nuclei",
-  skip_nmap: "quét cổng", skip_nuclei: "nuclei", skip_active_crawl: "crawl chủ động", skip_ffuf: "dò thư mục", nmap_timeout: "giới hạn nmap", ffuf_maxtime: "giới hạn ffuf", deep_hosts: "số host quét sâu", nuclei_allow_intrusive: "template nguy hiểm", nuclei_auto_select: "tự chọn theo công nghệ", skip_historical: "URL lịch sử",
+  skip_nmap: "quét cổng", skip_nuclei: "nuclei", skip_active_crawl: "crawl chủ động", skip_ffuf: "dò thư mục", nmap_timeout: "giới hạn nmap", ffuf_maxtime: "giới hạn ffuf", nuclei_timeout: "giới hạn nuclei", deep_hosts: "số host quét sâu", nuclei_allow_intrusive: "template nguy hiểm", nuclei_auto_select: "tự chọn theo công nghệ", skip_historical: "URL lịch sử",
   skip_takeover: "takeover", skip_secrets: "bí mật trong JS", max_js_files: "số file JS", url_exclude_patterns: "đường dẫn loại trừ",
   brief_budget_kb: "dung lượng brief", brief_top_assets: "số asset trong brief", brief_top_urls: "số URL trong brief",
 };
@@ -180,6 +180,11 @@ export function ConfigEditor({
           <label>ffuf tối đa mỗi lần chạy (giây)
             <input type="number" min={0} max={7200} aria-label="ffuf tối đa (giây)" placeholder="mặc định" value={config.ffuf_maxtime ?? ""}
               onChange={(e) => onChange({ ffuf_maxtime: e.target.value === "" ? null : Number(e.target.value) })} />
+          </label>
+          <label>nuclei tối đa mỗi lần chạy (giây)
+            <input type="number" min={0} max={14400} aria-label="nuclei tối đa (giây)" placeholder="mặc định" value={config.nuclei_timeout ?? ""}
+              onChange={(e) => onChange({ nuclei_timeout: e.target.value === "" ? null : Number(e.target.value) })} />
+            <small>Nhận mọi URL đang sống, không giới hạn số URL/lượt — chỉ giới hạn thời gian</small>
           </label>
           <label>Số host được quét sâu
             <input type="number" min={1} max={200} aria-label="Số host quét sâu" placeholder="mặc định" value={config.deep_hosts ?? ""}

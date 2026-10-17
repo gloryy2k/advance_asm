@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     BBASM_NMAP_TIMEOUT: int = Field(default=900, ge=0)                 # seconds per nmap run (0 = no cap); output so far is kept
     BBASM_NMAP_HOST_TIMEOUT: int = Field(default=120, ge=10)           # seconds per host, so one slow host cannot hold the run
     BBASM_FFUF_MAXTIME: int = Field(default=300, ge=0)                 # seconds per ffuf run (0 = no cap)
+    BBASM_NUCLEI_TIMEOUT: int = Field(default=3600, ge=0)              # seconds per nuclei run (0 = no cap); every live URL is given to it, no per-run cap (2026-10-17)
     BBASM_DEEP_HOSTS: int = Field(default=50, ge=1, le=500)            # live discovered hosts given the full Light/Strong pass
     BBASM_NUCLEI_TEMPLATES: Path | None = None   # managed templates dir; default <BBASM_DATA>/nuclei-templates (a volume in compose)
     BBASM_UPDATE_TEMPLATES: str = "auto"           # 0 never at boot; 1 every boot (background); auto only when none are installed yet
