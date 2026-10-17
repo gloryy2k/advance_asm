@@ -31,11 +31,17 @@ const REASON_LABEL: Record<string, string> = {
 };
 const reasonText = (r: string) => REASON_LABEL[r] || r;
 
+function resultPath(slug: string, tab: string, view: string, scan: string) {
+  const path = programPath(slug, tab, view);
+  return scan === "latest" ? path : path + (path.includes("?") ? "&" : "?") + "scan=" + encodeURIComponent(scan);
+}
+
 export function useAssets(path: string, revision = 0) {
   const [state, setState] = useState<{ items: Asset[]; total: number } | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
     let live = true;
+    setState(null);
     setError("");
     apiPage<Asset>(path).then((r) => live && setState(r)).catch((e) => live && setError(explain(e)));
     return () => { live = false; };
@@ -93,7 +99,7 @@ function Tile({ label, value, sub, href, tone }: { label: string; value: number 
   );
 }
 
-function Overview({ slug, summary, detail, urls, reload }: { slug: string; summary: Summary & { trust?: Trust }; detail: any; urls: UrlSummary | null; reload: () => void }) {
+function Overview({ slug, summary, detail, urls, reload, scan }: { slug: string; summary: Summary & { trust?: Trust }; detail: any; urls: UrlSummary | null; reload: () => void; scan: string }) {
   const [interval, setInterval] = useState(summary.schedule?.interval || "daily");
   const [depth, setDepth] = useState<Depth>(summary.schedule?.depth || summary.last_completed_scan?.depth || "light");
   const [ack, setAck] = useState(false);
@@ -131,8 +137,11 @@ function Overview({ slug, summary, detail, urls, reload }: { slug: string; summa
   const active = summary.latest_scan && ["queued", "running"].includes(summary.latest_scan.status) ? summary.latest_scan : null;
   const dataScan = summary.last_completed_scan;
   const dataStats = (dataScan as any)?.stats || {};
+  const chosen = scan === "latest" ? dataScan : (detail?.scans || []).find((r: any) => String(r.id) === scan);
+  const chosenStats = chosen?.stats || {};
   return (
     <>
+      {scan !== "latest" && chosen && <div className="notice" role="note"><strong>Scan #{chosen.id} · {chosen.depth}.</strong> {chosenStats.subs ?? 0} host · {chosenStats.urls ?? 0} URL · {chosenStats.findings ?? 0} finding trong thống kê của lượt này. <a href={"#/scan/" + chosen.id}>Xem log và file gốc →</a> Các ô và biểu đồ bên dưới là inventory hiện hành.</div>}
       {dataScan && (
         <p className={"databanner " + (active || dataScan.status === "done_partial" ? "warnbox" : "muted")} role="status" data-testid="data-scan">
           {active && <><strong>Scan #{active.id} ({active.depth}) đang {active.status === "queued" ? "chờ chạy" : "chạy"}</strong> — số liệu dưới đây vẫn là của </>}
@@ -153,12 +162,12 @@ function Overview({ slug, summary, detail, urls, reload }: { slug: string; summa
       )}
       {dataScan?.status === "done_partial" && <ScanProgress data={dataStats} partial />}
       <div className="tiles">
-        <Tile label="Host" value={summary.assets_active} sub={summary.assets_live !== undefined ? `trong inventory · ${summary.assets_live} có HTTP · ${Math.max(0, summary.assets_active - summary.assets_live)} chưa probe${summary.assets_gone ? ` · ${summary.assets_gone} biến mất` : ""}` : "trong inventory"} href={`#/program/${encodeURIComponent(slug)}/data?v=hosts`} />
-        <Tile label="URL" value={(urls?.total ?? 0).toLocaleString("vi-VN")} sub={urls?.funnel ? `${urls.funnel.out_of_scope.toLocaleString("vi-VN")} ngoài scope đã loại` : "trong scope"} href={`#/program/${encodeURIComponent(slug)}/data?v=urls`} />
-        <Tile label="Findings" value={total} sub={total ? Object.entries(summary.findings_by_severity).filter(([, n]) => n).map(([s, n]) => `${n} ${s}`).join(" · ") : "chưa có"} href={"#" + programPath(slug, "findings")} tone={total ? "warn" : ""} />
+        <Tile label="Host" value={summary.assets_active} sub={summary.assets_live !== undefined ? `trong inventory · ${summary.assets_live} có HTTP · ${Math.max(0, summary.assets_active - summary.assets_live)} chưa probe${summary.assets_gone ? ` · ${summary.assets_gone} biến mất` : ""} · hiện hành` : "trong inventory · hiện hành"} href={"#" + resultPath(slug, "data", "hosts", scan)} />
+        <Tile label="URL" value={(urls?.total ?? 0).toLocaleString("vi-VN")} sub={urls?.funnel ? `hiện hành · ${urls.funnel.out_of_scope.toLocaleString("vi-VN")} ngoài scope đã loại` : "trong scope · hiện hành"} href={"#" + resultPath(slug, "data", "urls", scan)} />
+        <Tile label="Findings" value={total} sub={total ? Object.entries(summary.findings_by_severity).filter(([, n]) => n).map(([s, n]) => `${n} ${s}`).join(" · ") : "chưa có"} href={"#" + resultPath(slug, "findings", "", scan)} tone={total ? "warn" : ""} />
         {firstScan
-          ? <Tile label="Ghi nhận lần đầu" value={c.new + c.changed + c.gone} sub="dữ liệu khởi tạo — chưa có scan trước để so sánh" href={"#" + programPath(slug, "history", "diff")} />
-          : <Tile label="Thay đổi" value={c.new + c.changed + c.gone} sub={`${c.new} mới · ${c.changed} đổi · ${c.gone} mất`} href={"#" + programPath(slug, "history", "diff")} />}
+          ? <Tile label="Ghi nhận lần đầu" value={c.new + c.changed + c.gone} sub="dữ liệu khởi tạo — chưa có scan trước để so sánh" href={"#" + resultPath(slug, "history", "diff", scan)} />
+          : <Tile label="Thay đổi" value={c.new + c.changed + c.gone} sub={`${c.new} mới · ${c.changed} đổi · ${c.gone} mất · hiện hành`} href={"#" + resultPath(slug, "history", "diff", scan)} />}
       </div>
       {todo.length > 0 && (
         <Panel id="todo-h" title="Việc nên làm tiếp">
@@ -244,23 +253,24 @@ function Overview({ slug, summary, detail, urls, reload }: { slug: string; summa
 }
 
 /* ───────────── Dữ liệu ───────────── */
-function HostsView({ base, kind }: { base: string; kind: "surface" | "assets" }) {
+function HostsView({ base, kind, scan }: { base: string; kind: "surface" | "assets"; scan: string }) {
   const [q, setQ] = useState("");
   const [term, setTerm] = useState("");
   const [category, setCategory] = useState("");
-  const [state, setState] = useState("active");
+  const [state, setState] = useState(scan === "latest" ? "active" : "");
   const [offset, setOffset] = useState(0);
   useEffect(() => {
     const t = setTimeout(() => { setTerm(q); setOffset(0); }, 300);
     return () => clearTimeout(t);
   }, [q]);
   const limit = kind === "surface" ? 25 : 50;
-  const params = new URLSearchParams({ limit: String(limit), offset: String(kind === "surface" ? 0 : offset) });
+  const params = new URLSearchParams({ limit: String(limit), offset: String(kind === "surface" ? 0 : offset), scan });
   const path = kind === "surface" ? base + "/surface?" + params
-    : base + "/assets?" + new URLSearchParams([...params, ["state", state], ...(term ? [["q", term]] : []), ...(category ? [["category", category]] : [])] as [string, string][]);
+    : base + "/assets?" + new URLSearchParams([...params, ...(state ? [["state", state]] : []), ...(term ? [["q", term]] : []), ...(category ? [["category", category]] : [])] as [string, string][]);
   const result = useAssets(path);
   return (
     <>
+      {scan !== "latest" && <p className="notice" role="note">Host của scan #{scan} được ước tính từ lần đầu/cuối ghi nhận. Status, tech và rank là giá trị hiện hành; để xem file gốc của lượt này, mở trang Run #{scan}.</p>}
       {kind === "assets" && (
         <div className="filters">
           <input aria-label="Tìm host" placeholder="Tìm host…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -269,6 +279,7 @@ function HostsView({ base, kind }: { base: string; kind: "surface" | "assets" })
             {["web", "wildcard", "ip", "cidr", "source_code"].map((c) => <option key={c}>{c}</option>)}
           </select>
           <select aria-label="Trạng thái" value={state} onChange={(e) => { setState(e.target.value); setOffset(0); }}>
+            {scan !== "latest" && <option value="">Mọi trạng thái (ghi nhận trong khoảng)</option>}
             <option value="active">Trong inventory (đang theo dõi)</option><option value="gone">Đã biến mất</option>
           </select>
         </div>
@@ -281,12 +292,13 @@ function HostsView({ base, kind }: { base: string; kind: "surface" | "assets" })
   );
 }
 
-function DataArea({ slug, view }: { slug: string; view: string }) {
+function DataArea({ slug, view, scan }: { slug: string; view: string; scan: string }) {
   const base = "/api/programs/" + encodeURIComponent(slug);
   const current = ["hosts", "urls", "surface", "ports", "dirs"].includes(view) ? view : "urls";
   const params = routeParams();
   const initial: Record<string, string> = {};
-  for (const k of ["tag", "verification", "shape", "min_score", "scan"]) if (params.get(k)) initial[k] = params.get(k)!;
+  for (const k of ["tag", "verification", "shape", "min_score"]) if (params.get(k)) initial[k] = params.get(k)!;
+  initial.scan = scan;
   const info = {
     hosts: ["Danh sách host", "Mọi host/IP thuộc scope mà các bước tìm subdomain và probe HTTP thu được: trạng thái, tiêu đề, công nghệ.", "Từ bước “Tìm subdomain” và “Probe HTTP”."],
     urls: ["URL & endpoint", "URL đã qua scope gate, xếp theo điểm đáng xem. Biết rõ URL lấy từ đâu và đã kiểm chứng chưa.", "Từ bước “URL lịch sử”, “Crawl chủ động” và “Phân tích JavaScript”."],
@@ -296,21 +308,21 @@ function DataArea({ slug, view }: { slug: string; view: string }) {
   }[current]!;
   return (
     <>
-      <Segmented label="Loại dữ liệu" value={current as any} onChange={(v) => go(programPath(slug, "data", v))}
+      <Segmented label="Loại dữ liệu" value={current as any} onChange={(v) => go(resultPath(slug, "data", v, scan))}
         options={[{ value: "urls", label: "URL & endpoint" }, { value: "hosts", label: "Host" }, { value: "surface", label: "Xếp hạng" },
                   { value: "ports", label: "Cổng/Dịch vụ" }, { value: "dirs", label: "Đường dẫn dò được" }]} />
       <p className="viewintro"><strong>{info[0]}.</strong> {info[1]} <span className="muted">{info[2]}</span></p>
       {current === "urls" ? <UrlExplorer key={JSON.stringify(initial)} slug={slug} initial={initial} />
-        : current === "ports" ? <PortsView key={initial.scan || ""} base={base} scan={initial.scan} />
-        : current === "dirs" ? <DirsView key={initial.scan || ""} base={base} scan={initial.scan} />
-        : <HostsView key={current} base={base} kind={current === "surface" ? "surface" : "assets"} />}
+        : current === "ports" ? <PortsView key={scan} base={base} scan={scan} />
+        : current === "dirs" ? <DirsView key={scan} base={base} scan={scan} />
+        : <HostsView key={current + scan} base={base} kind={current === "surface" ? "surface" : "assets"} scan={scan} />}
     </>
   );
 }
 
 /* ───────────── Cổng/Dịch vụ (nmap), Đường dẫn dò được (ffuf) — BACKLOG mục 4: bảng riêng, không chỉ đọc lúc dựng Run ───────────── */
 function PortsView({ base, scan }: { base: string; scan?: string }) {
-  const result = useData<any>(base + "/ports" + (scan ? "?" + new URLSearchParams({ scan }) : ""));
+  const result = useData<any>(base + "/ports" + (scan && scan !== "latest" ? "?" + new URLSearchParams({ scan }) : ""));
   return (
     <State data={result.data} error={result.error}>
       {!result.data?.found ? (
@@ -346,7 +358,7 @@ function PortsView({ base, scan }: { base: string; scan?: string }) {
 }
 
 function DirsView({ base, scan }: { base: string; scan?: string }) {
-  const result = useData<any>(base + "/dirs" + (scan ? "?" + new URLSearchParams({ scan }) : ""));
+  const result = useData<any>(base + "/dirs" + (scan && scan !== "latest" ? "?" + new URLSearchParams({ scan }) : ""));
   return (
     <State data={result.data} error={result.error}>
       {!result.data?.found ? (
@@ -384,15 +396,16 @@ function DirsView({ base, scan }: { base: string; scan?: string }) {
 }
 
 /* ───────────── Phát hiện ───────────── */
-function FindingsTab({ base, notes }: { base: string; notes?: DataNote[] }) {
+function FindingsTab({ base, notes, scan }: { base: string; notes?: DataNote[]; scan: string }) {
   const params = routeParams();
   const [severity, setSeverity] = useState("");
   const [type, setType] = useState(params.get("type") || "");
   const [offset, setOffset] = useState(0);
-  const result = useAssets(base + "/findings?" + new URLSearchParams({ limit: "50", offset: String(offset), ...(severity ? { severity } : {}), ...(type ? { type } : {}) }));
+  const result = useAssets(base + "/findings?" + new URLSearchParams({ limit: "50", offset: String(offset), scan, ...(severity ? { severity } : {}), ...(type ? { type } : {}) }));
   return (
     <>
       <p className="viewintro"><strong>Findings.</strong> Dấu hiệu lỗi hoặc rò rỉ do nuclei, takeover và quét bí mật tìm thấy. <span className="muted">0 finding không có nghĩa target an toàn — chỉ là công cụ đã chạy không thấy gì. Takeover và secret là <em>ứng viên chưa xác minh</em>, không phải lỗi đã chứng minh.</span></p>
+      {scan !== "latest" && <p className="notice" role="note">Finding của scan #{scan} được ước tính từ lần đầu/cuối ghi nhận. Mức độ và chi tiết có thể đã được cập nhật sau lượt này; file gốc nằm trong Run #{scan}.</p>}
       {(notes || []).length > 0 && <div className="notice" role="note" data-testid="findings-notes">{notes!.map((n, i) => <p key={i}>{n.note}</p>)}</div>}
       <div className="filters">
         <select aria-label="Mức nghiêm trọng" value={severity} onChange={(e) => { setSeverity(e.target.value); setOffset(0); }}>
@@ -427,12 +440,12 @@ function FindingsTab({ base, notes }: { base: string; notes?: DataNote[] }) {
 }
 
 /* ───────────── Lịch sử ───────────── */
-function HistoryArea({ slug, view, summary, detail }: { slug: string; view: string; summary: Summary; detail: any }) {
+function HistoryArea({ slug, view, summary, detail, scan }: { slug: string; view: string; summary: Summary; detail: any; scan: string }) {
   const current = view === "diff" ? "diff" : "scans";
   const base = "/api/programs/" + encodeURIComponent(slug);
   return (
     <>
-      <Segmented label="Lịch sử" value={current as any} onChange={(v) => go(programPath(slug, "history", v))}
+      <Segmented label="Lịch sử" value={current as any} onChange={(v) => go(resultPath(slug, "history", v, scan))}
         options={[{ value: "scans", label: "Các lần scan" }, { value: "diff", label: "So sánh thay đổi" }]} />
       {current === "scans" ? (
         <>
@@ -455,17 +468,17 @@ function HistoryArea({ slug, view, summary, detail }: { slug: string; view: stri
             </div>
           )}
         </>
-      ) : <DiffView base={base} summary={summary} />}
+      ) : <DiffView base={base} scan={scan} selected={scan === "latest" ? summary.last_completed_scan : (detail?.scans || []).find((s: any) => String(s.id) === scan)} />}
     </>
   );
 }
 
-function DiffView({ base, summary }: { base: string; summary: Summary }) {
+function DiffView({ base, scan, selected }: { base: string; scan: string; selected: any }) {
   const [change, setChange] = useState("");
   const [offset, setOffset] = useState(0);
-  const result = useAssets(base + "/diff?" + new URLSearchParams({ limit: "50", offset: String(offset), ...(change ? { change } : {}) }));
-  const baseline = (summary.last_completed_scan as any)?.baseline_scan_id;
-  const latest = summary.last_completed_scan?.id;
+  const result = useAssets(base + "/diff?" + new URLSearchParams({ limit: "50", offset: String(offset), ...(scan !== "latest" ? { scan_id: scan } : {}), ...(change ? { change } : {}) }));
+  const baseline = selected?.baseline_scan_id;
+  const latest = selected?.id || (scan !== "latest" ? scan : undefined);
   const emptyText = change ? "Không có thay đổi thuộc loại này." : baseline ? `Đã so sánh #${latest} với #${baseline}: không phát hiện thay đổi.`
     : "Chưa có scan hoàn tất trước đó để so sánh. Diff xuất hiện từ lần scan hoàn tất thứ hai.";
   return (
@@ -614,13 +627,14 @@ function ExportView({ base, slug }: { base: string; slug: string }) {
   );
 }
 
-function GuideArea({ slug, view, summary, detail, reload }: { slug: string; view: string; summary: Summary; detail: any; reload: () => void }) {
+function GuideArea({ slug, view, summary, detail, reload, scan }: { slug: string; view: string; summary: Summary; detail: any; reload: () => void; scan: string }) {
   const base = "/api/programs/" + encodeURIComponent(slug);
   const current = ["brief", "instructions", "scope", "export"].includes(view) ? view : "brief";
   return (
     <>
-      <Segmented label="Hướng dẫn & scope" value={current as any} onChange={(v) => go(programPath(slug, "guide", v))}
+      <Segmented label="Hướng dẫn & scope" value={current as any} onChange={(v) => go(resultPath(slug, "guide", v, scan))}
         options={[{ value: "brief", label: "Brief" }, { value: "instructions", label: "Hướng dẫn cho agent" }, { value: "scope", label: "Scope & policy" }, { value: "export", label: "Xuất ZIP" }]} />
+      {scan !== "latest" && (current === "brief" || current === "export") && <p className="notice" role="note">{current === "brief" ? "Brief" : "ZIP"} chỉ có bản hiện hành của program, không có bản riêng cho scan #{scan}. <a href={"#/scan/" + scan}>Xem file gốc của scan #{scan} →</a></p>}
       {current === "brief" ? (summary ? <BriefView base={base} summary={summary} /> : <Loading />)
         : current === "instructions" ? <InstructionsView base={base} />
         : current === "scope" ? <ScopeView slug={slug} summary={summary} detail={detail} reload={reload} />
@@ -636,7 +650,11 @@ export function Program({ slug, tab, view }: { slug: string; tab: string; view: 
   const base = "/api/programs/" + encodeURIComponent(slug);
   const summary = useData<Summary & { trust?: Trust }>(base + "/summary", revision);
   const detail = useData<any>(base, revision);
+  const scanOptions = useData<any[]>(base + "/scan-options", revision);
   const urls = useData<UrlSummary>(tab === "overview" ? base + "/urls/summary" : null, revision);
+  const scan = routeParams().get("scan") || "latest";
+  const completed = (Array.isArray(scanOptions.data) ? scanOptions.data : detail.data?.scans || []).filter((r: any) => r.status === "done" || r.status === "done_partial");
+  const listed = scan === "latest" || completed.some((r: any) => String(r.id) === scan);
 
   async function rescan() {
     try {
@@ -660,17 +678,27 @@ export function Program({ slug, tab, view }: { slug: string; tab: string; view: 
       <ErrorBox text={error} />
       <nav className="tabs" role="tablist" aria-label="Program">
         {TABS.map((t) => (
-          <a key={t} role="tab" aria-selected={t === tab} className={t === tab ? "tab active" : "tab"} href={"#" + programPath(slug, t)} title={TAB_HINT[t]}>
+          <a key={t} role="tab" aria-selected={t === tab} className={t === tab ? "tab active" : "tab"} href={"#" + resultPath(slug, t, "", scan)} title={TAB_HINT[t]}>
             {TAB_LABEL[t]}
           </a>
         ))}
       </nav>
+      {completed.length > 0 && <div className="filters scopebar" role="group" aria-label="Lựa chọn kết quả scan">
+        <label>Xem kết quả của lần scan
+          <select aria-label="Chọn lần scan" value={scan} onChange={(e) => go(resultPath(slug, tab, view, e.target.value))}>
+            <option value="latest">Mới nhất (#{completed[0].id})</option>
+            {!listed && <option value={scan}>Scan #{scan} (theo liên kết)</option>}
+            {completed.map((r: any) => <option value={String(r.id)} key={r.id}>#{r.id} · {r.depth} · {when(r.finished_at)}{r.status === "done_partial" ? " · một phần" : ""}</option>)}
+          </select>
+        </label>
+        {scan !== "latest" && <a href={"#/scan/" + scan}>File và log gốc của scan #{scan} →</a>}
+      </div>}
       <State data={s} error={summary.error} retry={() => setRevision((v) => v + 1)}>
-        {s && (tab === "overview" ? <Overview slug={slug} summary={s} detail={detail.data} urls={urls.data} reload={() => setRevision((v) => v + 1)} />
-          : tab === "data" ? <DataArea slug={slug} view={view} />
-          : tab === "findings" ? <FindingsTab base={base} notes={s.data_notes} />
-          : tab === "history" ? <HistoryArea slug={slug} view={view} summary={s} detail={detail.data} />
-          : <GuideArea slug={slug} view={view} summary={s} detail={detail.data} reload={() => setRevision((v) => v + 1)} />)}
+        {s && (tab === "overview" ? <Overview slug={slug} summary={s} detail={detail.data} urls={urls.data} reload={() => setRevision((v) => v + 1)} scan={scan} />
+          : tab === "data" ? <DataArea slug={slug} view={view} scan={scan} />
+          : tab === "findings" ? <FindingsTab base={base} notes={s.data_notes} scan={scan} />
+          : tab === "history" ? <HistoryArea slug={slug} view={view} summary={s} detail={detail.data} scan={scan} />
+          : <GuideArea slug={slug} view={view} summary={s} detail={detail.data} reload={() => setRevision((v) => v + 1)} scan={scan} />)}
       </State>
     </>
   );

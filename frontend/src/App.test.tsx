@@ -519,6 +519,25 @@ describe("Program", () => {
     top_surface: [{ id: 1, host: "api.acme.com", rank_score: 7.5, reasons: ["api", "fresh"] }], draft_count: 0, schedule: null, ...over,
   });
 
+  test("selected scan follows tabs and loads that scan's host, findings and Diff", async () => {
+    const scans = [{ id: 2, depth: "light", status: "done" }, { id: 1, depth: "passive", status: "done", baseline_scan_id: null }];
+    const fetch = stubFetch((path) => path.endsWith("/scan-options") ? scans : path === "/api/programs/acme" ? { scans }
+      : path.endsWith("/summary") ? summary()
+        : path.includes("/assets") || path.includes("/findings") || path.includes("/diff") ? { __total: 0, body: [] } : {});
+    location.hash = "/program/acme/data?v=hosts";
+    render(<App />);
+    const picker = await screen.findByLabelText("Chọn lần scan");
+    fireEvent.change(picker, { target: { value: "1" } });
+    await waitFor(() => expect(location.hash).toBe("#/program/acme/data?v=hosts&scan=1"));
+    await waitFor(() => expect(fetch.mock.calls.some((c) => String(c[0]).includes("/assets?") && String(c[0]).includes("scan=1"))).toBe(true));
+    expect(screen.getByRole("tab", { name: "Phát hiện" })).toHaveAttribute("href", "#/program/acme/findings?scan=1");
+    fireEvent.click(screen.getByRole("tab", { name: "Phát hiện" }));
+    await waitFor(() => expect(fetch.mock.calls.some((c) => String(c[0]).includes("/findings?") && String(c[0]).includes("scan=1"))).toBe(true));
+    fireEvent.click(screen.getByRole("tab", { name: "Lịch sử" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "So sánh thay đổi" }));
+    await waitFor(() => expect(fetch.mock.calls.some((c) => String(c[0]).includes("/diff?") && String(c[0]).includes("scan_id=1"))).toBe(true));
+  });
+
   test("overview: counts, hunt command with Docker note, top surface; tab is a link in the URL", async () => {
     stubFetch((path) => (path.endsWith("/summary") ? summary() : path === "/api/programs/acme" ? { scans: [{ id: 2, depth: "light", status: "done" }] } : {}));
     location.hash = "/program/acme";
