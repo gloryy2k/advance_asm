@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     BBASM_HISTORICAL_TIMEOUT: int = Field(default=60, ge=1, le=300)
     BBASM_SCAN_TIMEOUT_PASSIVE: int = Field(default=300, ge=1)
     BBASM_SCAN_TIMEOUT_LIGHT: int = Field(default=900, ge=1)
-    BBASM_SCAN_TIMEOUT_STRONG: int = Field(default=2700, ge=1)
+    BBASM_SCAN_TIMEOUT_STRONG: int = Field(default=7200, ge=1)  # 2h (2026-10-18): 45min cut large-scope scans short
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:8000"
     SUBFINDER_CONFIG_DIR: Path | None = None
     CHAOS_KEY: SecretStr = SecretStr("")

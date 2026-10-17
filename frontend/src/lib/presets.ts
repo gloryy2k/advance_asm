@@ -43,7 +43,7 @@ export const PRESETS: Preset[] = [
   },
 ];
 
-export const TIMEOUT: Record<Depth, number> = { passive: 300, light: 900, strong: 2700 };
+export const TIMEOUT: Record<Depth, number> = { passive: 300, light: 900, strong: 7200 };
 export const SEVERITY_LEVELS = ["info", "low", "medium", "high", "critical"] as const;
 
 /** One place that knows what each preset sets, so Review never shows a half-changed config. */

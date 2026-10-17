@@ -95,7 +95,7 @@ export const health = (over: object = {}) => ({
 
 const recipe = (depth: string) => ({
   depth, threads: 50, rate_limit: 150,
-  scan_timeout: { passive: 300, light: 900, strong: 2700 }[depth as "passive"],
+  scan_timeout: { passive: 300, light: 900, strong: 7200 }[depth as "passive"],
   nuclei_severity: { passive: "", light: "low,medium", strong: "low,medium,high,critical" }[depth as "passive"],
   skip_nmap: depth !== "strong", skip_nuclei: depth === "passive", skip_active_crawl: depth === "passive", skip_ffuf: false,
   skip_historical: false, skip_takeover: false, skip_secrets: false, max_js_files: 100, url_exclude_patterns: [],

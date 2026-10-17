@@ -250,7 +250,7 @@ describe("Review", () => {
     fireEvent.click(launch);
     await waitFor(() => expect(calls(fetch, "/launch")).toHaveLength(1));
     const config = JSON.parse(calls(fetch, "/launch")[0][1]!.body as string).config;
-    expect(config).toMatchObject({ depth: "strong", skip_nmap: false, scan_timeout: 2700, nuclei_severity: "low,medium,high,critical", ffuf_confirmed: true });
+    expect(config).toMatchObject({ depth: "strong", skip_nmap: false, scan_timeout: 7200, nuclei_severity: "low,medium,high,critical", ffuf_confirmed: true });
   });
 
   test("excluding an entry changes exactly what is launched", async () => {

@@ -11,7 +11,7 @@ def test_safe_defaults():
     assert settings.BB_THREADS == 50
     assert settings.BB_RATE_LIMIT == 150
     assert settings.BBASM_MAX_CONCURRENT_SCANS == 2
-    assert [settings.scan_timeout(d) for d in ("passive", "light", "strong")] == [300, 900, 2700]
+    assert [settings.scan_timeout(d) for d in ("passive", "light", "strong")] == [300, 900, 7200]
     assert settings.tool_path("recon_engine.sh") == PROJECT_ROOT / "vendor/claude-bug-bounty/tools/recon_engine.sh"
     assert settings.H1_TOKEN.get_secret_value() == ""
 
