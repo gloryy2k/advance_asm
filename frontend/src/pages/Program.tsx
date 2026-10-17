@@ -301,22 +301,23 @@ function DataArea({ slug, view }: { slug: string; view: string }) {
                   { value: "ports", label: "Cổng/Dịch vụ" }, { value: "dirs", label: "Đường dẫn dò được" }]} />
       <p className="viewintro"><strong>{info[0]}.</strong> {info[1]} <span className="muted">{info[2]}</span></p>
       {current === "urls" ? <UrlExplorer key={JSON.stringify(initial)} slug={slug} initial={initial} />
-        : current === "ports" ? <PortsView base={base} />
-        : current === "dirs" ? <DirsView base={base} />
+        : current === "ports" ? <PortsView key={initial.scan || ""} base={base} scan={initial.scan} />
+        : current === "dirs" ? <DirsView key={initial.scan || ""} base={base} scan={initial.scan} />
         : <HostsView key={current} base={base} kind={current === "surface" ? "surface" : "assets"} />}
     </>
   );
 }
 
 /* ───────────── Cổng/Dịch vụ (nmap), Đường dẫn dò được (ffuf) — BACKLOG mục 4: bảng riêng, không chỉ đọc lúc dựng Run ───────────── */
-function PortsView({ base }: { base: string }) {
-  const result = useData<any>(base + "/ports");
+function PortsView({ base, scan }: { base: string; scan?: string }) {
+  const result = useData<any>(base + "/ports" + (scan ? "?" + new URLSearchParams({ scan }) : ""));
   return (
     <State data={result.data} error={result.error}>
       {!result.data?.found ? (
         <EmptyState title="Chưa có dữ liệu cổng">nmap chỉ chạy ở mức Strong khi chưa tắt. Quét Strong để có dữ liệu cổng/dịch vụ.</EmptyState>
       ) : (
         <>
+          {scan && <p className="muted" data-testid="ports-scan">Đang xem scan #{result.data.scan_id}.</p>}
           {!result.data.complete && <p className="muted" data-testid="ports-partial">DỞ DANG: nmap dừng trước khi quét xong, chỉ gồm các host đã xong.</p>}
           {result.data.cdn.length > 0 && (
             <p className="muted" data-testid="ports-cdn">{result.data.cdn_pairs} cặp nằm trên IP của {result.data.cdn.join(", ")} (CDN/biên dùng chung): đây là cổng của CDN, chưa chứng minh là cổng của máy chủ gốc (origin) hay của ứng dụng.</p>
@@ -344,14 +345,15 @@ function PortsView({ base }: { base: string }) {
   );
 }
 
-function DirsView({ base }: { base: string }) {
-  const result = useData<any>(base + "/dirs");
+function DirsView({ base, scan }: { base: string; scan?: string }) {
+  const result = useData<any>(base + "/dirs" + (scan ? "?" + new URLSearchParams({ scan }) : ""));
   return (
     <State data={result.data} error={result.error}>
       {!result.data?.found ? (
         <EmptyState title="Chưa có dữ liệu dò thư mục">ffuf chỉ chạy ở mức Strong khi chưa tắt. Quét Strong để có dữ liệu.</EmptyState>
       ) : (
         <>
+          {scan && <p className="muted" data-testid="dirs-scan">Đang xem scan #{result.data.scan_id}.</p>}
           <p className="muted" data-testid="dirs-summary">{result.data.total} phản hồi trên {result.data.hosts.length} host; {result.data.noise} giống hệt nhau (trang chặn/trang mặc định chung) đã loại, còn {result.data.significant} đáng xem.</p>
           {result.data.blocked_only.length > 0 && (
             <p className="muted" data-testid="dirs-blocked-only">Chỉ có HTTP 403 ở: {result.data.blocked_only.join(", ")} — 403 không chứng minh đường dẫn tồn tại.</p>

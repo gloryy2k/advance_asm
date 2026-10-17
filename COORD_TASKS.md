@@ -10,8 +10,8 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 
 | ID | Ưu tiên | Owner | Trạng thái | base_commit | result_commit | Tóm tắt |
 | --- | --- | --- | --- | --- | --- | --- |
-| UX-1 | P3 | Claude | READY_FOR_QA | ab9abc4 | `6ba098d` | `GET /api/programs/{slug}/ports` và `/dirs` (mới) + 2 tab "Cổng/Dịch vụ"/"Đường dẫn dò được" trong Dữ liệu. Đọc lại `backend.asm.results.summarize_ports/summarize_dirs` của scan cụ thể (`?scan=latest|<id>`), không có bảng DB riêng. |
-| ENG-1 | P4 | Claude | READY_FOR_QA | ab9abc4 | `bb17169` (BBASM) + `bfd61ba` (submodule) | `open_ports.txt` ở `recon_engine.sh` đổi `sed` tham lam sang `grep -oE` giữ đủ mọi cổng/dòng. BBASM không bị ảnh hưởng (đã đọc `nmap_greppable.txt` trực tiếp từ v1.6.0); chỉ sửa file tóm tắt text. |
+| UX-1 | P3 | Claude | READY_FOR_QA (vòng 2, sửa 2 finding FAIL của `test/v164-host-audit`) | 26b6c58 | `(commit tiếp, xem git log)` | (1) Frontend `PortsView`/`DirsView` không forward `scan=<id>` từ URL — giờ truyền qua, hiện "Đang xem scan #N". (2) `_resolve_scan_id` không loại `status='draft'` nên output mồ côi của draft bị đọc như kết quả thật — giờ từ chối `draft` khi chọn theo id cụ thể. |
+| ENG-1 | — | Claude | **DONE** | ab9abc4 | `bb17169`/`bfd61ba` | **PASS** (QA Codex `test/v164-host-audit`@3379dfd): Phase 3 ghi đủ 4 cổng mở, không còn chỉ giữ cổng cuối mỗi dòng. |
 
 ## Việc đã đóng (lịch sử, không mở lại — sự cố tái phát ra ID mới)
 
@@ -24,6 +24,7 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 | DOC-1 | DONE (không cần QA) | `d65c4f5` | `NOTES.md` +v1.6.1/v1.6.2, `BACKLOG.md` +mục "Độ phủ nuclei", `CLOUD_TO_LOCAL_HANDOFF.md` ghi chú lỗi thời. |
 | NUC-3 — đo `nuclei/stats.jsonl` phình bao nhiêu | **PASS** (QA Codex `test/v163-host-audit`@6452c63) | d65c4f5 (đo, không sửa) | 321,79s thật: 66 dòng/11.794 byte. Ngoại suy 1800s ≈ 369 dòng/~64,4 KiB — không phình bất thường. |
 | NUC-4 — scan Strong qua orchestration thật | **PASS** (QA Codex `test/v163-host-audit`@6452c63) | d65c4f5 (đo, không sửa) | `JobRunner`/`ReconOrchestrator` thật, main+deep đều tự tạo `coverage.json`; `/api/scans/{id}/phases` gộp đúng 2/2 URL, 2 request, `failed=false`. |
+| ENG-1 — `open_ports.txt` mất cổng | **PASS** (QA Codex `test/v164-host-audit`@3379dfd) | `bb17169`/`bfd61ba` | `grep -oE` giữ đủ mọi cổng/dòng, log `Open ports: 4` đúng. |
 
 ## Quyết định sản phẩm đang chờ bạn (không lên task thi công tới khi chốt)
 

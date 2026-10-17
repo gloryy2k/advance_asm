@@ -88,12 +88,14 @@ def surface(slug: str, request: Request, limit: int = Query(25, ge=1, le=1000)):
 
 
 def _resolve_scan_id(conn, program_id, scan):
-    """A specific scan to read on-disk output for (ports/dirs live per scan folder, not a DB table)."""
+    """A specific scan to read on-disk output for (ports/dirs live per scan folder, not a DB table). A draft never
+    launched, so any file under its folder is a stale/orphaned leftover (V164_HOST_AUDIT.md), never this scan's own
+    output — reject it the same way 'latest' already excludes everything before 'queued'."""
     if scan == "latest":
         row = conn.execute("SELECT id FROM scan_run WHERE program_id=? AND status IN ('done','done_partial') ORDER BY id DESC LIMIT 1", (program_id,)).fetchone()
         return row["id"] if row else None
     if scan.isdigit() and int(scan) < 2**31:
-        row = conn.execute("SELECT id FROM scan_run WHERE program_id=? AND id=?", (program_id, int(scan))).fetchone()
+        row = conn.execute("SELECT id FROM scan_run WHERE program_id=? AND id=? AND status!='draft'", (program_id, int(scan))).fetchone()
         return row["id"] if row else None
     raise ScopeError("scan phải là latest hoặc số scan", "invalid_scan")
 

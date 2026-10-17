@@ -70,3 +70,36 @@ def test_invalid_scan_param_is_rejected(settings):
     db, slug, scan_id = _slug_and_scan(settings)
     with TestClient(create_app(settings)) as client:
         assert client.get(f"/api/programs/{slug}/ports?scan=not-a-number").status_code == 422
+
+
+def test_scan_id_selects_that_scans_own_output_not_the_latest_one(settings):
+    """V164_HOST_AUDIT.md: an older scan asked for by id must not read back as the newest one's data."""
+    db, _, result = environment(settings, ["example.com"])
+    with db.connect() as conn, conn:
+        conn.execute("UPDATE scan_run SET status='done' WHERE id=?", (result.scan_id,))
+        slug = conn.execute("SELECT p.slug FROM scan_run s JOIN program p ON p.id=s.program_id WHERE s.id=?", (result.scan_id,)).fetchone()[0]
+        program_id = conn.execute("SELECT id FROM program WHERE slug=?", (slug,)).fetchone()[0]
+        newer_id = conn.execute("INSERT INTO scan_run(program_id,status,depth) VALUES(?,?,?)", (program_id, "done", "strong")).lastrowid
+    old_root, new_root = scan_root(settings, slug, result.scan_id), scan_root(settings, slug, newer_id)
+    write_output(old_root, "4/ports/nmap_greppable.txt", GREP)
+    write_output(new_root, "4/ports/nmap_greppable.txt",
+                 "Host: 192.0.2.10 (api.example.com)\tPorts: 80/open/tcp//http///, 22/open/tcp//ssh///, 21/open/tcp//ftp///\tIgnored State: filtered (997)\n")
+    with TestClient(create_app(settings)) as client:
+        latest = client.get(f"/api/programs/{slug}/ports").json()
+        assert latest["scan_id"] == newer_id and latest["unique_ports"] == 3        # "latest" picks the newer scan
+        old = client.get(f"/api/programs/{slug}/ports?scan={result.scan_id}").json()
+        assert old["scan_id"] == result.scan_id and old["unique_ports"] == 2 and old["rows"] != latest["rows"]
+
+
+def test_a_draft_scans_orphaned_output_is_never_served_as_a_result(settings):
+    """V164_HOST_AUDIT.md: a draft never launched, so a leftover file under its numbered folder (a reused scan id,
+    a stray copy...) is not this scan's own output -- scan=<draft id> must say found=false, not read it."""
+    db, _, result = environment(settings, ["example.com"])    # draft: status stays 'draft', never launched
+    with db.connect() as conn:
+        slug = conn.execute("SELECT p.slug FROM scan_run s JOIN program p ON p.id=s.program_id WHERE s.id=?", (result.scan_id,)).fetchone()[0]
+    root = scan_root(settings, slug, result.scan_id)
+    write_output(root, "4/ports/nmap_greppable.txt", GREP)
+    write_output(root, "4/dirs/ffuf_orphan.json", ffuf_payload("api.example.com", [("admin", 200, 812, 40)]))
+    with TestClient(create_app(settings)) as client:
+        assert client.get(f"/api/programs/{slug}/ports?scan={result.scan_id}").json()["found"] is False
+        assert client.get(f"/api/programs/{slug}/dirs?scan={result.scan_id}").json()["found"] is False

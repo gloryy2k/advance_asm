@@ -1631,7 +1631,7 @@ describe("Dữ liệu › Cổng/Dịch vụ, Đường dẫn dò được (BACK
     location.hash = "/program/acme/data?v=ports";
     render(<App />);
     expect(await screen.findByText("Cổng/Dịch vụ.", { selector: "strong" })).toBeInTheDocument();
-    expect(screen.getByTestId("ports-partial")).toHaveTextContent("DỞ DANG: nmap dừng trước khi quét xong");
+    expect(await screen.findByTestId("ports-partial")).toHaveTextContent("DỞ DANG: nmap dừng trước khi quét xong");
     expect(screen.getByTestId("ports-cdn")).toHaveTextContent(/1 cặp nằm trên IP của Cloudflare.*chưa chứng minh/);
     expect(screen.getByText("rpc.acme.com")).toBeInTheDocument();
     expect(screen.getByText("OpenSSH 8.9")).toBeInTheDocument();
@@ -1655,5 +1655,16 @@ describe("Dữ liệu › Cổng/Dịch vụ, Đường dẫn dò được (BACK
     expect(await screen.findByTestId("dirs-summary")).toHaveTextContent("26 phản hồi trên 1 host; 24 giống hệt nhau");
     expect(screen.getByTestId("dirs-blocked-only")).toHaveTextContent("only403.acme.com");
     expect(screen.getByText("https://rpc.acme.com/admin")).toBeInTheDocument();
+  });
+
+  test("Ports/Dirs: a chosen older scan is forwarded to the API, not silently shown as 'latest' (V164_HOST_AUDIT.md)", async () => {
+    const fetch = stubFetch((path) => path.endsWith("/summary") ? programSummary() : path.includes("/ports") ? {
+      found: true, scan_id: 31, hosts: 1, unique_ports: 1, complete: true, files: [],
+      rows: [{ host: "old.acme.com", ip: "192.0.2.1", port: 22, proto: "tcp", service: "ssh", version: "" }], cdn: [], cdn_hosts: [], cdn_pairs: 0,
+    } : { scans: [] });
+    location.hash = "/program/acme/data?v=ports&scan=31";
+    render(<App />);
+    expect(await screen.findByTestId("ports-scan")).toHaveTextContent("scan #31");
+    await waitFor(() => expect(fetch.mock.calls.some((c) => String(c[0]).includes("/ports?") && String(c[0]).includes("scan=31"))).toBe(true));
   });
 });
