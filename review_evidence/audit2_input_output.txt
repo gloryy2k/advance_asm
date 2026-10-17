@@ -1,0 +1,5 @@
+VALIDATION {"rejected": {"header_lf": true, "header_auth": true, "url_pattern_shell": true, "custom_id_shell": true, "excluded_host_shell": true, "scope_shell": false}, "scope_patterns": ["127.0.0.1", "printf_QA"], "safe_slug": "qa---printf-qa--..-program"}
+HEADER_ARGV {"argv_items": 2, "flag_and_literal_value_preserved": true, "env_has_header": true, "stderr": "", "command_substitution_executed": false, "discovery_has_header": false}
+CUSTOM_DNS {"status": 200, "accepted": true, "id": "qa-dns-outside"}
+CUSTOM_DNS_REAL_VALIDATE {"status": 200, "accepted": true, "error_code": null}
+JS_HEADER {"engine_exit": 0, "foreign_js_curl_calls": 2, "foreign_js_calls_with_header": 2, "header_value_in_engine_stdout": false, "gau_url_in_merged_output": true}
