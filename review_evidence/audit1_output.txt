@@ -1,0 +1,6 @@
+DIFF {"first": 1, "empty_completed": 2, "current": 3, "chosen_baseline": 1, "counts": {"new": 0, "changed": 0, "gone": 0}}
+NUCLEI {"input_matches": 2, "stored_findings": 1, "stats_findings": 1, "stored_details": [{"name": "fixture-template", "detail_json": "{\"matched_at\": \"http://127.0.0.1/two\", \"name\": null}"}]}
+RANK {"assets": 700, "urls": 20000, "seconds_without_index": 0.492, "seconds_with_fixture_index": 0.08, "plan_without_index": [[2, 0, 0, "SCAN url"]], "plan_with_fixture_index": [[3, 0, 0, "SEARCH url USING INDEX audit_only_url_asset_seen (asset_id=? AND last_seen_scan=?)"]]}
+SCOPE {"allow_rule": "github.com", "other_repo_allowed": true}
+POLICY {"same_slug": true, "db_has_B": true, "file_has_A": true, "file_has_B": false, "file_unchanged": true}
+LOCK {"cancelled_running_rank_thread": false, "terminal_write_blocked_while_rank_runs": true, "terminal_write_succeeds_after_rank": true}
