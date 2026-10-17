@@ -763,3 +763,17 @@ Codex (ngoài phạm vi QA đã thống nhất — tự viết feature, không p
 - Tôi review (không phải chỉ merge thẳng): logic SQL/validate đúng, chạy lại test thật xác nhận không regression. Tìm 1 lỗ hổng nhỏ: `/diff` nhận `scan_id` thẳng không kiểm tra thuộc program này/không phải draft như các bộ chọn khác đã làm — trước đây frontend chưa bao giờ gửi tham số này nên không lộ, nhưng `DiffView` mới gửi thẳng từ URL `?scan=` (người dùng sửa được). Không rò dữ liệu thật (do `diff_event` tự giới hạn theo `program_id`, sai thì trả rỗng) nhưng âm thầm sai thay vì báo lỗi `invalid_scan` như mọi nơi khác — đã vá (`58c5c3f`) + thêm test `test_diff_rejects_a_draft_or_foreign_scan_id`.
 - Tests: 477 backend passed (cùng 11 fail môi trường có sẵn trên HEAD trước merge — thiếu curl trong container chuẩn, không liên quan thay đổi này, đã verify chạy lại trên HEAD cho kết quả giống hệt); tsc sạch; 95 Vitest passed; build OK.
 - Đã nhắc Codex: chỉ QA theo `COORD_TASKS.md`, không tự viết feature sản phẩm nữa — xem "Quy tắc bàn giao" cuối file đó.
+
+## v1.6.10 — tự QA bộ chọn scan + audit UI/UX và luồng recon (2026-10-18)
+Tôi tự mở browser test v1.6.9 trên dữ liệu thật (`arc-bbp`), tìm và sửa ngay các vấn đề sau; sau đó audit tiếp toàn bộ panel cấu hình và `recon_engine.sh` theo yêu cầu người dùng.
+
+- **Gộp 2 banner Overview** còn chéo nhau khi xem scan cũ (banner mới "Các ô bên dưới là inventory hiện hành" đứng cạnh banner cũ "Số liệu dưới đây là của scan #N" — không nói chúng là cùng một thứ). Giờ chỉ 1 câu, nêu rõ khác với scan đang xem.
+- **Thẻ TECH trong bảng Host** nhiều thẻ làm dòng cao lệch nhau — `TechCell` mới chỉ hiện 3 + nút "+N nữa".
+- **Cột "Chi tiết" Findings** URL dài bị cắt cứng sát mép — wrap trong 420px.
+- **Spinner ô số bị lệch** (panel Ngân sách công cụ) — ẩn hẳn nút tăng/giảm gốc trình duyệt toàn app.
+- **`.table-wrap` có bóng mờ cuộn ngang** (bảng Tools, Host) — báo còn nội dung thay vì cắt im lặng.
+- **Tự QA phát hiện bug do chính đợt sửa trên gây ra:** dải tóm tắt severity mới thêm ở Findings — bấm "1 critical" dẫn tới bảng rỗng vì `findings_by_severity` (backend) là tổng **toàn bộ chương trình mọi thời điểm**, không khớp bộ lọc "scan mới nhất". Bỏ click-to-filter, chỉ hiển thị kèm ghi chú rõ phạm vi.
+- **`GET /api/meta/tool-defaults`** (mới): 4 ô ngân sách tuỳ chọn (nmap/ffuf/nuclei timeout, deep_hosts) trước đây để trống chỉ hiện chữ "mặc định", không nói con số thật — giờ `ConfigEditor` hiện đúng số hiện hành của máy chủ (placeholder + ghi chú "(hiện là Ns)"), không bake số vào `ScanConfig` để vẫn theo đúng khi admin đổi server setting sau này.
+- **Dọn 18 bản nháp QA rác** (`qa-v134-ui`, `qa-v13-draft-*`...) khỏi dashboard thật; giữ nguyên các bản nháp trông như người dùng tự thử (`uber`/`shopify`/`gitlab`/`verisk-vdp`).
+- **Audit `recon_engine.sh`** theo yêu cầu: tìm Phase 10 "Takeover quick-check" mồ côi hoàn toàn (không ai đọc), ffuf/katana/config-expose/js-analysis hardcode `head -N` không cấu hình được — **chưa sửa**, ghi vào `BACKLOG.md` mục "Còn dở trên chức năng hiện có" chờ ưu tiên.
+- Tests: 478 backend passed (cùng 11 fail môi trường có sẵn mọi lần chạy trong phiên này); 96 Vitest passed; tsc sạch; build OK.

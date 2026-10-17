@@ -13,7 +13,13 @@ Mục 1–8 cũ (trạng thái công cụ, trang Công cụ, cập nhật Nuclei
 xóa vĩnh viễn, import template riêng) đã xong: xem NOTES v1.5.0–v1.5.3.
 
 ## Còn dở trên chức năng hiện có
-Không còn mục nào (A3–A7 và hiển thị lỗi lịch đã xử lý, xem NOTES v1.3.8–v1.5.0).
+Không còn mục nào cũ (A3–A7 và hiển thị lỗi lịch đã xử lý, xem NOTES v1.3.8–v1.5.0).
+
+**Audit recon_engine.sh (2026-10-18, chưa làm — xem NOTES v1.6.10 cho phần đã sửa cùng đợt audit này):**
+- **Phase 10 "Subdomain Takeover Quick-Check" (CNAME-fingerprint qua `dig`) hoàn toàn mồ côi** — chạy mỗi scan Light/Strong (tới 500 subdomain tuần tự ở Full), ghi `takeover_candidates.txt`, nhưng **không có chỗ nào trong backend đọc file này** (đã grep toàn bộ, 0 kết quả). Trùng chức năng với bước "Takeover" chính thức (subjack+dnsreaper qua `Monitors`) đã có và hiện đúng trong UI. Tốn thời gian thật, không mang lại gì. Hướng sửa: xoá hẳn Phase 10 khỏi `recon_engine.sh`.
+- **ffuf (Dò thư mục) chỉ fuzz 2 (Quick)/5 (Full) host đầu của `live/urls.txt`** — hardcode, không có config nào nâng lên được (khác `nmap_timeout`/`ffuf_maxtime`/`deep_hosts` đã có ô nhập), và UI không cảnh báo số host bị bỏ qua. Cùng loại vấn đề D1 từng sửa cho nuclei. Hướng sửa: thêm `BBASM_FFUF_HOSTS`/`ScanConfig.ffuf_hosts` theo đúng mẫu `nuclei_timeout`, Run page nói rõ "chỉ X/Y host được dò".
+- **katana (Crawl chủ động) hardcode `head -50`** trên `live/urls.txt` — hiện bị che vì `deep_hosts` mặc định cũng là 50, nhưng nếu người dùng tăng `deep_hosts` (tối đa 200) thì katana vẫn chỉ crawl 50 host đầu, không theo kịp.
+- (Nhẹ) "File cấu hình lộ" chỉ kiểm 30 host đầu, "Phân tích JavaScript" (bản regex thô, khác bước "Bí mật trong JS"/trufflehog chính thức đã có `max_js_files` cấu hình được) chỉ 50 file JS đầu — đều hardcode, không disclose trong UI. Ưu tiên thấp, đây là các bước phụ/rẻ.
 
 
 ## Đã chốt sau audit luồng input→output (không làm)
