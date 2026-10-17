@@ -10,8 +10,6 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 
 | ID | Ưu tiên | Owner | Trạng thái | base_commit | result_commit | Tóm tắt |
 | --- | --- | --- | --- | --- | --- | --- |
-| NUC-3 | P2 | Codex | OPEN | d65c4f5 | — | Đo `nuclei/stats.jsonl` phình bao nhiêu ở fixture chạy dài hơn 12s hiện có (vài trăm giây), không cần sửa gì nếu không có vấn đề. |
-| NUC-4 | P2 | Codex | OPEN | d65c4f5 | — | Chạy 1 scan Strong qua orchestration thật (`ReconOrchestrator`/`JobRunner`, không gọi tay `recon_engine.sh`) với ≥2 lệnh chạm Phase 9 (main+deep), xác nhận `build_report` gộp đúng ngoài fixture ghép tay. |
 | UX-1 | P3 | Claude | READY_FOR_QA | ab9abc4 | `6ba098d` | `GET /api/programs/{slug}/ports` và `/dirs` (mới) + 2 tab "Cổng/Dịch vụ"/"Đường dẫn dò được" trong Dữ liệu. Đọc lại `backend.asm.results.summarize_ports/summarize_dirs` của scan cụ thể (`?scan=latest|<id>`), không có bảng DB riêng. |
 | ENG-1 | P4 | Claude | READY_FOR_QA | ab9abc4 | `bb17169` (BBASM) + `bfd61ba` (submodule) | `open_ports.txt` ở `recon_engine.sh` đổi `sed` tham lam sang `grep -oE` giữ đủ mọi cổng/dòng. BBASM không bị ảnh hưởng (đã đọc `nmap_greppable.txt` trực tiếp từ v1.6.0); chỉ sửa file tóm tắt text. |
 
@@ -24,6 +22,8 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 | NUC-1 — coverage.json hỏng khi nuclei lỗi | **PASS** (QA Codex `test/v162-host-audit`@03c1f6b) | `d65c4f5` (BBASM) + `6638e72` (submodule, sau khi vá thêm log "[DONE] nuclei: no findings" sai mà Codex phát hiện) | Codex: nuclei thoát mã 1, `coverage.json` parse được, `failed=true`, Run hiện đúng "LỖI: nuclei không chạy được", không hiện `n/a`/sentinel. |
 | NUC-2 — giới hạn sai khi gộp quick/full | **PASS** (QA Codex `test/v162-host-audit`@03c1f6b) | `d65c4f5` | Codex: gộp quick (50/60) + full (2/2) → `limits=[50,200]`, detail "mỗi lượt có giới hạn riêng: 50, 200 URL", không còn câu sai. |
 | DOC-1 | DONE (không cần QA) | `d65c4f5` | `NOTES.md` +v1.6.1/v1.6.2, `BACKLOG.md` +mục "Độ phủ nuclei", `CLOUD_TO_LOCAL_HANDOFF.md` ghi chú lỗi thời. |
+| NUC-3 — đo `nuclei/stats.jsonl` phình bao nhiêu | **PASS** (QA Codex `test/v163-host-audit`@6452c63) | d65c4f5 (đo, không sửa) | 321,79s thật: 66 dòng/11.794 byte. Ngoại suy 1800s ≈ 369 dòng/~64,4 KiB — không phình bất thường. |
+| NUC-4 — scan Strong qua orchestration thật | **PASS** (QA Codex `test/v163-host-audit`@6452c63) | d65c4f5 (đo, không sửa) | `JobRunner`/`ReconOrchestrator` thật, main+deep đều tự tạo `coverage.json`; `/api/scans/{id}/phases` gộp đúng 2/2 URL, 2 request, `failed=false`. |
 
 ## Quyết định sản phẩm đang chờ bạn (không lên task thi công tới khi chốt)
 
