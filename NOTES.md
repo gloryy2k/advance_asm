@@ -750,3 +750,8 @@ Người dùng chốt D1 (2026-10-17): mọi URL đang sống đều phải đư
 - Kiểm bằng nuclei thật: 300 URL đưa đủ 300 (trước đây bị cắt ở 200), `BBASM_NUCLEI_TIMEOUT=5` cắt đúng 5s và báo `timed_out:true`, mặc định không ghi đè ra đúng 3600/7200 theo Quick/Full.
 - Tests: `test_v137_scope_selection.py` (+1: env var `BBASM_NUCLEI_TIMEOUT`). 471 backend passed cả có/không nuclei+ffuf thật trên PATH; 94 Vitest passed; tsc sạch, build OK.
 - `BACKLOG.md` mục "Độ phủ nuclei" cập nhật: D1 **đã chốt và làm xong** phần giới hạn URL; không còn mục "chưa quyết" nào liên quan tới 50/200 nữa.
+
+## v1.6.8 — host audit v1.6.7 (`test/v168-host-audit`, 05e0692): log "no findings" sai khi timeout
+NUC-6 PASS các tiêu chí chính (300/300 URL không còn cắt ở 200, `BBASM_NUCLEI_TIMEOUT` override đúng, ô nhập Review đúng, hồi quy xanh). 1 finding P2 đã sửa:
+- **Log nói "no findings" sau khi nuclei timeout:** `6638e72` (v1.6.2) đã xử lý nhánh "nuclei lỗi" nhưng bỏ sót nhánh "nuclei hết giờ" (`NUC_EXIT=124`) — vẫn rơi vào `else: log_done "nuclei: no findings"` ngay sau cảnh báo "stopped after Ns (timeout) ... PARTIAL" phía trên, đọc như đã chạy xong sạch 0 kết quả dù phần lớn target chưa kịp quét. Thêm nhánh `elif NUC_EXIT=124` ghi rõ "không có finding trong phần đã chạy trước khi hết giờ — chưa phải lượt chạy xong". Kiểm bằng script tách riêng 3 nhánh (clean/failed/timeout) — đúng cả ba.
+- Submodule bump: `ccae299`.
