@@ -1,0 +1,2 @@
+TOOL_DEFAULTS {"status": [200, 200], "default": {"nmap_timeout": 900, "ffuf_maxtime": 300, "nuclei_timeout": 3600, "deep_hosts": 50}, "custom": {"nmap_timeout": 111, "ffuf_maxtime": 222, "nuclei_timeout": 333, "deep_hosts": 44}}
+STRONG_CAP {"code_default": 7200, "example_env": 2700, "frontend_preset": 7200, "preset_rejected_with_example_env": true, "reason": "scan_timeout exceeds configured depth hard limit"}
