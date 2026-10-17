@@ -109,6 +109,17 @@ def test_phase_catalog_endpoint_and_unknown_scan(settings):
         assert client.get("/api/scans/999/phases").status_code == 422
 
 
+def test_tool_defaults_endpoint_reflects_the_running_server_settings(settings):
+    """A blank nmap/ffuf/nuclei/deep_hosts field in ScanConfig means 'use the server's current setting' -- the
+    editor needs the real number to show, not just the word 'mặc định' (default), and it must track a server
+    admin's own override rather than a number baked into the frontend."""
+    settings.BBASM_NMAP_TIMEOUT, settings.BBASM_FFUF_MAXTIME = 111, 222
+    settings.BBASM_NUCLEI_TIMEOUT, settings.BBASM_DEEP_HOSTS = 333, 44
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/api/meta/tool-defaults").json() == {
+            "nmap_timeout": 111, "ffuf_maxtime": 222, "nuclei_timeout": 333, "deep_hosts": 44}
+
+
 def test_tc_ph_3_plan_preview_follows_the_config_before_anything_runs(settings, monkeypatch):
     from backend.jobs.recon_orch import ReconOrchestrator as RO
     monkeypatch.setattr(RO, "missing_tools", lambda self: ["katana", "nuclei"])

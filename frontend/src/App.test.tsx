@@ -820,6 +820,16 @@ describe("Customisation: steps, profiles, defaults", () => {
     expect((screen.getByLabelText(/^Số luồng/) as HTMLInputElement).value).toBe("50");
   });
 
+  test("an empty per-tool budget field shows the server's real current default, not just the word 'default'", async () => {
+    review();
+    fireEvent.click(await screen.findByText(/Tuỳ chỉnh chi tiết/));
+    expect(await screen.findByLabelText("nmap tối đa (giây)")).toHaveAttribute("placeholder", "900");
+    expect(screen.getByLabelText("ffuf tối đa (giây)")).toHaveAttribute("placeholder", "300");
+    expect(screen.getByLabelText("nuclei tối đa (giây)")).toHaveAttribute("placeholder", "3600");
+    expect(screen.getByLabelText("Số host quét sâu")).toHaveAttribute("placeholder", "50");
+    expect(screen.getByText(/mặc định máy chủ \(hiện là 3600s\)/)).toBeInTheDocument();
+  });
+
   test("save the current setup as a profile (optionally the program default) and the recipe excludes scope", async () => {
     const fetch = review();
     fireEvent.click(await screen.findByText(/Tuỳ chỉnh chi tiết/));

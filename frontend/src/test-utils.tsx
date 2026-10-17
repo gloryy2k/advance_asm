@@ -115,6 +115,7 @@ export const planReply = (over: Record<string, Partial<{ status: string; reason:
 function defaults(path: string, init?: RequestInit): unknown {
   if (path === "/api/profiles") return profilesReply();
   if (path === "/api/meta/plan") return planReply();
+  if (path === "/api/meta/tool-defaults") return { nmap_timeout: 900, ffuf_maxtime: 300, nuclei_timeout: 3600, deep_hosts: 50 };
   if (path === "/api/meta/phases") return planReply().phases.map((p) => ({ ...p, tools: [], count_label: "mục", files: [] }));
   if (/\/phases$/.test(path)) return { scan_id: 1, slug: "acme", status: "done", depth: "light", phases: [], funnel: null, missing_tools: [] };
   if (/\/urls\/summary$/.test(path)) return { scan_id: 1, total: 0, funnel: null, by_tag: {}, top_shapes: [], hosts: [] };

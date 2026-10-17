@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { api, ApiError } from "../api/client";
 import { RECIPE_FIELDS, type Config, type PlanPhase, type Recipe } from "../api/types";
+import { useData } from "../hooks/useData";
 import { SEVERITY_LEVELS } from "../lib/presets";
 import { Panel } from "./layout";
 import { StepList, type StepRow } from "./StepList";
+
+type ToolDefaults = { nmap_timeout: number; ffuf_maxtime: number; nuclei_timeout: number; deep_hosts: number };
 
 type LookupTemplate = { path: string; name: string | null; severity: string | null };
 type LookupResult = { tag: string; total: number; templates: LookupTemplate[]; truncated: boolean };
@@ -110,6 +113,9 @@ export function ConfigEditor({
   scopeFields?: React.ReactNode;
   advancedOpen?: boolean;
 }) {
+  const toolDefaults = useData<ToolDefaults>("/api/meta/tool-defaults");
+  const dflt = (n?: number) => n !== undefined ? String(n) : "mặc định";
+  const dfltNote = (n?: number, unit = "s") => n !== undefined ? ` (hiện là ${n}${unit})` : "";
   const diff = changedFields(config, base);
   const severities = new Set(config.nuclei_severity.split(",").filter(Boolean));
   const [patterns, setPatterns] = useState(config.url_exclude_patterns.join("\n"));
@@ -173,23 +179,24 @@ export function ConfigEditor({
       <Panel id="ed-budget" title="Ngân sách công cụ" hint="Chương trình lớn cần nhiều thời gian hơn chương trình nhỏ. Để trống để dùng mặc định của máy chủ; 0 = không giới hạn từng lệnh (vẫn nằm trong thời gian tối đa của scan). Hết giới hạn thì công cụ dừng và giữ kết quả đã có.">
         <div className="three">
           <label>nmap tối đa mỗi lần chạy (giây)
-            <input type="number" min={0} max={7200} aria-label="nmap tối đa (giây)" placeholder="mặc định" value={config.nmap_timeout ?? ""}
+            <input type="number" min={0} max={7200} aria-label="nmap tối đa (giây)" placeholder={dflt(toolDefaults.data?.nmap_timeout)} value={config.nmap_timeout ?? ""}
               onChange={(e) => onChange({ nmap_timeout: e.target.value === "" ? null : Number(e.target.value) })} />
-            <small>Chỉ chạy ở bước quét sâu (Strong)</small>
+            <small>Chỉ chạy ở bước quét sâu (Strong). Để trống = mặc định máy chủ{dfltNote(toolDefaults.data?.nmap_timeout)}.</small>
           </label>
           <label>ffuf tối đa mỗi lần chạy (giây)
-            <input type="number" min={0} max={7200} aria-label="ffuf tối đa (giây)" placeholder="mặc định" value={config.ffuf_maxtime ?? ""}
+            <input type="number" min={0} max={7200} aria-label="ffuf tối đa (giây)" placeholder={dflt(toolDefaults.data?.ffuf_maxtime)} value={config.ffuf_maxtime ?? ""}
               onChange={(e) => onChange({ ffuf_maxtime: e.target.value === "" ? null : Number(e.target.value) })} />
+            <small>Để trống = mặc định máy chủ{dfltNote(toolDefaults.data?.ffuf_maxtime)}.</small>
           </label>
           <label>nuclei tối đa mỗi lần chạy (giây)
-            <input type="number" min={0} max={14400} aria-label="nuclei tối đa (giây)" placeholder="mặc định" value={config.nuclei_timeout ?? ""}
+            <input type="number" min={0} max={14400} aria-label="nuclei tối đa (giây)" placeholder={dflt(toolDefaults.data?.nuclei_timeout)} value={config.nuclei_timeout ?? ""}
               onChange={(e) => onChange({ nuclei_timeout: e.target.value === "" ? null : Number(e.target.value) })} />
-            <small>Nhận mọi URL đang sống, không giới hạn số URL/lượt — chỉ giới hạn thời gian</small>
+            <small>Nhận mọi URL đang sống, không giới hạn số URL/lượt — chỉ giới hạn thời gian. Để trống = mặc định máy chủ{dfltNote(toolDefaults.data?.nuclei_timeout)}.</small>
           </label>
           <label>Số host được quét sâu
-            <input type="number" min={1} max={200} aria-label="Số host quét sâu" placeholder="mặc định" value={config.deep_hosts ?? ""}
+            <input type="number" min={1} max={200} aria-label="Số host quét sâu" placeholder={dflt(toolDefaults.data?.deep_hosts)} value={config.deep_hosts ?? ""}
               onChange={(e) => onChange({ deep_hosts: e.target.value === "" ? null : Number(e.target.value) })} />
-            <small>Host đang sống được chọn từ kết quả probe</small>
+            <small>Host đang sống được chọn từ kết quả probe. Để trống = mặc định máy chủ{dfltNote(toolDefaults.data?.deep_hosts, "")}.</small>
           </label>
         </div>
       </Panel>

@@ -110,6 +110,16 @@ async def phase_catalog():
     return [{k: p[k] for k in ("key", "title", "what", "touches", "tools", "count_label", "view")} | {"files": p["files"]} for p in PHASES]
 
 
+@router.get("/api/meta/tool-defaults")
+async def tool_defaults(request: Request):
+    """What an empty (null) per-tool budget field in ScanConfig actually resolves to right now, so the editor can
+    show the real number instead of just the word "mặc định" (default) — a server admin can change these, so the
+    scan's own config never bakes the number in, but the editor still needs something concrete to display."""
+    settings = request.app.state.settings
+    return {"nmap_timeout": settings.BBASM_NMAP_TIMEOUT, "ffuf_maxtime": settings.BBASM_FFUF_MAXTIME,
+            "nuclei_timeout": settings.BBASM_NUCLEI_TIMEOUT, "deep_hosts": settings.BBASM_DEEP_HOSTS}
+
+
 @router.post("/api/meta/plan")
 async def plan_preview(config: ScanConfig, request: Request):
     from backend.asm.phases import plan_for
