@@ -49,6 +49,20 @@ export function useAssets(path: string, revision = 0) {
   return { state, error };
 }
 
+/** Keeps table rows an even height: a host with many tech tags doesn't dwarf its neighbours. */
+function TechCell({ tech }: { tech: string[] }) {
+  const [open, setOpen] = useState(false);
+  const shown = open || tech.length <= 4 ? tech : tech.slice(0, 3);
+  const hidden = tech.length - shown.length;
+  return (
+    <>
+      {shown.map((t) => <Badge key={t}>{t}</Badge>)}
+      {hidden > 0 && <button type="button" className="linklike" style={{ fontSize: 11.5 }} onClick={() => setOpen(true)}>+{hidden} nữa</button>}
+      {open && tech.length > 4 && <button type="button" className="linklike" style={{ fontSize: 11.5 }} onClick={() => setOpen(false)}>thu gọn</button>}
+    </>
+  );
+}
+
 export function AssetTable({ rows }: { rows: Asset[] }) {
   return rows.length ? (
     <div className="table-wrap" tabIndex={0} role="region" aria-label="Bảng dữ liệu, cuộn được">
@@ -60,7 +74,7 @@ export function AssetTable({ rows }: { rows: Asset[] }) {
               <td><strong>{r.host}</strong>{r.category && r.category !== "web" && <Badge>{r.category}</Badge>}{r.title && <small>{r.title}</small>}</td>
               <td><Badge tone="rank">{r.rank_score ?? 0}</Badge></td>
               <td>{r.status_code || <span className="muted" title="Chưa có phản hồi HTTP nào được ghi nhận (scan Passive không probe)">chưa có HTTP</span>}</td>
-              <td>{(r.tech || []).map((t) => <Badge key={t}>{t}</Badge>)}</td>
+              <td><TechCell tech={r.tech || []} /></td>
               <td>{(r.reasons || []).map(reasonText).join(", ")}</td>
             </tr>
           ))}
@@ -139,15 +153,17 @@ function Overview({ slug, summary, detail, urls, reload, scan }: { slug: string;
   const dataStats = (dataScan as any)?.stats || {};
   const chosen = scan === "latest" ? dataScan : (detail?.scans || []).find((r: any) => String(r.id) === scan);
   const chosenStats = chosen?.stats || {};
+  const viewingOld = scan !== "latest" && !!chosen;
   return (
     <>
-      {scan !== "latest" && chosen && <div className="notice" role="note"><strong>Scan #{chosen.id} · {chosen.depth}.</strong> {chosenStats.subs ?? 0} host · {chosenStats.urls ?? 0} URL · {chosenStats.findings ?? 0} finding trong thống kê của lượt này. <a href={"#/scan/" + chosen.id}>Xem log và file gốc →</a> Các ô và biểu đồ bên dưới là inventory hiện hành.</div>}
+      {viewingOld && <div className="notice" role="note"><strong>Đang xem scan #{chosen.id} · {chosen.depth}.</strong> {chosenStats.subs ?? 0} host · {chosenStats.urls ?? 0} URL · {chosenStats.findings ?? 0} finding trong thống kê của lượt này. <a href={"#/scan/" + chosen.id}>Xem log và file gốc →</a></div>}
       {dataScan && (
         <p className={"databanner " + (active || dataScan.status === "done_partial" ? "warnbox" : "muted")} role="status" data-testid="data-scan">
           {active && <><strong>Scan #{active.id} ({active.depth}) đang {active.status === "queued" ? "chờ chạy" : "chạy"}</strong> — số liệu dưới đây vẫn là của </>}
-          {!active && <>Số liệu dưới đây là của </>}
+          {!active && !viewingOld && <>Số liệu dưới đây là của </>}
+          {!active && viewingOld && <>Các ô, biểu đồ và danh sách bên dưới vẫn là tình trạng hiện hành — </>}
           <strong>scan #{dataScan.id}</strong> ({dataScan.depth}, {dataScan.status === "done_partial" ? "hoàn tất MỘT PHẦN" : "hoàn tất"}
-          {dataScan.finished_at ? ` lúc ${when(dataScan.finished_at)}` : ""}).
+          {dataScan.finished_at ? ` lúc ${when(dataScan.finished_at)}` : ""}){viewingOld && dataScan.id !== chosen.id ? <>, khác với scan #{chosen.id} bạn đang xem ở trên</> : ""}.
           {active && " Kết quả của scan đang chạy chỉ xem được ở trang Run."}
           {dataScan.status === "done_partial" && dataStats.coverage?.unprobed > 0 && <> Còn {dataStats.coverage.unprobed.toLocaleString("vi-VN")} host khám phá chưa probe.</>}
           {" "}<a href={"#/scan/" + (active ? active.id : dataScan.id)}>Mở scan #{active ? active.id : dataScan.id} →</a>
@@ -396,15 +412,22 @@ function DirsView({ base, scan }: { base: string; scan?: string }) {
 }
 
 /* ───────────── Phát hiện ───────────── */
-function FindingsTab({ base, notes, scan }: { base: string; notes?: DataNote[]; scan: string }) {
+function FindingsTab({ base, notes, scan, bySeverity }: { base: string; notes?: DataNote[]; scan: string; bySeverity?: Record<string, number> }) {
   const params = routeParams();
   const [severity, setSeverity] = useState("");
   const [type, setType] = useState(params.get("type") || "");
   const [offset, setOffset] = useState(0);
   const result = useAssets(base + "/findings?" + new URLSearchParams({ limit: "50", offset: String(offset), scan, ...(severity ? { severity } : {}), ...(type ? { type } : {}) }));
+  // Matches the table's default (no filter) only when scan === "latest" — bySeverity is always the program's current distribution.
+  const severityCounts = scan === "latest" && bySeverity ? ["critical", "high", "medium", "low", "info"].map((s) => [s, bySeverity[s] || 0] as const).filter(([, n]) => n > 0) : [];
   return (
     <>
       <p className="viewintro"><strong>Findings.</strong> Dấu hiệu lỗi hoặc rò rỉ do nuclei, takeover và quét bí mật tìm thấy. <span className="muted">0 finding không có nghĩa target an toàn — chỉ là công cụ đã chạy không thấy gì. Takeover và secret là <em>ứng viên chưa xác minh</em>, không phải lỗi đã chứng minh.</span></p>
+      {severityCounts.length > 0 && (
+        <p className="chips-row" aria-label="Số finding theo mức nghiêm trọng">
+          {severityCounts.map(([s, n]) => <button key={s} type="button" className="linklike" onClick={() => { setSeverity(s); setOffset(0); }}><Badge tone={s}>{n} {s}</Badge></button>)}
+        </p>
+      )}
       {scan !== "latest" && <p className="notice" role="note">Finding của scan #{scan} được ước tính từ lần đầu/cuối ghi nhận. Mức độ và chi tiết có thể đã được cập nhật sau lượt này; file gốc nằm trong Run #{scan}.</p>}
       {(notes || []).length > 0 && <div className="notice" role="note" data-testid="findings-notes">{notes!.map((n, i) => <p key={i}>{n.note}</p>)}</div>}
       <div className="filters">
@@ -426,7 +449,7 @@ function FindingsTab({ base, notes, scan }: { base: string; notes?: DataNote[]; 
                 {(result.state!.items as any[]).map((f) => (
                   <tr key={f.id}>
                     <td><SeverityBadge severity={f.severity} /></td><td><strong>{f.name}</strong></td><td>{f.type}</td><td>{f.host || "—"}</td>
-                    <td>{f.detail?.matched_at || (f.detail?.verified ? "đã xác minh" : "") || ""}</td>
+                    <td className="detailcell">{f.detail?.matched_at || (f.detail?.verified ? "đã xác minh" : "") || ""}</td>
                   </tr>
                 ))}
               </tbody>
@@ -696,7 +719,7 @@ export function Program({ slug, tab, view }: { slug: string; tab: string; view: 
       <State data={s} error={summary.error} retry={() => setRevision((v) => v + 1)}>
         {s && (tab === "overview" ? <Overview slug={slug} summary={s} detail={detail.data} urls={urls.data} reload={() => setRevision((v) => v + 1)} scan={scan} />
           : tab === "data" ? <DataArea slug={slug} view={view} scan={scan} />
-          : tab === "findings" ? <FindingsTab base={base} notes={s.data_notes} scan={scan} />
+          : tab === "findings" ? <FindingsTab base={base} notes={s.data_notes} scan={scan} bySeverity={s.findings_by_severity} />
           : tab === "history" ? <HistoryArea slug={slug} view={view} summary={s} detail={detail.data} scan={scan} />
           : <GuideArea slug={slug} view={view} summary={s} detail={detail.data} reload={() => setRevision((v) => v + 1)} scan={scan} />)}
       </State>
