@@ -8,10 +8,7 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 
 ## Trạng thái: `OPEN` (chưa ai làm) · `IN_PROGRESS` · `READY_FOR_QA` · `PASS` · `FAIL` (kèm lý do) · `DONE` · `BLOCKED` (chờ quyết định D#)
 
-| ID | Ưu tiên | Owner | Trạng thái | base_commit | result_commit | Tóm tắt |
-| --- | --- | --- | --- | --- | --- | --- |
-| UX-1 | P3 | Claude | READY_FOR_QA (vòng 2, sửa 2 finding FAIL của `test/v164-host-audit`) | 26b6c58 | `976e1c3` | (1) Frontend `PortsView`/`DirsView` không forward `scan=<id>` từ URL — giờ truyền qua, hiện "Đang xem scan #N". (2) `_resolve_scan_id` không loại `status='draft'` nên output mồ côi của draft bị đọc như kết quả thật — giờ từ chối `draft` khi chọn theo id cụ thể. |
-| ENG-1 | — | Claude | **DONE** | ab9abc4 | `bb17169`/`bfd61ba` | **PASS** (QA Codex `test/v164-host-audit`@3379dfd): Phase 3 ghi đủ 4 cổng mở, không còn chỉ giữ cổng cuối mỗi dòng. |
+Không còn task nào `OPEN`/`READY_FOR_QA`. Mọi việc còn lại trong `BACKLOG.md` chờ quyết định D1–D4 ở dưới.
 
 ## Việc đã đóng (lịch sử, không mở lại — sự cố tái phát ra ID mới)
 
@@ -25,6 +22,7 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 | NUC-3 — đo `nuclei/stats.jsonl` phình bao nhiêu | **PASS** (QA Codex `test/v163-host-audit`@6452c63) | d65c4f5 (đo, không sửa) | 321,79s thật: 66 dòng/11.794 byte. Ngoại suy 1800s ≈ 369 dòng/~64,4 KiB — không phình bất thường. |
 | NUC-4 — scan Strong qua orchestration thật | **PASS** (QA Codex `test/v163-host-audit`@6452c63) | d65c4f5 (đo, không sửa) | `JobRunner`/`ReconOrchestrator` thật, main+deep đều tự tạo `coverage.json`; `/api/scans/{id}/phases` gộp đúng 2/2 URL, 2 request, `failed=false`. |
 | ENG-1 — `open_ports.txt` mất cổng | **PASS** (QA Codex `test/v164-host-audit`@3379dfd) | `bb17169`/`bfd61ba` | `grep -oE` giữ đủ mọi cổng/dòng, log `Open ports: 4` đúng. |
+| UX-1 — bảng Cổng/Dịch vụ, Đường dẫn dò được | **PASS** (vòng 2, QA Codex `test/v165-host-audit`@74aacf5, sau khi sửa 2 finding FAIL của `test/v164-host-audit`@3379dfd) | `976e1c3` | `scan=<id>` được forward đúng, hiện "Đang xem scan #N"; draft có output mồ côi trả `found=false`. Không finding mới. |
 
 ## Quyết định sản phẩm đang chờ bạn (không lên task thi công tới khi chốt)
 
