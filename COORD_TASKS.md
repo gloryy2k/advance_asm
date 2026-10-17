@@ -10,7 +10,7 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 
 | ID | Ưu tiên | Owner | Trạng thái | base_commit | result_commit | Tóm tắt |
 | --- | --- | --- | --- | --- | --- | --- |
-| NUC-6 | P1 | Claude | READY_FOR_QA | c19e5b6 | `(commit tiếp, xem git log)` | D1 chốt: bỏ hẳn giới hạn 50/200 URL/lượt nuclei (`head -N` → `cp` toàn bộ `live/urls.txt`). Thêm `ScanConfig.nuclei_timeout`/`Settings.BBASM_NUCLEI_TIMEOUT` (mặc định 3600s Quick/7200s Full) làm lưới an toàn phụ, thật ra dựa vào ngân sách giai đoạn đã có (`runner.py::_stage`). Chi tiết NOTES v1.6.7. |
+| NUC-6 | P1 | Claude | READY_FOR_QA | c19e5b6 | `41984f8` (BBASM) + `5a329e0` (submodule) | D1 chốt: bỏ hẳn giới hạn 50/200 URL/lượt nuclei (`head -N` → `cp` toàn bộ `live/urls.txt`). Thêm `ScanConfig.nuclei_timeout`/`Settings.BBASM_NUCLEI_TIMEOUT` (mặc định 3600s Quick/7200s Full) làm lưới an toàn phụ, thật ra dựa vào ngân sách giai đoạn đã có (`runner.py::_stage`). Chi tiết NOTES v1.6.7. |
 
 ## Việc đã đóng (lịch sử, không mở lại — sự cố tái phát ra ID mới)
 
