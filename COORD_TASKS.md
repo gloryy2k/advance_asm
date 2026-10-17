@@ -6,6 +6,8 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 
 **Quy tắc bàn giao đầy đủ**: xem cuối file. Không agent nào tự đổi trạng thái của task mình không sở hữu.
 
+**Nhắc Codex (2026-10-18):** `codex/scan-output-selector`@97ab94f là Codex tự viết feature (bộ chọn kết quả theo lần scan ở Program page), không phải task nào được giao trong bảng này — lệch "Quy tắc bàn giao" (Codex chỉ QA task `READY_FOR_QA`, không sửa/viết code sản phẩm). Lần này Claude đã review kỹ, vá 1 lỗ hổng nhỏ rồi merge (xem hàng lịch sử dưới), nhưng **từ nay Codex chỉ QA theo bảng này, không tự đề xuất/viết feature mới** — có ý tưởng thì ghi vào `BACKLOG.md` hoặc báo người dùng, không tự code.
+
 ## Trạng thái: `OPEN` (chưa ai làm) · `IN_PROGRESS` · `READY_FOR_QA` · `PASS` · `FAIL` (kèm lý do) · `DONE` · `BLOCKED` (chờ quyết định D#)
 
 | ID | Ưu tiên | Owner | Trạng thái | base_commit | result_commit | Tóm tắt |
@@ -16,6 +18,7 @@ Không còn task nào `OPEN`/`READY_FOR_QA`. Mọi việc còn lại trong `BACK
 
 | ID | Kết quả | Commit | Ghi chú |
 | --- | --- | --- | --- |
+| Chọn kết quả theo lần scan (Program page) | **Merged sau review Claude** (Codex tự viết, ngoài `COORD_TASKS.md` — xem nhắc nhở trên) | `97ab94f` (Codex) + merge + `58c5c3f` (vá `/diff`) | Logic/test đúng, 477 backend + 95 Vitest passed. 1 lỗ hổng nhỏ tìm thấy và vá: `/diff` không validate `scan_id` thuộc program/không phải draft như các bộ chọn khác — không rò dữ liệu thật, chỉ âm thầm trả rỗng thay vì báo lỗi. Xem NOTES.md v1.6.9. |
 | NUC-6 — bỏ giới hạn 50/200 URL/lượt nuclei (D1) | **PASS** (QA Codex `test/v168-host-audit`@05e0692) | `41984f8` (BBASM) + `5a329e0`/`ccae299` (submodule) | 300/300 URL không còn cắt ở 200; `BBASM_NUCLEI_TIMEOUT` override đúng; ô Review đúng. 1 finding P2 (log "no findings" sai khi timeout) đã sửa ngay, xem NOTES v1.6.8. |
 | (v1.6.1) Repair idempotency + test cô lập PATH | PASS (QA Codex `test/v161-host-audit`@6b9efe6, mã C1/C2) | `1e26cfe` | Xem NOTES.md v1.6.1. |
 | NUC-5 — nuclei "tự chọn theo công nghệ" (`-as`) | **PASS vòng 2** (QA Codex `test/v167-host-audit`@ccbdca7, sửa P1/P2/P3 của `test/v166-host-audit`@db4442a) | `4102e75` | Nuclei thật thoát 0, finding thật trên localhost; `templates_loaded.txt` sạch (0 dòng JSON); Run nói đúng "không đáng tin" khi `templates:0` mâu thuẫn. |
