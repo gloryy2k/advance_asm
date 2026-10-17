@@ -10,12 +10,13 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 
 | ID | Ưu tiên | Owner | Trạng thái | base_commit | result_commit | Tóm tắt |
 | --- | --- | --- | --- | --- | --- | --- |
-| NUC-6 | P1 | Claude | READY_FOR_QA | c19e5b6 | `41984f8` (BBASM) + `5a329e0` (submodule) | D1 chốt: bỏ hẳn giới hạn 50/200 URL/lượt nuclei (`head -N` → `cp` toàn bộ `live/urls.txt`). Thêm `ScanConfig.nuclei_timeout`/`Settings.BBASM_NUCLEI_TIMEOUT` (mặc định 3600s Quick/7200s Full) làm lưới an toàn phụ, thật ra dựa vào ngân sách giai đoạn đã có (`runner.py::_stage`). Chi tiết NOTES v1.6.7. |
+Không còn task nào `OPEN`/`READY_FOR_QA`. Mọi việc còn lại trong `BACKLOG.md` chờ quyết định D2–D4 ở dưới.
 
 ## Việc đã đóng (lịch sử, không mở lại — sự cố tái phát ra ID mới)
 
 | ID | Kết quả | Commit | Ghi chú |
 | --- | --- | --- | --- |
+| NUC-6 — bỏ giới hạn 50/200 URL/lượt nuclei (D1) | **PASS** (QA Codex `test/v168-host-audit`@05e0692) | `41984f8` (BBASM) + `5a329e0`/`ccae299` (submodule) | 300/300 URL không còn cắt ở 200; `BBASM_NUCLEI_TIMEOUT` override đúng; ô Review đúng. 1 finding P2 (log "no findings" sai khi timeout) đã sửa ngay, xem NOTES v1.6.8. |
 | (v1.6.1) Repair idempotency + test cô lập PATH | PASS (QA Codex `test/v161-host-audit`@6b9efe6, mã C1/C2) | `1e26cfe` | Xem NOTES.md v1.6.1. |
 | NUC-5 — nuclei "tự chọn theo công nghệ" (`-as`) | **PASS vòng 2** (QA Codex `test/v167-host-audit`@ccbdca7, sửa P1/P2/P3 của `test/v166-host-audit`@db4442a) | `4102e75` | Nuclei thật thoát 0, finding thật trên localhost; `templates_loaded.txt` sạch (0 dòng JSON); Run nói đúng "không đáng tin" khi `templates:0` mâu thuẫn. |
 | (v1.6.1) Nuclei coverage.json + stats-json | PASS (QA Codex, mã C4-C7) | `7428043`, `f20a636` | Xem NOTES.md v1.6.1. Phát sinh C8, C9 → NUC-1, NUC-2. |
