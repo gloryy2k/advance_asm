@@ -8,15 +8,14 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 
 ## Trạng thái: `OPEN` (chưa ai làm) · `IN_PROGRESS` · `READY_FOR_QA` · `PASS` · `FAIL` (kèm lý do) · `DONE` · `BLOCKED` (chờ quyết định D#)
 
-| ID | Ưu tiên | Owner | Trạng thái | base_commit | result_commit | Tóm tắt |
-| --- | --- | --- | --- | --- | --- | --- |
-| NUC-5 | P1 | Claude | READY_FOR_QA (vòng 2, sửa P1/P2/P3 FAIL của `test/v166-host-audit`) | e3ed38d | `4102e75` | (P1) `-as` luôn đọc `$HOME/nuclei-templates` (bỏ qua `-t`, không theo symlink) → shim giờ giữ bản chép hard-link của `official/` tại đúng đường đó, làm mới mỗi lần chạy. (P2) `templates:0` mâu thuẫn với `matched`/`requests` thật → không hiện như số thật, Run nói rõ "không đáng tin". (P3) `templates_loaded.txt` lẫn dòng JSON finding → shim lọc bỏ trước khi ghi. |
+Không còn task nào `OPEN`/`READY_FOR_QA`. Mọi việc còn lại trong `BACKLOG.md` chờ quyết định D1–D4 ở dưới.
 
 ## Việc đã đóng (lịch sử, không mở lại — sự cố tái phát ra ID mới)
 
 | ID | Kết quả | Commit | Ghi chú |
 | --- | --- | --- | --- |
 | (v1.6.1) Repair idempotency + test cô lập PATH | PASS (QA Codex `test/v161-host-audit`@6b9efe6, mã C1/C2) | `1e26cfe` | Xem NOTES.md v1.6.1. |
+| NUC-5 — nuclei "tự chọn theo công nghệ" (`-as`) | **PASS vòng 2** (QA Codex `test/v167-host-audit`@ccbdca7, sửa P1/P2/P3 của `test/v166-host-audit`@db4442a) | `4102e75` | Nuclei thật thoát 0, finding thật trên localhost; `templates_loaded.txt` sạch (0 dòng JSON); Run nói đúng "không đáng tin" khi `templates:0` mâu thuẫn. |
 | (v1.6.1) Nuclei coverage.json + stats-json | PASS (QA Codex, mã C4-C7) | `7428043`, `f20a636` | Xem NOTES.md v1.6.1. Phát sinh C8, C9 → NUC-1, NUC-2. |
 | NUC-1 — coverage.json hỏng khi nuclei lỗi | **PASS** (QA Codex `test/v162-host-audit`@03c1f6b) | `d65c4f5` (BBASM) + `6638e72` (submodule, sau khi vá thêm log "[DONE] nuclei: no findings" sai mà Codex phát hiện) | Codex: nuclei thoát mã 1, `coverage.json` parse được, `failed=true`, Run hiện đúng "LỖI: nuclei không chạy được", không hiện `n/a`/sentinel. |
 | NUC-2 — giới hạn sai khi gộp quick/full | **PASS** (QA Codex `test/v162-host-audit`@03c1f6b) | `d65c4f5` | Codex: gộp quick (50/60) + full (2/2) → `limits=[50,200]`, detail "mỗi lượt có giới hạn riêng: 50, 200 URL", không còn câu sai. |
