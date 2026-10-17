@@ -140,6 +140,56 @@ def test_auto_select_adds_as_and_vv_and_captures_what_was_loaded(home):
     assert (out / "nuclei" / "templates_loaded.txt").is_file()
 
 
+def test_auto_select_syncs_the_managed_set_into_home_when_they_differ(home, tmp_path):
+    """V166_HOST_AUDIT.md P1: nuclei's -as always reads $HOME/nuclei-templates (hardcoded, ignores -t, does not
+    follow a symlink there either) to build its tech-detection service; without a real directory there it fails
+    outright instead of just skipping auto-select. The shim must keep a real (hard-linked) copy in sync."""
+    (home / "go" / "bin" / "nuclei").write_text(FAKE_NUCLEI)
+    official = tmp_path / "official"
+    (official / "http" / "technologies").mkdir(parents=True)
+    (official / "http" / "technologies" / "tech-detect.yaml").write_text("id: tech-detect\n")
+    assert not (home / "nuclei-templates").exists()        # the managed set lives elsewhere, not at the default path
+    run_shim(home, "-l", "x", extra_env={"BBASM_NUCLEI_OFFICIAL": str(official), "BBASM_NUCLEI_AUTO_SELECT": "1"})
+    synced = home / "nuclei-templates" / "http" / "technologies" / "tech-detect.yaml"
+    assert synced.is_file() and not synced.is_symlink() and synced.read_text() == "id: tech-detect\n"
+    # a second run (the set may have been updated between scans) keeps it in sync, not just created once
+    (official / "http" / "technologies" / "tech-detect.yaml").write_text("id: tech-detect-v2\n")
+    run_shim(home, "-l", "x", extra_env={"BBASM_NUCLEI_OFFICIAL": str(official), "BBASM_NUCLEI_AUTO_SELECT": "1"})
+    assert synced.read_text() == "id: tech-detect-v2\n"
+
+
+def test_auto_select_does_not_resync_when_official_already_is_the_default_path(home):
+    """The common case (no separate managed dir, templates already at $HOME/nuclei-templates) needs no copy."""
+    (home / "go" / "bin" / "nuclei").write_text(FAKE_NUCLEI)
+    add_template(home)
+    marker = home / "nuclei-templates" / ".marker"
+    marker.write_text("untouched")
+    run_shim(home, "-l", "x", extra_env={"BBASM_NUCLEI_AUTO_SELECT": "1"})
+    assert marker.read_text() == "untouched"                # not wiped/recreated
+
+
+FAKE_NUCLEI_WITH_FINDING_ECHO = """#!/bin/bash
+printf '%s\\n' "$@" > "$(dirname "$0")/nuclei.argv"
+echo '[demo-check] Demo (@me) [info]'
+echo '{"template-id":"demo-check","host":"a.example.com","matched-at":"https://a.example.com/"}'
+echo '[other-check] Other (@me) [low]'
+"""
+
+
+def test_auto_select_strips_finding_jsonl_echoed_to_stdout_from_the_template_list(home):
+    """V166_HOST_AUDIT.md P3: nuclei echoes each finding's full JSONL record to stdout too, interleaved on the SAME
+    stream as -vv's own "[id] Name (@author) [severity]" lines. templates_loaded.txt must only be the template
+    list it claims to be; findings.jsonl (via -o) stays the one place findings are read from."""
+    (home / "go" / "bin" / "nuclei").write_text(FAKE_NUCLEI_WITH_FINDING_ECHO)
+    add_template(home)
+    out = run_shim(home, "-l", "x", extra_env={"BBASM_NUCLEI_AUTO_SELECT": "1"})
+    (out / "nuclei").mkdir()
+    run_shim(home, "-l", "x", extra_env={"BBASM_NUCLEI_AUTO_SELECT": "1"})
+    lines = (out / "nuclei" / "templates_loaded.txt").read_text().splitlines()
+    assert lines == ["[demo-check] Demo (@me) [info]", "[other-check] Other (@me) [low]"]
+    assert not any(line.startswith("{") for line in lines)
+
+
 def test_auto_select_is_off_by_default_and_an_explicit_as_is_not_doubled(home):
     (home / "go" / "bin" / "nuclei").write_text(FAKE_NUCLEI)
     add_template(home)

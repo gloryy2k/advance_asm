@@ -43,8 +43,28 @@ fi
 if [ "${BBASM_NUCLEI_AUTO_SELECT:-0}" = "1" ] && [ "$has_as" = 0 ]; then
     extra+=(-as -vv)
     bbasm_note nuclei "bật tự chọn template theo công nghệ (-as): nuclei tự dò công nghệ trên từng host rồi chọn thêm template khớp, ngoài severity/tag đã lọc"
+    # V166_HOST_AUDIT.md P1: -as always reads its detection set from $HOME/nuclei-templates -- hardcoded, ignoring
+    # -t, and it does not follow a symlink placed there either (confirmed against real nuclei v3.4.10/v3.11.1: a
+    # symlink to the managed set reads as "no templates found"). Without a real directory there it fails outright
+    # ("could not find any templates with tech tag") instead of just skipping auto-select. Keep a HARD-linked (not
+    # symlinked) copy of the managed set at that exact path, refreshed before every run so it is never stale and
+    # never triggers nuclei's own download. Hard links cost no extra disk on the same filesystem (~0.3s for the
+    # full ~14k-template set); if the managed set and $HOME ever end up on different filesystems, fall back to a
+    # real copy rather than leaving a half-populated directory.
+    if [ -n "$official" ]; then
+        home_templates="${HOME:-/root}/nuclei-templates"
+        if [ "$(cd "$official" 2>/dev/null && pwd -P)" != "$(cd "$home_templates" 2>/dev/null && pwd -P)" ]; then
+            rm -rf "$home_templates"
+            cp -rl "$official" "$home_templates" 2>/dev/null || { rm -rf "$home_templates"; cp -r "$official" "$home_templates"; }
+        fi
+    fi
     if [ -n "${RECON_OUT_DIR:-}" ] && [ -d "$RECON_OUT_DIR/nuclei" ]; then
-        exec "$real" "${extra[@]}" "$@" > "$RECON_OUT_DIR/nuclei/templates_loaded.txt"
+        # V166_HOST_AUDIT.md P3: nuclei echoes each finding's full JSONL record to stdout too (even with -o and
+        # -silent), interleaved with -vv's own "[id] Name (@author) [severity]" lines on the SAME stream. A finding
+        # record is distinguishable on sight (a JSON object); drop those here so this file is only the template
+        # list it claims to be -- findings.jsonl (via -o) stays the one place findings are read from.
+        "$real" "${extra[@]}" "$@" | grep -v '^{' > "$RECON_OUT_DIR/nuclei/templates_loaded.txt"
+        exit "${PIPESTATUS[0]}"
     fi
 fi
 exec "$real" "${extra[@]}" "$@"

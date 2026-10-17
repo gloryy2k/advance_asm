@@ -154,10 +154,15 @@ def read_nuclei_coverage(path):
         return None
     failed = bool(data.get("failed"))
     last = data.get("last_stats") if isinstance(data.get("last_stats"), dict) and not failed else {}
+    templates, requests, matched = _int_or_none(last.get("templates")), _int_or_none(last.get("requests")), _int_or_none(last.get("matched"))
+    # V166_HOST_AUDIT.md P2: nuclei's own -stats-json can say "templates":0 while the SAME line shows real
+    # requests/matches (observed on nuclei v3.11.1 with -as) — its own counter, not ours, contradicting itself.
+    # 0 is never shown as if it were a real count when the rest of the same line says work actually happened.
+    templates_unreliable = templates == 0 and bool(requests or matched)
     return {"live_urls": _int_or_none(data.get("live_urls")) or 0, "given_urls": _int_or_none(data.get("given_urls")) or 0,
             "limit": _int_or_none(data.get("limit")) or 0, "quick": bool(data.get("quick")), "timed_out": bool(data.get("timed_out")),
-            "failed": failed, "templates": _int_or_none(last.get("templates")), "requests": _int_or_none(last.get("requests")),
-            "hosts": _int_or_none(last.get("hosts")), "matched": _int_or_none(last.get("matched")), "percent": _int_or_none(last.get("percent"))}
+            "failed": failed, "templates": None if templates_unreliable else templates, "templates_unreliable": templates_unreliable,
+            "requests": requests, "hosts": _int_or_none(last.get("hosts")), "matched": matched, "percent": _int_or_none(last.get("percent"))}
 
 
 def summarize_nuclei(root):
@@ -193,5 +198,6 @@ def summarize_nuclei(root):
             "live_urls": live, "given_urls": given, "truncated": given < live, "limits": limits,
             "timed_out": any(r["timed_out"] for r in runs), "failed": any(r["failed"] for r in runs),
             "templates": max((r["templates"] for r in ok_runs if r["templates"] is not None), default=None),
+            "templates_unreliable": any(r.get("templates_unreliable") for r in ok_runs),
             "requests": sum((r["requests"] for r in ok_runs if r["requests"] is not None)) or None,
             "hosts": sum((r["hosts"] for r in ok_runs if r["hosts"] is not None)) or None}

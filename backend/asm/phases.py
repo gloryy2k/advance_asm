@@ -188,6 +188,14 @@ def structured_result(key, root):
             if nuclei["hosts"] is not None:
                 detail += f" trên {nuclei['hosts']} host"
             detail += " (khác với số template ĐÃ CÀI trong Công cụ & môi trường)"
+        elif nuclei.get("templates_unreliable") and nuclei["requests"] is not None:
+            # V166_HOST_AUDIT.md P2: nuclei's own counter said "0 template" on the same line as real
+            # requests/matches (seen with -as on v3.11.1). Say what IS trustworthy from that line; never repeat
+            # the "0" as if it meant something.
+            detail += f"; nuclei đã gửi {nuclei['requests']} request"
+            if nuclei["hosts"] is not None:
+                detail += f" trên {nuclei['hosts']} host"
+            detail += " — số template nuclei tự báo không đáng tin ở lượt này (ghi 0 dù có request/kết quả thật)"
         if nuclei["timed_out"]:
             detail += " — DỞ DANG: nuclei bị cắt khi hết thời gian, số liệu trên chỉ tính tới lúc đó"
         if nuclei["failed"]:

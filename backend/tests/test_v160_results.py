@@ -139,6 +139,11 @@ TIMED_OUT_RUN = json.dumps({"live_urls": 2, "given_urls": 2, "limit": 200, "quic
 FAILED_RUN = json.dumps({"live_urls": 1, "given_urls": 1, "limit": 200, "quick": False, "timed_out": False, "failed": True,
                          "last_stats": {"duration": "0:00:00", "errors": "0", "hosts": "n/a", "matched": "0", "percent": "9223372036854775808",
                                         "requests": "0", "rps": "9223372036854775808", "startedAt": "0001-01-01T00:00:00Z", "templates": "n/a", "total": "0"}})
+# v1.6.5 (V166_HOST_AUDIT.md P2): nuclei v3.11.1's own -stats-json said "templates":0 on the SAME line as real
+# requests/matches (observed with -as). Its own counter contradicting itself, not something BBASM computed wrong.
+CONTRADICTORY_RUN = json.dumps({"live_urls": 1, "given_urls": 1, "limit": 200, "quick": False, "timed_out": False, "failed": False,
+                                "last_stats": {"duration": "0:01:23", "errors": "14", "hosts": "1", "matched": "4", "percent": "9223372036854775808",
+                                               "requests": "4979", "rps": "60", "startedAt": "2026-10-17T11:48:46Z", "templates": "0", "total": "0"}})
 
 
 def test_read_nuclei_coverage_parses_the_engines_own_numbers(tmp_path):
@@ -155,6 +160,10 @@ def test_read_nuclei_coverage_parses_the_engines_own_numbers(tmp_path):
     failed = read_nuclei_coverage(path)
     assert failed["failed"] is True and failed["templates"] is None and failed["requests"] is None   # sentinel junk, not shown as real numbers
     assert read_nuclei_coverage(tmp_path / "missing.json") is None
+    path.write_text(CONTRADICTORY_RUN, encoding="utf-8")
+    contradictory = read_nuclei_coverage(path)
+    assert contradictory["templates"] is None and contradictory["templates_unreliable"] is True
+    assert contradictory["requests"] == 4979 and contradictory["matched"] == 4 and contradictory["failed"] is False   # the rest of the line is kept
 
 
 def test_summarize_nuclei_merges_runs_and_counts_findings_separately_from_coverage(tmp_path):
@@ -240,6 +249,20 @@ def test_run_report_says_which_limit_applied_when_runs_mix_quick_and_full(settin
     nuclei = {p["key"]: p for p in build_report(settings, db, result.scan_id)["phases"]}["nuclei"]
     assert "mỗi lượt có giới hạn riêng: 50, 200 URL" in nuclei["detail"]
     assert "giới hạn 200 URL mỗi lượt" not in nuclei["detail"]           # the old, wrong single-limit phrasing
+
+
+def test_run_report_does_not_claim_zero_templates_when_the_counter_contradicts_itself(settings):
+    """V166_HOST_AUDIT.md P2: nuclei's own "templates":0 next to real requests/matches is never shown as if real."""
+    db, _, result = environment(settings, ["example.com"])
+    root = scan_root(settings, _slug(db, result.scan_id), result.scan_id)
+    write_output(root, "4/nuclei/coverage.json", CONTRADICTORY_RUN)
+    write_output(root, "4/nuclei/findings.jsonl", '{"template-id":"a"}\n')
+    with db.connect() as conn, conn:
+        conn.execute("UPDATE scan_run SET status='done' WHERE id=?", (result.scan_id,))
+    nuclei = {p["key"]: p for p in build_report(settings, db, result.scan_id)["phases"]}["nuclei"]
+    assert "0 template" not in nuclei["detail"] and "đã chạy 0" not in nuclei["detail"]
+    assert "4979 request" in nuclei["detail"] and "không đáng tin" in nuclei["detail"]
+    assert nuclei["status"] == "ran"                        # a self-contradicting counter is not a reason to say "partial"
 
 
 def test_run_report_falls_back_to_the_old_line_count_without_a_coverage_file(settings):
