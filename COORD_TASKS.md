@@ -10,7 +10,7 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 
 | ID | Ưu tiên | Owner | Trạng thái | base_commit | result_commit | Tóm tắt |
 | --- | --- | --- | --- | --- | --- | --- |
-| UX-1 | P3 | Claude | READY_FOR_QA (vòng 2, sửa 2 finding FAIL của `test/v164-host-audit`) | 26b6c58 | `(commit tiếp, xem git log)` | (1) Frontend `PortsView`/`DirsView` không forward `scan=<id>` từ URL — giờ truyền qua, hiện "Đang xem scan #N". (2) `_resolve_scan_id` không loại `status='draft'` nên output mồ côi của draft bị đọc như kết quả thật — giờ từ chối `draft` khi chọn theo id cụ thể. |
+| UX-1 | P3 | Claude | READY_FOR_QA (vòng 2, sửa 2 finding FAIL của `test/v164-host-audit`) | 26b6c58 | `976e1c3` | (1) Frontend `PortsView`/`DirsView` không forward `scan=<id>` từ URL — giờ truyền qua, hiện "Đang xem scan #N". (2) `_resolve_scan_id` không loại `status='draft'` nên output mồ côi của draft bị đọc như kết quả thật — giờ từ chối `draft` khi chọn theo id cụ thể. |
 | ENG-1 | — | Claude | **DONE** | ab9abc4 | `bb17169`/`bfd61ba` | **PASS** (QA Codex `test/v164-host-audit`@3379dfd): Phase 3 ghi đủ 4 cổng mở, không còn chỉ giữ cổng cuối mỗi dòng. |
 
 ## Việc đã đóng (lịch sử, không mở lại — sự cố tái phát ra ID mới)
