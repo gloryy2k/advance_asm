@@ -10,7 +10,7 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 
 | ID | Ưu tiên | Owner | Trạng thái | base_commit | result_commit | Tóm tắt |
 | --- | --- | --- | --- | --- | --- | --- |
-| NUC-5 | P1 | Claude | READY_FOR_QA (vòng 2, sửa P1/P2/P3 FAIL của `test/v166-host-audit`) | e3ed38d | `(commit tiếp, xem git log)` | (P1) `-as` luôn đọc `$HOME/nuclei-templates` (bỏ qua `-t`, không theo symlink) → shim giờ giữ bản chép hard-link của `official/` tại đúng đường đó, làm mới mỗi lần chạy. (P2) `templates:0` mâu thuẫn với `matched`/`requests` thật → không hiện như số thật, Run nói rõ "không đáng tin". (P3) `templates_loaded.txt` lẫn dòng JSON finding → shim lọc bỏ trước khi ghi. |
+| NUC-5 | P1 | Claude | READY_FOR_QA (vòng 2, sửa P1/P2/P3 FAIL của `test/v166-host-audit`) | e3ed38d | `4102e75` | (P1) `-as` luôn đọc `$HOME/nuclei-templates` (bỏ qua `-t`, không theo symlink) → shim giờ giữ bản chép hard-link của `official/` tại đúng đường đó, làm mới mỗi lần chạy. (P2) `templates:0` mâu thuẫn với `matched`/`requests` thật → không hiện như số thật, Run nói rõ "không đáng tin". (P3) `templates_loaded.txt` lẫn dòng JSON finding → shim lọc bỏ trước khi ghi. |
 
 ## Việc đã đóng (lịch sử, không mở lại — sự cố tái phát ra ID mới)
 
