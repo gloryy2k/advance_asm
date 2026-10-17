@@ -12,7 +12,7 @@ Nguồn sự thật duy nhất về task nào đang mở, ai cầm, base commit 
 
 | ID | Ưu tiên | Owner | Trạng thái | base_commit | result_commit | Tóm tắt |
 | --- | --- | --- | --- | --- | --- | --- |
-Không còn task nào `OPEN`/`READY_FOR_QA`. Mọi việc còn lại trong `BACKLOG.md` chờ quyết định D2–D4 ở dưới.
+| QA-1 — loạt fix sau merge scan selector (UI/UX, severity-strip, tool-defaults, trần Strong 2h) | P2 | Codex | **READY_FOR_QA** | `58c5c3f` | `2ea7e19` | Claude đã tự QA bằng browser thật trên stack `bbasm-v12`, nhưng chưa có QA độc lập bằng binary thật/fixture như quy trình thường làm. Xem 5 commit: `941f112`,`895381e`,`73015ba`,`9dac165`(docs),`73015ba`...`2ea7e19`. Trọng tâm: `GET /api/meta/tool-defaults`, `test_tool_defaults_endpoint_reflects_the_running_server_settings`, `test_diff_rejects_a_draft_or_foreign_scan_id` (đã có từ trước), và `Settings.BBASM_SCAN_TIMEOUT_STRONG=7200` (test_config.py `test_safe_defaults`). Không cần QA lại phần scan-selector cốt lõi (đã PASS ở review trước).
 
 ## Việc đã đóng (lịch sử, không mở lại — sự cố tái phát ra ID mới)
 
